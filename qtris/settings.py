@@ -36,6 +36,8 @@ TMP_DIR = os.path.join(CACHE_DIR, "tmp")
 GAME_CONFIG_DIR = os.path.join(CONFIG_DIR, "games")
 RUNNERS_CONFIG_DIR = os.path.join(CONFIG_DIR, "runners")
 WINE_DIR: str = os.path.join(RUNNER_DIR, "wine")
+# Where Qtris installs the Proton builds it downloads, apart from Steam's own
+PROTON_DIR: str = os.path.join(RUNNER_DIR, "proton")
 
 SHADER_CACHE_DIR = os.path.join(CACHE_DIR, "shaders")
 INSTALLER_CACHE_DIR = os.path.join(CACHE_DIR, "installer")

@@ -137,6 +137,17 @@ ColumnLayout {
                     onClicked: page.controller.install(entry.modelData.key)
                 }
 
+                Button {
+                    objectName: "runnerUpdate_" + entry.modelData.key
+                    visible: entry.modelData.canUpdate
+                    enabled: !page.controller.busy
+                    highlighted: true
+                    text: qsTr("Update")
+                    icon.source: Theme.icon("download")
+                    Accessible.name: qsTr("Update %1").arg(entry.modelData.label)
+                    onClicked: page.controller.update(entry.modelData.key)
+                }
+
                 ToolButton {
                     objectName: "runnerRemove_" + entry.modelData.key
                     visible: entry.modelData.canRemove

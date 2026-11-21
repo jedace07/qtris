@@ -785,14 +785,26 @@ def test_qml_manages_ge_proton_from_preferences(
     async def list_builds(family: str, available: tuple[str, ...]) -> tuple[runners.ProtonBuild, ...]:
         return tuple(runners.ProtonBuild(tag, installed, installed) for tag in available)
 
+    cachyos_newest = "proton-cachyos-11.0-20261015-slr"
+    cachyos_release = "proton-cachyos-11.0-20261014-slr"
+
     async def list_releases(family: str) -> tuple[str, ...]:
         families.append(family)
-        return (version,) if family == "GE-Proton" else ()
+        return (version,) if family == "GE-Proton" else (cachyos_newest,)
+
+    async def get_latest_proton(family: str) -> runners.LatestProton:
+        if family == "GE-Proton":
+            return runners.LatestProton("ge-proton", "GE-Proton Latest", "GE-Proton11-12", True, "GE-Proton11-12")
+        label = "Proton-CachyOS " + cachyos_release.removeprefix("proton-cachyos-").removesuffix("-slr")
+        return runners.LatestProton("proton-cachyos-latest", "Proton-CachyOS Latest", cachyos_release, False, label)
 
     async def install_runner(name: str, tag: str, *, interaction: runners.RunnerInstallInteraction) -> None:
-        nonlocal installed
-        assert (name, tag) == ("wine", version)
+        nonlocal installed, cachyos_release
         interaction.progress("Downloading…", 0.5)
+        if tag == "proton-cachyos-latest":
+            cachyos_release = cachyos_newest
+            return
+        assert (name, tag) == ("wine", version)
         installed = True
 
     async def uninstall_runner(name: str, tag: str) -> None:
@@ -803,7 +815,7 @@ def test_qml_manages_ge_proton_from_preferences(
     monkeypatch.setattr(runners, "list_runner_catalog", list_catalog)
     monkeypatch.setattr(runners, "list_proton_builds", list_builds)
     monkeypatch.setattr(runners, "list_proton_releases", list_releases)
-    monkeypatch.setattr(runners, "get_ge_proton_latest_release", lambda: asyncio.sleep(0, "GE-Proton11-12"))
+    monkeypatch.setattr(runners, "get_latest_proton", get_latest_proton)
     monkeypatch.setattr(runners, "install_runner", install_runner)
     monkeypatch.setattr(runners, "uninstall_runner", uninstall_runner)
 
@@ -852,7 +864,13 @@ def test_qml_manages_ge_proton_from_preferences(
             manager = window.controller._runner_manager
             await click("protonFamily_1")
             await wait_for_qml(qt_application, lambda: families[-1:] == ["Proton-CachyOS"] and not manager.busy)
-            assert manager.property("protonFamily") == 1 and manager.property("entries") == []
+            assert manager.property("protonFamily") == 1
+            rolling = manager.property("entries")[0]
+            assert rolling["label"] == "Proton-CachyOS Latest" and rolling["canUpdate"] and rolling["canRemove"]
+            await click("runnerUpdate_proton-cachyos-latest")
+            await wait_for_qml(qt_application, lambda: not manager.busy and cachyos_release == cachyos_newest)
+            rolling = manager.property("entries")[0]
+            assert not rolling["canUpdate"] and "11.0-20261015" in rolling["description"]
         finally:
             window.shutdown()
 

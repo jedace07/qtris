@@ -368,16 +368,28 @@ Proton** has a tab for each Proton fork Qtris downloads, GE-Proton and
 Proton-CachyOS (``qtris.util.wine.proton_releases``), listing installed builds
 and recent releases for the host architecture from GitHub. Proton-CachyOS gets
 its x86-64-v3 build when the CPU supports that level. Downloads are checked
-against their SHA-512 checksums and installed into Steam's
-``compatibilitytools.d`` directory. The remove action moves builds from that
-directory to the Trash. Other Proton locations are listed without a remove
-action. GE-Proton Latest is listed first on the GE-Proton tab: it runs with
-umu's rolling ``PROTONPATH=GE-Latest``, which umu keeps in one folder and
-updates when a game starts, and the row shows the release umu last downloaded.
+against their SHA-512 checksums and installed into Qtris's own Proton folder
+(``settings.PROTON_DIR``, ``runners/proton`` in Qtris's data folder), not
+Steam's ``compatibilitytools.d``. Builds Qtris installed there before are still
+listed and can be removed; other Proton locations are listed without a remove
+action.
+
+Each tab starts with a rolling build. GE-Proton Latest runs with umu's
+``PROTONPATH=GE-Latest``, which umu keeps in its own folder and updates when a
+game starts. Proton-CachyOS Latest (``qtris.util.wine.rolling_proton``) works
+like ProtonPlus's and Heroic's Latest builds: one ``Proton-CachyOS Latest``
+folder that Qtris replaces with each new release. An update verifies and
+unpacks the release next to the folder, carries over ``user_settings.py``,
+records the release in ``.qtris-rolling.json`` and swaps the folder in, keeping
+the previous build until the new one is in place; a build a running game uses
+is left alone. Updates run with the other components (Preferences → Updates,
+following the automatic update setting) and from the tab's Update button, and a
+game set to it installs it before launch.
+
 The Wine runner runs Proton only: its version picker offers GE-Proton Latest,
-GE-Proton and Proton-CachyOS releases by release name, Valve's Proton and other
-Proton builds, with no system Wine, Wine builds or custom executables. A
-configured version that isn't Proton falls back to
+Proton-CachyOS Latest, GE-Proton and Proton-CachyOS releases by release name,
+Valve's Proton and other Proton builds, with no system Wine, Wine builds or
+custom executables. A configured version that isn't Proton falls back to
 GE-Proton Latest, except in a Wine prefix Proton has never run in.
 
 Selecting a source in Qt exposes **Sign In**, **Sync Library**, and

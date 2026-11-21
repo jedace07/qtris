@@ -24,7 +24,7 @@ class RunnerManagerController(QObject):
         self._builds: tuple[runners.ProtonBuild, ...] = ()
         self._family = 0
         self._releases: dict[str, tuple[str, ...]] = {}
-        self._latest_release: str | None = None
+        self._latest: runners.LatestProton | None = None
         self._proton = False
         self._task: asyncio.Task[None] | None = None
         self._message = ""
@@ -36,7 +36,7 @@ class RunnerManagerController(QObject):
 
     def _entries(self) -> list[dict[str, str | bool]]:
         if self._proton:
-            latest = [self._latest_entry()] if self._family_name == runners.PROTON_FAMILIES[0] else []
+            latest = [self._latest_entry(self._latest)] if self._latest else []
             return [
                 *latest,
                 *(
@@ -46,6 +46,7 @@ class RunnerManagerController(QObject):
                         "description": "",
                         "installed": build.installed,
                         "canInstall": not build.installed,
+                        "canUpdate": False,
                         "canRemove": build.can_remove,
                         "canConfigure": False,
                         "manageProton": False,
@@ -60,6 +61,7 @@ class RunnerManagerController(QObject):
                 "description": entry.description,
                 "installed": entry.installed,
                 "canInstall": entry.can_install,
+                "canUpdate": False,
                 "canRemove": entry.can_remove,
                 "canConfigure": True,
                 "manageProton": entry.name == "wine",
@@ -67,18 +69,30 @@ class RunnerManagerController(QObject):
             for entry in self._runners
         ]
 
-    def _latest_entry(self) -> dict[str, str | bool]:
-        if self._latest_release:
-            description = _("Currently %s. umu updates it when a game starts.") % self._latest_release
+    def _latest_entry(self, latest: runners.LatestProton) -> dict[str, str | bool]:
+        installed = bool(latest.release)
+        newest = next(iter(self._releases.get(self._family_name, ())), "")
+        can_update = not latest.managed_by_umu and installed and bool(newest) and newest != latest.release
+        if latest.managed_by_umu:
+            description = (
+                _("Currently %s. umu updates it when a game starts.") % latest.release_label
+                if installed
+                else _("umu downloads it the first time a game uses it.")
+            )
+        elif can_update:
+            description = _("Currently %s. A newer release is out.") % latest.release_label
+        elif installed:
+            description = _("Currently %s. Qtris updates it with its other components.") % latest.release_label
         else:
-            description = _("umu downloads it the first time a game uses it.")
+            description = _("Follows the newest release. Install it here, or Qtris does when a game needs it.")
         return {
-            "key": runners.GE_PROTON_LATEST,
-            "label": _("GE-Proton Latest"),
+            "key": latest.version,
+            "label": latest.label,
             "description": description,
-            "installed": bool(self._latest_release),
-            "canInstall": False,
-            "canRemove": False,
+            "installed": installed,
+            "canInstall": not latest.managed_by_umu and not installed,
+            "canUpdate": can_update,
+            "canRemove": not latest.managed_by_umu and installed,
             "canConfigure": False,
             "manageProton": False,
         }
@@ -107,8 +121,9 @@ class RunnerManagerController(QObject):
                 "Install a specific release to pin games to it."
             )
         return _(
-            "Proton-CachyOS is tuned for performance. Qtris installs the build optimized for "
-            "x86-64-v3 processors when yours supports it."
+            "Proton-CachyOS is tuned for performance, and Qtris installs the build optimized for x86-64-v3 "
+            "processors when yours supports it. Proton-CachyOS Latest follows the newest release; Qtris "
+            "updates it with its other components."
         )
 
     @Property(bool, notify=stateChanged)
@@ -148,6 +163,12 @@ class RunnerManagerController(QObject):
             self._start(self._install(key), _("Installing %s…") % entry["label"])
 
     @Slot(str)
+    def update(self, key: str) -> None:
+        entry = next((item for item in self._entries() if item["key"] == key and item["canUpdate"]), None)
+        if self._task is None and entry:
+            self._start(self._install(key), _("Updating %s…") % entry["label"])
+
+    @Slot(str)
     def remove(self, key: str) -> None:
         entry = next((item for item in self._entries() if item["key"] == key and item["canRemove"]), None)
         if self._task is None and entry:
@@ -176,7 +197,7 @@ class RunnerManagerController(QObject):
 
     async def _load_proton(self) -> None:
         family = self._family_name
-        self._latest_release = await runners.get_ge_proton_latest_release()
+        self._latest = await runners.get_latest_proton(family)
         self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
         self.stateChanged.emit()
         self._releases[family] = await runners.list_proton_releases(family)
@@ -203,6 +224,7 @@ class RunnerManagerController(QObject):
         self.runnersChanged.emit()
         if self._proton:
             family = self._family_name
+            self._latest = await runners.get_latest_proton(family)
             self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
         else:
             await self._load_runners()

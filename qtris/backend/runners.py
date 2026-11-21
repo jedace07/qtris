@@ -22,9 +22,9 @@ from qtris.util.downloader import BaseDownloader, SimpleDownloader
 from qtris.util.http import HTTPError
 from qtris.util.log import logger
 from qtris.util.strings import human_size
-from qtris.util.wine import proton, proton_releases
+from qtris.util.wine import proton, proton_releases, rolling_proton
 from qtris.util.wine.wine import GE_PROTON_LATEST as GE_PROTON_LATEST
-from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions
+from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions, get_wine_version_label
 
 # The Proton forks Qtris downloads releases of, by name
 PROTON_FAMILIES: tuple[str, ...] = proton_releases.get_family_names()
@@ -46,6 +46,19 @@ class ProtonBuild:
     installed: bool
     can_remove: bool
     label: str = ""
+
+
+@dataclass(frozen=True)
+class LatestProton:
+    """A build that follows a Proton family's newest release."""
+
+    version: str
+    label: str
+    # The release it holds, or "" if it isn't installed
+    release: str
+    # umu keeps GE-Proton Latest up to date by itself; Qtris updates the others
+    managed_by_umu: bool
+    release_label: str = ""
 
 
 @dataclass(frozen=True)
@@ -127,14 +140,23 @@ def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
 
 
 def _managed_proton_path(version: str) -> Path | None:
+    """Return where a Proton release or rolling build Qtris can remove is installed:
+    Qtris's own Proton folder, or Steam's, where Qtris used to install releases."""
+    if rolling := proton_releases.get_rolling(version):
+        path = Path(proton.get_rolling_path(rolling))
+        return path if (path / "proton").is_file() else None
     if not proton_releases.is_proton_release(version):
         return None
-    root = Path(proton.get_steam_compat_dir())
-    for name in proton_releases.get_build_folder_names(version):
-        path = root / name
-        if not path.is_symlink() and (path / "proton").is_file():
-            return path
+    for root in _managed_proton_dirs():
+        for name in proton_releases.get_build_folder_names(version):
+            path = root / name
+            if not path.is_symlink() and (path / "proton").is_file():
+                return path
     return None
+
+
+def _managed_proton_dirs() -> tuple[Path, ...]:
+    return Path(proton.get_proton_dir()), Path(proton.get_steam_compat_dir())
 
 
 async def list_proton_builds(family: str, available: tuple[str, ...] = ()) -> tuple[ProtonBuild, ...]:
@@ -144,10 +166,10 @@ async def list_proton_builds(family: str, available: tuple[str, ...] = ()) -> tu
 
 
 def _proton_builds(family: proton_releases.ProtonFamily, available: tuple[str, ...]) -> tuple[ProtonBuild, ...]:
-    compat_dir = Path(proton.get_steam_compat_dir())
     installed_names = list(proton.get_proton_versions())
-    if compat_dir.is_dir():
-        installed_names.extend(path.name for path in compat_dir.iterdir() if (path / "proton").is_file())
+    for root in _managed_proton_dirs():
+        if root.is_dir():
+            installed_names.extend(path.name for path in root.iterdir() if (path / "proton").is_file())
     installed = {
         release
         for name in installed_names
@@ -169,10 +191,25 @@ async def list_proton_releases(family: str) -> tuple[str, ...]:
         return ()
 
 
-async def get_ge_proton_latest_release() -> str | None:
-    """Return the GE-Proton release umu keeps as GE-Proton Latest, or None if no game
-    has used it yet."""
-    return await asyncio.to_thread(proton.get_ge_proton_latest_release)
+async def get_latest_proton(family: str) -> LatestProton | None:
+    """Return the build that follows a Proton family's newest release, if it has one."""
+    return await asyncio.to_thread(_latest_proton, family)
+
+
+def _latest_proton(family: str) -> LatestProton | None:
+    if family == proton_releases.GE_PROTON.name:
+        release = proton.get_ge_proton_latest_release() or ""
+        label = get_wine_version_label(GE_PROTON_LATEST)
+        return LatestProton(GE_PROTON_LATEST, label, release, True, proton_releases.get_release_label(release))
+    for rolling in proton_releases.ROLLING:
+        if rolling.family.name == family:
+            release = rolling_proton.get_installed_release(rolling) or ""
+            release_label = proton_releases.get_release_label(release)
+            if not release and rolling_proton.is_installed(rolling):
+                # Installed without its metadata; the next update replaces it
+                release = release_label = _("an unknown release")
+            return LatestProton(rolling.version, rolling.label, release, False, release_label)
+    return None
 
 
 async def list_wine_versions() -> tuple[str, ...]:
@@ -185,15 +222,16 @@ async def list_wine_versions() -> tuple[str, ...]:
 
 def parse_runner_name(name: str) -> tuple[str, str | None]:
     """Resolve a runner name or a managed Proton release from the command line."""
-    return ("wine", name) if proton_releases.is_proton_release(name) else (name, None)
+    if proton_releases.is_proton_release(name) or proton_releases.get_rolling(name):
+        return "wine", name
+    return name, None
 
 
 async def is_runner_installed(name: str, version: str | None = None) -> bool:
     """True if a runner is installed; for "wine", a version names a Proton release."""
     if name == "wine" and version:
-        return proton_releases.is_proton_release(version) and bool(
-            _managed_proton_path(version) or proton.is_proton_version(version)
-        )
+        downloadable = proton_releases.is_proton_release(version) or proton_releases.get_rolling(version)
+        return bool(downloadable and (_managed_proton_path(version) or proton.is_proton_version(version)))
     return import_runner(name)().is_installed()
 
 
@@ -211,7 +249,7 @@ async def install_runner(
         interaction
         and name == "wine"
         and version
-        and proton_releases.is_proton_release(version)
+        and (proton_releases.is_proton_release(version) or proton_releases.get_rolling(version))
         and not _managed_proton_path(version)
     ):
         raise RunnerInstallationError(_("%s was not installed.") % version)
@@ -254,7 +292,11 @@ async def _wait_for_callbacks(start: Callable[[Callable[[], None], Callable[[Exc
 
 
 async def uninstall_runner(name: str, version: str | None = None) -> None:
-    """Move a runner, or one Proton release Qtris downloaded, to the trash."""
+    """Move a runner, or one Proton build Qtris downloaded, to the trash."""
+    if name == "wine" and (rolling := proton_releases.get_rolling(version)):
+        await _wait_for_callbacks(lambda done, error: rolling_proton.remove(rolling, done, error))
+        clear_wine_version_cache()
+        return
     if name == "wine" and version:
         proton_path = _managed_proton_path(version)
         if proton_path is None:

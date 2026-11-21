@@ -94,6 +94,30 @@ PROTON_CACHYOS = ProtonFamily(
 FAMILIES: tuple[ProtonFamily, ...] = (GE_PROTON, PROTON_CACHYOS)
 
 
+@dataclass(frozen=True)
+class RollingProton:
+    """A build Qtris keeps on the newest release of a Proton family, in a single
+    folder it replaces when a newer release comes out."""
+
+    version: str
+    label: str
+    family: ProtonFamily
+    folder: str
+
+
+# The configured version that means Proton-CachyOS Latest
+PROTON_CACHYOS_LATEST = "proton-cachyos-latest"
+
+ROLLING: tuple[RollingProton, ...] = (
+    RollingProton(PROTON_CACHYOS_LATEST, "Proton-CachyOS Latest", PROTON_CACHYOS, "Proton-CachyOS Latest"),
+)
+
+
+def get_rolling(version: str | None) -> RollingProton | None:
+    """Return the rolling build a configured version names, or None."""
+    return next((rolling for rolling in ROLLING if rolling.version == version), None)
+
+
 def get_family(version: str | None) -> ProtonFamily | None:
     """Return the family a release name belongs to, or None if it names no release."""
     if version:
@@ -116,7 +140,9 @@ def is_proton_release(version: str | None) -> bool:
 
 
 def get_release_label(release: str) -> str:
-    """Return how a release is shown to the user."""
+    """Return how a release or rolling build is shown to the user."""
+    if rolling := get_rolling(release):
+        return rolling.label
     family = get_family(release)
     return family.get_label(release) if family else release
 

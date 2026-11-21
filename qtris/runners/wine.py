@@ -37,7 +37,7 @@ from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.process import Process
 from qtris.util.strings import split_arguments
-from qtris.util.wine import proton, proton_releases
+from qtris.util.wine import proton, proton_releases, rolling_proton
 from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
@@ -65,16 +65,20 @@ if TYPE_CHECKING:
 
 def is_umu_managed_version(version: str | None) -> bool:
     """True if this Wine 'version' is actually launched through umu: the 'ge-proton'
-    sentinel or any Proton build. umu fetches Proton on demand, so there is no Wine
-    runner build for Qtris to download or install for these versions."""
+    sentinel, a rolling build or any Proton build. These are Proton, which Qtris
+    installs itself or umu fetches, rather than a Wine runner build."""
     return (
-        version == GE_PROTON_LATEST or proton.is_proton_version(version) or proton_releases.is_proton_release(version)
+        version == GE_PROTON_LATEST
+        or proton.is_proton_version(version)
+        or proton_releases.is_proton_release(version)
+        or proton_releases.get_rolling(version) is not None
     )
 
 
 def is_missing_proton_release(version: str | None) -> bool:
-    """Check if a pinned upstream Proton release needs to be installed."""
-    return proton_releases.is_proton_release(version) and not proton.is_proton_version(version)
+    """Check if a pinned Proton release or a rolling build needs to be installed."""
+    downloadable = proton_releases.is_proton_release(version) or proton_releases.get_rolling(version) is not None
+    return downloadable and not proton.is_proton_version(version)
 
 
 def _is_proton_hdr_available(_option_key: str, config: QtrisConfig) -> bool:
@@ -547,15 +551,16 @@ class wine(Runner):
         return command
 
     def is_installed(self, flatpak_allowed: bool = True, version: str | None = None, fallback: bool = True) -> bool:
-        """Check if a Proton version is installed. Without a version, this is always
-        true, since umu downloads GE-Proton Latest when a game needs it."""
+        """Check if a Proton version is installed. Without a version, this checks the
+        configured one; GE-Proton Latest always counts, since umu downloads it when a
+        game needs it."""
         try:
             if version:
                 # We don't care where Wine is, but only if it was found at all.
                 self.get_executable(version, fallback)
                 return True
 
-            return bool(get_installed_wine_versions())
+            return not is_missing_proton_release(self.read_version_from_config())
         except MisconfigurationError:
             return False
 
@@ -575,6 +580,9 @@ class wine(Runner):
         callback: Callable[[], None] | None = None,
     ) -> None:
         version = version or self.read_version_from_config()
+        if rolling := proton_releases.get_rolling(version):
+            self.install_rolling_proton(install_ui_delegate, rolling, callback=callback)
+            return
         if version and is_missing_proton_release(version):
             self.install_proton_release(install_ui_delegate, version, callback=callback)
             return
@@ -584,10 +592,25 @@ class wine(Runner):
             return
         raise NonInstallableRunnerError(_("Wine version '%s' isn't a Proton build. Choose a Proton version.") % version)
 
+    def install_rolling_proton(
+        self,
+        install_ui_delegate: "InstallUIDelegate",
+        rolling: proton_releases.RollingProton,
+        callback: Callable[[], None] | None = None,
+    ) -> None:
+        """Install a rolling Proton build, or bring it up to the newest release."""
+        try:
+            rolling_proton.update(rolling, install_ui_delegate.download_install_file)
+        except rolling_proton.RollingProtonError as ex:
+            raise RunnerInstallationError(ex.message) from ex
+        clear_wine_version_cache()
+        if callback:
+            callback()
+
     def install_proton_release(
         self, install_ui_delegate: "InstallUIDelegate", version: str, callback: Callable[[], None] | None = None
     ) -> None:
-        """Download a Proton release from its upstream repository into compatibilitytools.d."""
+        """Download a Proton release from its upstream repository into Qtris's Proton folder."""
         try:
             urls = proton_releases.get_proton_release_urls(version)
         except (HTTPError, ValueError) as ex:
@@ -604,7 +627,7 @@ class wine(Runner):
 
         filename = os.path.basename(archive_url)
         os.makedirs(settings.CACHE_DIR, exist_ok=True)
-        compat_dir = proton.get_steam_compat_dir()
+        proton_dir = proton.get_proton_dir()
         with TemporaryDirectory(dir=settings.CACHE_DIR) as download_dir:
             archive = os.path.join(download_dir, filename)
             logger.info("Downloading %s from %s", version, archive_url)
@@ -613,9 +636,9 @@ class wine(Runner):
                 return
             if system.get_file_checksum(archive, "sha512") != expected_checksum:
                 raise RunnerInstallationError(_("The %s download is corrupt; its checksum does not match.") % version)
-            logger.info("Installing %s in %s", version, compat_dir)
+            logger.info("Installing %s in %s", version, proton_dir)
             executable = f"{proton_releases.get_build_name(filename)}/proton"
-            self.extract(archive, compat_dir, merge_single=False, executable=executable)
+            self.extract(archive, proton_dir, merge_single=False, executable=executable)
         clear_wine_version_cache()
         if callback:
             callback()

@@ -48,6 +48,7 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
 ) -> None:
     tag = "GE-Proton11-7"
     build_name = tag + "-x86_64"
+    proton_dir = tmp_path / "proton"
     compat_dir = tmp_path / "compatibilitytools.d"
     alternate = tmp_path / "other-tools"
     cache = tmp_path / "cache"
@@ -56,7 +57,11 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
     previous = alternate / "GE-Proton10-2"
     previous.mkdir()
     (previous / "proton").touch()
-    source = tmp_path / "proton"
+    # Qtris used to install releases into Steam's folder, and can still remove them
+    legacy = compat_dir / "GE-Proton10-34"
+    legacy.mkdir(parents=True)
+    (legacy / "proton").touch()
+    source = tmp_path / "proton-script"
     source.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     source.chmod(0o755)
     archive = tmp_path / "served" / f"{build_name}.tar.gz"
@@ -66,8 +71,11 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
     (tmp_path / "served" / "checksum").write_text(f"{checksum}  {archive.name}\n", encoding="utf-8")
     monkeypatch.setattr(settings, "CACHE_DIR", str(cache))
     monkeypatch.setattr(proton.LINUX_SYSTEM, "arch", "x86_64")
+    monkeypatch.setattr(proton, "get_proton_dir", lambda: str(proton_dir))
     monkeypatch.setattr(proton, "get_steam_compat_dir", lambda: str(compat_dir))
-    monkeypatch.setattr(proton, "_iter_proton_locations", lambda: iter((str(alternate), str(compat_dir))))
+    monkeypatch.setattr(
+        proton, "_iter_proton_locations", lambda: iter((str(proton_dir), str(alternate), str(compat_dir)))
+    )
     monkeypatch.setattr(
         proton_releases, "get_proton_release_urls", lambda _tag: (f"{server}/{archive.name}", server + "/checksum")
     )
@@ -87,7 +95,8 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
 
     async def run() -> None:
         await asyncio.wait_for(runners.install_runner("wine", tag, interaction=interaction), timeout=10)
-        assert (compat_dir / build_name / "proton").is_file()
+        assert (proton_dir / build_name / "proton").is_file()
+        assert not (compat_dir / build_name).exists()
         assert (await runners.list_proton_builds("GE-Proton", (tag,)))[0] == runners.ProtonBuild(tag, True, True, tag)
         assert progress and progress[0][0] == "Downloading…"
         await runners.uninstall_runner("wine", tag)
@@ -95,6 +104,82 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
         with pytest.raises(QtrisError, match="outside"):
             await runners.uninstall_runner("wine", previous.name)
         assert previous.is_dir()
+        await runners.uninstall_runner("wine", legacy.name)
+        assert not legacy.exists()
+
+    proton.get_proton_versions.cache_clear()
+    try:
+        asyncio.run(run())
+    finally:
+        proton.get_proton_versions.cache_clear()
+
+
+def make_cachyos_build(served: Path, release: str, script: str) -> tuple[str, str]:
+    build_name = release + "-x86_64"
+    source = served.parent / f"{release}-proton"
+    source.write_text(script, encoding="utf-8")
+    archive = served / f"{build_name}.tar.xz"
+    with tarfile.open(archive, "w:xz") as tar:
+        tar.add(source, arcname=f"{build_name}/proton")
+    checksum = served / f"{build_name}.sha512sum"
+    checksum.write_text(f"{hashlib.sha512(archive.read_bytes()).hexdigest()}  {archive.name}\n", encoding="utf-8")
+    return archive.name, checksum.name
+
+
+def test_runner_manager_installs_updates_and_removes_proton_cachyos_latest(
+    server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    served = tmp_path / "served"
+    old, new = "proton-cachyos-11.0-20261014-slr", "proton-cachyos-11.0-20261015-slr"
+    files = {release: make_cachyos_build(served, release, f"#!/bin/sh\n# {release}\n") for release in (old, new)}
+    newest = [old]
+    proton_dir = tmp_path / "proton"
+    monkeypatch.setattr(proton.LINUX_SYSTEM, "arch", "x86_64")
+    monkeypatch.setattr(proton_releases, "_supports_x86_64_v3", lambda: False)
+    monkeypatch.setattr(proton, "get_proton_dir", lambda: str(proton_dir))
+    monkeypatch.setattr(proton, "_iter_proton_locations", lambda: iter((str(proton_dir),)))
+    monkeypatch.setattr(proton_releases, "get_proton_releases", lambda family: tuple(newest))
+    monkeypatch.setattr(
+        proton_releases,
+        "get_proton_release_urls",
+        lambda release: (f"{server}/{files[release][0]}", f"{server}/{files[release][1]}"),
+    )
+
+    def trash(path: str, completion: Callable[[], None], _error: Callable[[Exception], None]) -> None:
+        shutil.rmtree(path)
+        completion()
+
+    monkeypatch.setattr(runners.rolling_proton.system, "remove_folder", trash)
+
+    async def no_questions(*args: str) -> Any:
+        pytest.fail(f"Unexpected runner prompt: {args!r}")
+
+    interaction = runners.RunnerInstallInteraction(lambda text, fraction: None, no_questions, no_questions)
+    latest_dir = proton_dir / "Proton-CachyOS Latest"
+    version = proton_releases.PROTON_CACHYOS_LATEST
+
+    async def run() -> None:
+        latest = await runners.get_latest_proton("Proton-CachyOS")
+        assert latest == runners.LatestProton(version, "Proton-CachyOS Latest", "", False, "")
+        assert not await runners.is_runner_installed("wine", version)
+
+        await asyncio.wait_for(runners.install_runner("wine", version, interaction=interaction), timeout=10)
+        assert old in (latest_dir / "proton").read_text(encoding="utf-8")
+        (latest_dir / "user_settings.py").write_text("user_settings = {}\n", encoding="utf-8")
+        assert await runners.is_runner_installed("wine", version)
+        installed = await runners.get_latest_proton("Proton-CachyOS")
+        assert installed is not None and installed.release == old
+        assert installed.release_label == "Proton-CachyOS 11.0-20261014"
+        assert version not in await runners.list_proton_builds("Proton-CachyOS")
+
+        newest[0] = new
+        await asyncio.wait_for(runners.install_runner("wine", version, interaction=interaction), timeout=10)
+        assert new in (latest_dir / "proton").read_text(encoding="utf-8")
+        assert (latest_dir / "user_settings.py").is_file()
+        assert sorted(path.name for path in proton_dir.iterdir()) == ["Proton-CachyOS Latest"]
+
+        await runners.uninstall_runner("wine", version)
+        assert not latest_dir.exists()
 
     proton.get_proton_versions.cache_clear()
     try:

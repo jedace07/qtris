@@ -123,7 +123,13 @@ class RuntimeUpdater:
         if all(updater is not None for updater in resolved):
             self.check_path.parent.mkdir(parents=True, exist_ok=True)
             self.check_path.touch()
-        return [updater for updater in resolved if updater is not None and updater.should_update]
+        # Imported here: rolling Proton builds are updaters themselves
+        from qtris.util.wine.rolling_proton import RollingProtonUpdater
+
+        updaters: list[ComponentUpdater] = [
+            updater for updater in resolved if updater is not None and updater.should_update
+        ]
+        return updaters + RollingProtonUpdater.find()
 
 
 class RuntimeComponentUpdater(ComponentUpdater):

@@ -16,6 +16,8 @@ from qtris.util.wine import proton, proton_releases
 WINE_DEFAULT_ARCH: str = "win64"
 # The configured version that means GE-Proton Latest, which umu keeps up to date
 GE_PROTON_LATEST: str = "ge-proton"
+# The configured version that means Proton-CachyOS Latest, which Qtris keeps up to date
+PROTON_CACHYOS_LATEST: str = proton_releases.PROTON_CACHYOS_LATEST
 
 
 def detect_arch(prefix_path: str | None = None, wine_path: str | None = None) -> str:
@@ -90,8 +92,10 @@ def is_winewayland_available(runner_version: str) -> bool:
 @cache_single
 def get_installed_wine_versions() -> list[str]:
     """Return the Wine versions that can be chosen, in presentation order: GE-Proton
-    Latest, then the installed Proton builds."""
-    return [GE_PROTON_LATEST, *proton.list_proton_versions()]
+    Latest and the other rolling builds, which are installed when a game needs them,
+    then the installed Proton builds."""
+    rolling = [rolling.version for rolling in proton_releases.ROLLING]
+    return [GE_PROTON_LATEST, *rolling, *proton.list_proton_versions()]
 
 
 def get_wine_version_label(version: str) -> str:
@@ -105,6 +109,8 @@ def get_proton_version_or_default(version: str | None) -> str:
     or a custom executable, gives the default, GE-Proton Latest."""
     if not version or version == GE_PROTON_LATEST:
         return GE_PROTON_LATEST
+    if proton_releases.get_rolling(version):
+        return version
     release = proton_releases.get_release_of_build(version)
     if release:
         return release
@@ -140,6 +146,8 @@ def get_wine_path_for_version(version: str) -> str:
         return proton.get_umu_path()
     if proton.is_proton_version(version):
         return proton.get_proton_wine_path(version)
+    if rolling := proton_releases.get_rolling(version):
+        raise MissingExecutableError(_("%s isn't installed yet.") % rolling.label)
     raise MissingExecutableError(_("Wine version '%s' isn't an installed Proton build.") % version)
 
 

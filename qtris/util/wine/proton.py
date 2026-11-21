@@ -200,14 +200,17 @@ def get_proton_path_by_path(wine_path: str) -> str:
 
 
 def list_proton_versions() -> list[str]:
-    """Return the installed Proton builds in presentation order: GE-Proton, then
-    Proton-CachyOS releases by release name, newest first, then Valve's Proton
-    (Experimental, Hotfix, then by version, newest first), then any other builds by name."""
+    """Return the installed Proton builds, other than the rolling ones, in presentation
+    order: GE-Proton, then Proton-CachyOS releases by release name, newest first, then
+    Valve's Proton (Experimental, Hotfix, then by version, newest first), then any other
+    builds by name."""
     releases: set[str] = set()
     valve: list[str] = []
     others: list[str] = []
     for name in get_proton_versions():
         release = proton_releases.get_release_of_build(name)
+        if proton_releases.get_rolling(name):
+            continue  # The rolling builds are offered on their own, ahead of the rest
         if release:
             releases.add(release)
         elif name.startswith("Proton "):
@@ -244,10 +247,16 @@ def get_proton_versions() -> dict[str, str]:
         return {}
 
     versions = dict()
+    # Rolling builds go by their configured version, not their folder's name
+    for rolling in proton_releases.ROLLING:
+        rolling_path = get_rolling_path(rolling)
+        if os.path.isfile(os.path.join(rolling_path, "proton")):
+            versions[rolling.version] = rolling_path
+    rolling_paths = {get_rolling_path(rolling) for rolling in proton_releases.ROLLING}
     for proton_path in _iter_proton_locations():
         if os.path.isdir(proton_path):
             for version in os.listdir(proton_path):
-                if version not in versions:
+                if version not in versions and os.path.join(proton_path, version) not in rolling_paths:
                     wine_path = os.path.join(proton_path, version)
                     if os.path.isfile(os.path.join(wine_path, "proton")):
                         versions[version] = wine_path
@@ -256,6 +265,7 @@ def get_proton_versions() -> dict[str, str]:
 
 def _iter_proton_locations() -> Generator[str, None, None]:
     """Iterate through all potential Proton locations"""
+    yield get_proton_dir()
     yield settings.WINE_DIR
     yield get_steam_compat_dir()
 
@@ -277,10 +287,20 @@ def _get_data_home() -> str:
     return os.environ.get(data_home_var) or os.path.expanduser("~/.local/share")
 
 
+def get_proton_dir() -> str:
+    """Return the folder where Qtris installs the Proton builds it downloads."""
+    return settings.PROTON_DIR
+
+
+def get_rolling_path(rolling: "proton_releases.RollingProton") -> str:
+    """Return the folder Qtris keeps a rolling Proton build in."""
+    return os.path.join(get_proton_dir(), rolling.folder)
+
+
 def get_steam_compat_dir() -> str:
-    """Return the compatibilitytools.d folder where Steam and umu keep Proton builds;
-    this is where Qtris installs the Proton releases it downloads. Like umu, this
-    follows the host's data folder when running as a Flatpak."""
+    """Return the compatibilitytools.d folder where Steam and umu keep Proton builds.
+    Qtris used to install the releases it downloads here, and still lists and removes
+    them. Like umu, this follows the host's data folder when running as a Flatpak."""
     return os.path.join(_get_data_home(), "Steam", "compatibilitytools.d")
 
 

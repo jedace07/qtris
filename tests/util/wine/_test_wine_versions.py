@@ -35,6 +35,7 @@ class TestInstalledWineVersions(unittest.TestCase):
             self.get_versions(),
             [
                 GE_PROTON_LATEST,
+                "proton-cachyos-latest",
                 "GE-Proton11-12",
                 "GE-Proton10-25",
                 "GE-Proton10-9",
@@ -75,3 +76,6 @@ class TestProtonVersionOrDefault(unittest.TestCase):
         for version in (None, "", "system", "custom", "lutris-7.2-2-x86_64", "Proton 8.0", GE_PROTON_LATEST):
             with self.subTest(version=version):
                 self.assertEqual(wine.get_proton_version_or_default(version), GE_PROTON_LATEST)
+
+    def test_rolling_builds_are_kept_even_before_they_are_installed(self, _versions):
+        self.assertEqual(wine.get_proton_version_or_default("proton-cachyos-latest"), "proton-cachyos-latest")
