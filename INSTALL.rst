@@ -11,15 +11,28 @@ The Flatpak bundles everything Qtris needs, including the 32-bit libraries,
 tools and Wine base that games rely on, on the freedesktop runtime. Its
 manifest lives in ``packaging/flatpak``.
 
-Build it with the ``org.flatpak.Builder`` app from Flathub, the same
-``flatpak-builder`` that Flathub and CI use (distribution packages can be too
-old)::
+Build it with the ``org.flatpak.Builder`` app from Flathub. It is the same
+``flatpak-builder`` that Flathub and CI use, and it stays current whatever your
+distribution ships, so builds behave the same everywhere. Install it once::
+
+    flatpak install flathub org.flatpak.Builder
+
+``flatpak-builder`` only builds the app into a directory; it doesn't produce a
+file you can install. ``--repo`` exports the build into a local repository,
+and ``flatpak build-bundle`` turns that into a single ``qtris.flatpak`` file::
 
     git clone --recurse-submodules https://github.com/jedace07/qtris
     cd qtris
-    flatpak install --user flathub org.flatpak.Builder
-    flatpak run org.flatpak.Builder --user --install --install-deps-from=flathub --force-clean \
-        --state-dir=build-flatpak/state build-flatpak/build packaging/flatpak/io.github.jedace07.Qtris.yml
+    flatpak run org.flatpak.Builder --install-deps-from=flathub --force-clean \
+        --state-dir=build-flatpak/state --repo=build-flatpak/repo \
+        build-flatpak/build packaging/flatpak/io.github.jedace07.Qtris.yml
+    flatpak build-bundle build-flatpak/repo qtris.flatpak io.github.jedace07.Qtris \
+        --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
+
+Install the bundle like any other Flatpak, system-wide or with ``--user``, and
+run it::
+
+    flatpak install qtris.flatpak
     flatpak run io.github.jedace07.Qtris
 
 The manifest includes modules from Flathub's ``shared-modules`` git submodule.
@@ -27,9 +40,8 @@ In a checkout cloned without ``--recurse-submodules``, run
 ``git submodule update --init`` first, or the build fails to load
 ``shared-modules/glew/glew.json``.
 
-To make a single-file bundle instead of installing, replace ``--install`` with
-``--repo=build-flatpak/repo``, then run
-``flatpak build-bundle build-flatpak/repo qtris.flatpak io.github.jedace07.Qtris``.
+Rebuilding reuses the cache in ``build-flatpak/state``, so only changed modules
+build again.
 
 The build needs no network access beyond downloading its sources. The Python
 dependencies come from ``packaging/flatpak/python-dependencies.json``, which
