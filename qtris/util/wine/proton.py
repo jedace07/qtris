@@ -5,16 +5,16 @@ import os
 import re
 from collections.abc import Generator
 from gettext import gettext as _
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from qtris import settings
 from qtris.exceptions import MissingExecutableError
 from qtris.monitored_command import RUNNING_COMMANDS
 from qtris.util import cache_single, system
-from qtris.util.http import Request
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.steam.config import get_steamapps_dirs
 from qtris.util.strings import get_natural_sort_key
+from qtris.util.wine import proton_releases
 
 if TYPE_CHECKING:
     from qtris.game import Game
@@ -24,8 +24,6 @@ DEFAULT_GAMEID = "umu-default"
 # replaces in place when a newer release comes out
 UMU_GE_LATEST = "GE-Latest"
 
-GE_PROTON_RELEASES_URL = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases"
-_GE_PROTON_RELEASE_TAG = re.compile(r"GE-Proton\d+-\d+")
 
 # Matches a umu log line such as
 #   [umu.umu_proton:348] INFO: Downloading GE-Proton10-34.tar.gz...
@@ -78,26 +76,21 @@ def is_proton_version(version: str | None) -> bool:
 def find_proton_version(version: str | None) -> str | None:
     """Return the name under which a Proton version is installed, or None if it isn't.
 
-    GE-Proton 11 and later install into '<tag>-<arch>' folders, but GE-Proton versions
-    are normalized to the bare release tag, so the version matches either name."""
+    GE-Proton and Proton-CachyOS releases are stored by release name, but their builds
+    install into folders named after the architecture too, so the version matches
+    either name."""
     if not version:
         return None
     proton_versions = get_proton_versions()
-    for candidate in (version, "%s-%s" % (version, LINUX_SYSTEM.arch)):
+    candidates = (
+        proton_releases.get_build_folder_names(version)
+        if proton_releases.is_proton_release(version)
+        else (version, "%s-%s" % (version, LINUX_SYSTEM.arch))
+    )
+    for candidate in candidates:
         if candidate in proton_versions:
             return candidate
     return None
-
-
-def is_proton_release(version: str | None) -> bool:
-    """Check whether a version names a specific GE-Proton release."""
-    return version is not None and _GE_PROTON_RELEASE_TAG.fullmatch(version) is not None
-
-
-def get_proton_release_tag(build_name: str) -> str | None:
-    """Return the release tag of an installed build for this architecture."""
-    tag = build_name.removesuffix(f"-{LINUX_SYSTEM.arch}")
-    return tag if is_proton_release(tag) else None
 
 
 def is_umu_path(path: str | None) -> bool:
@@ -207,22 +200,22 @@ def get_proton_path_by_path(wine_path: str) -> str:
 
 
 def list_proton_versions() -> list[str]:
-    """Return the installed Proton builds in presentation order: GE-Proton releases by
-    their release tags, newest first, then Valve's Proton (Experimental, Hotfix, then by
-    version, newest first), then any other builds by name."""
+    """Return the installed Proton builds in presentation order: GE-Proton, then
+    Proton-CachyOS releases by release name, newest first, then Valve's Proton
+    (Experimental, Hotfix, then by version, newest first), then any other builds by name."""
     releases: set[str] = set()
     valve: list[str] = []
     others: list[str] = []
     for name in get_proton_versions():
-        tag = get_proton_release_tag(name)
-        if tag:
-            releases.add(tag)
+        release = proton_releases.get_release_of_build(name)
+        if release:
+            releases.add(release)
         elif name.startswith("Proton "):
             valve.append(name)
         else:
             others.append(name)
     return [
-        *sorted(releases, key=get_natural_sort_key, reverse=True),
+        *proton_releases.sort_releases(releases),
         *_sort_valve_proton_versions(valve),
         *sorted(others, key=get_natural_sort_key),
     ]
@@ -286,7 +279,7 @@ def _get_data_home() -> str:
 
 def get_steam_compat_dir() -> str:
     """Return the compatibilitytools.d folder where Steam and umu keep Proton builds;
-    this is where Qtris installs the GE-Proton releases it downloads. Like umu, this
+    this is where Qtris installs the Proton releases it downloads. Like umu, this
     follows the host's data folder when running as a Flatpak."""
     return os.path.join(_get_data_home(), "Steam", "compatibilitytools.d")
 
@@ -312,52 +305,6 @@ def get_ge_proton_latest_files_dir() -> str | None:
     hasn't downloaded it yet."""
     files_path = os.path.join(get_ge_proton_latest_path(), "files")
     return files_path if os.path.exists(os.path.join(files_path, "bin/wine")) else None
-
-
-def get_proton_release_urls(tag: str) -> tuple[str, str] | None:
-    """Return the URLs of the archive and SHA-512 checksum of a GE-Proton release for
-    this system's architecture, or None if the release has no build for it.
-
-    GE-Proton 11 and later name their builds '<tag>-<arch>.tar.gz'; older releases
-    only shipped an x86_64 build named '<tag>.tar.gz'."""
-    if not is_proton_release(tag):
-        return None
-    release = Request(f"{GE_PROTON_RELEASES_URL}/tags/{tag}").get().json
-    return _get_proton_assets(tag, release)
-
-
-def get_proton_releases() -> tuple[str, ...]:
-    """Return recent GE-Proton releases with builds for this architecture."""
-    releases = Request(f"{GE_PROTON_RELEASES_URL}?per_page=30").get().json
-    if not isinstance(releases, list):
-        raise ValueError("Expected a list of GE-Proton releases")
-    return tuple(
-        tag
-        for release in releases
-        if not (release.get("draft") or release.get("prerelease"))
-        and is_proton_release(tag := release.get("tag_name") or "")
-        and _get_proton_assets(tag, release)
-    )
-
-
-def _get_proton_assets(tag: str, release: dict[str, Any]) -> tuple[str, str] | None:
-    assets = {asset["name"]: asset["browser_download_url"] for asset in release.get("assets", [])}
-    build_names = ["%s-%s" % (tag, LINUX_SYSTEM.arch)]
-    if LINUX_SYSTEM.arch == "x86_64":
-        build_names.append(tag)
-    for build_name in build_names:
-        archive_url = assets.get(build_name + ".tar.gz")
-        checksum_url = assets.get(build_name + ".sha512sum")
-        if archive_url and checksum_url:
-            return archive_url, checksum_url
-    return None
-
-
-def get_proton_checksum(checksum_url: str) -> str:
-    """Return the SHA-512 digest from a Proton '.sha512sum' file, which is in
-    sha512sum's '<digest>  <file name>' format, or "" if the file is empty."""
-    fields = Request(checksum_url).get().text.split()
-    return fields[0] if fields else ""
 
 
 def get_umu_folders_path(env: dict[str, str]) -> str:

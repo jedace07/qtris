@@ -37,7 +37,7 @@ from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.process import Process
 from qtris.util.strings import split_arguments
-from qtris.util.wine import proton
+from qtris.util.wine import proton, proton_releases
 from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
@@ -67,12 +67,14 @@ def is_umu_managed_version(version: str | None) -> bool:
     """True if this Wine 'version' is actually launched through umu: the 'ge-proton'
     sentinel or any Proton build. umu fetches Proton on demand, so there is no Wine
     runner build for Qtris to download or install for these versions."""
-    return version == GE_PROTON_LATEST or proton.is_proton_version(version) or proton.is_proton_release(version)
+    return (
+        version == GE_PROTON_LATEST or proton.is_proton_version(version) or proton_releases.is_proton_release(version)
+    )
 
 
 def is_missing_proton_release(version: str | None) -> bool:
     """Check if a pinned upstream Proton release needs to be installed."""
-    return proton.is_proton_release(version) and not proton.is_proton_version(version)
+    return proton_releases.is_proton_release(version) and not proton.is_proton_version(version)
 
 
 def _is_proton_hdr_available(_option_key: str, config: QtrisConfig) -> bool:
@@ -587,14 +589,14 @@ class wine(Runner):
     ) -> None:
         """Download a Proton release from its upstream repository into compatibilitytools.d."""
         try:
-            urls = proton.get_proton_release_urls(version)
+            urls = proton_releases.get_proton_release_urls(version)
         except (HTTPError, ValueError) as ex:
             raise RunnerInstallationError(_("Failed to retrieve %s information: %s") % (version, ex)) from ex
         if not urls:
             raise RunnerInstallationError(_("%s has no build for the %s architecture.") % (version, LINUX_SYSTEM.arch))
         archive_url, checksum_url = urls
         try:
-            expected_checksum = proton.get_proton_checksum(checksum_url)
+            expected_checksum = proton_releases.get_proton_checksum(checksum_url)
         except HTTPError as ex:
             raise RunnerInstallationError(_("Failed to retrieve the checksum of %s: %s") % (version, ex)) from ex
         if not expected_checksum:
@@ -612,7 +614,7 @@ class wine(Runner):
             if system.get_file_checksum(archive, "sha512") != expected_checksum:
                 raise RunnerInstallationError(_("The %s download is corrupt; its checksum does not match.") % version)
             logger.info("Installing %s in %s", version, compat_dir)
-            executable = f"{filename.removesuffix('.tar.gz')}/proton"
+            executable = f"{proton_releases.get_build_name(filename)}/proton"
             self.extract(archive, compat_dir, merge_single=False, executable=executable)
         clear_wine_version_cache()
         if callback:

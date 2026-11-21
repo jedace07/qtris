@@ -17,14 +17,17 @@ from qtris.delegates import InstallUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.game import Game
 from qtris.runners import RunnerInstallationError, get_installed, get_runner_names, import_runner
-from qtris.util import linux, system
+from qtris.util import system
 from qtris.util.downloader import BaseDownloader, SimpleDownloader
 from qtris.util.http import HTTPError
 from qtris.util.log import logger
-from qtris.util.strings import get_natural_sort_key, human_size
-from qtris.util.wine import proton
+from qtris.util.strings import human_size
+from qtris.util.wine import proton, proton_releases
 from qtris.util.wine.wine import GE_PROTON_LATEST as GE_PROTON_LATEST
 from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions
+
+# The Proton forks Qtris downloads releases of, by name
+PROTON_FAMILIES: tuple[str, ...] = proton_releases.get_family_names()
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,7 @@ class ProtonBuild:
     version: str
     installed: bool
     can_remove: bool
+    label: str = ""
 
 
 @dataclass(frozen=True)
@@ -123,40 +127,45 @@ def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
 
 
 def _managed_proton_path(version: str) -> Path | None:
-    if not proton.is_proton_release(version):
+    if not proton_releases.is_proton_release(version):
         return None
     root = Path(proton.get_steam_compat_dir())
-    for name in (version, f"{version}-{linux.LINUX_SYSTEM.arch}"):
+    for name in proton_releases.get_build_folder_names(version):
         path = root / name
         if not path.is_symlink() and (path / "proton").is_file():
             return path
     return None
 
 
-async def list_proton_builds(available: tuple[str, ...] = ()) -> tuple[ProtonBuild, ...]:
-    """List managed Proton releases and identify removable installations."""
-    return await asyncio.to_thread(_proton_builds, available)
+async def list_proton_builds(family: str, available: tuple[str, ...] = ()) -> tuple[ProtonBuild, ...]:
+    """List a Proton family's installed and available releases, and identify the
+    installations Qtris can remove."""
+    return await asyncio.to_thread(_proton_builds, proton_releases.get_family_by_name(family), available)
 
 
-def _proton_builds(available: tuple[str, ...]) -> tuple[ProtonBuild, ...]:
+def _proton_builds(family: proton_releases.ProtonFamily, available: tuple[str, ...]) -> tuple[ProtonBuild, ...]:
     compat_dir = Path(proton.get_steam_compat_dir())
     installed_names = list(proton.get_proton_versions())
     if compat_dir.is_dir():
         installed_names.extend(path.name for path in compat_dir.iterdir() if (path / "proton").is_file())
-    installed = {tag for name in installed_names if (tag := proton.get_proton_release_tag(name))}
+    installed = {
+        release
+        for name in installed_names
+        if (release := proton_releases.get_release_of_build(name)) and family.is_release(release)
+    }
     builds = []
-    for version in sorted(installed.union(available), key=get_natural_sort_key, reverse=True):
+    for version in proton_releases.sort_releases(installed.union(available)):
         managed = _managed_proton_path(version) is not None
-        builds.append(ProtonBuild(version, managed or version in installed, managed))
+        builds.append(ProtonBuild(version, managed or version in installed, managed, family.get_label(version)))
     return tuple(builds)
 
 
-async def list_proton_releases() -> tuple[str, ...]:
-    """Fetch recent GE-Proton builds."""
+async def list_proton_releases(family: str) -> tuple[str, ...]:
+    """Fetch a Proton family's recent releases."""
     try:
-        return await asyncio.to_thread(proton.get_proton_releases)
+        return await asyncio.to_thread(proton_releases.get_proton_releases, proton_releases.get_family_by_name(family))
     except (HTTPError, ValueError) as error:
-        logger.warning("Could not load GE-Proton releases: %s", error)
+        logger.warning("Could not load %s releases: %s", family, error)
         return ()
 
 
@@ -167,20 +176,22 @@ async def get_ge_proton_latest_release() -> str | None:
 
 
 async def list_wine_versions() -> tuple[str, ...]:
-    """Return the installed Proton builds and available GE-Proton releases."""
-    installed, available = await asyncio.gather(asyncio.to_thread(get_installed_wine_versions), list_proton_releases())
-    return tuple(dict.fromkeys((*available, *installed)))
+    """Return the installed Proton builds and available Proton releases."""
+    installed, *available = await asyncio.gather(
+        asyncio.to_thread(get_installed_wine_versions), *(list_proton_releases(family) for family in PROTON_FAMILIES)
+    )
+    return tuple(dict.fromkeys((*(release for releases in available for release in releases), *installed)))
 
 
 def parse_runner_name(name: str) -> tuple[str, str | None]:
     """Resolve a runner name or a managed Proton release from the command line."""
-    return ("wine", name) if proton.is_proton_release(name) else (name, None)
+    return ("wine", name) if proton_releases.is_proton_release(name) else (name, None)
 
 
 async def is_runner_installed(name: str, version: str | None = None) -> bool:
-    """True if a runner is installed; for "wine", a version names a GE-Proton release."""
+    """True if a runner is installed; for "wine", a version names a Proton release."""
     if name == "wine" and version:
-        return proton.is_proton_release(version) and bool(
+        return proton_releases.is_proton_release(version) and bool(
             _managed_proton_path(version) or proton.is_proton_version(version)
         )
     return import_runner(name)().is_installed()
@@ -191,7 +202,7 @@ async def install_runner(
 ) -> None:
     """Download and install a runner, or one version of it."""
     runner = import_runner(name)()
-    if version and name == "wine" and proton.is_proton_release(version):
+    if version and name == "wine" and proton_releases.is_proton_release(version):
         if _managed_proton_path(version) or proton.is_proton_version(version):
             return
     delegate = _InstallDelegate(interaction, asyncio.get_running_loop()) if interaction else InstallUIDelegate()
@@ -200,7 +211,7 @@ async def install_runner(
         interaction
         and name == "wine"
         and version
-        and proton.is_proton_release(version)
+        and proton_releases.is_proton_release(version)
         and not _managed_proton_path(version)
     ):
         raise RunnerInstallationError(_("%s was not installed.") % version)
@@ -243,7 +254,7 @@ async def _wait_for_callbacks(start: Callable[[Callable[[], None], Callable[[Exc
 
 
 async def uninstall_runner(name: str, version: str | None = None) -> None:
-    """Move a runner, or one GE-Proton release Qtris downloaded, to the trash."""
+    """Move a runner, or one Proton release Qtris downloaded, to the trash."""
     if name == "wine" and version:
         proton_path = _managed_proton_path(version)
         if proton_path is None:

@@ -364,16 +364,20 @@ issue report exporter shared with ``--submit-issue``.
 Preferences → Runners uses ``qtris.backend.runners`` to configure, install
 and remove runners. Downloads and runner file prompts pass progress and plain
 text back to Qt while installation runs in a worker thread. Wine's **Manage
-GE-Proton** lists installed builds and recent releases for the host architecture
-from GitHub. It reuses the existing SHA-512 verification and installs into
-Steam's ``compatibilitytools.d`` directory. The remove action moves builds
-from that directory to the Trash. Other Proton locations are listed without a
-remove action. GE-Proton Latest is listed first: it runs with umu's rolling
-``PROTONPATH=GE-Latest``, which umu keeps in one folder and updates when a game
-starts, and the row shows the release umu last downloaded. The Wine runner runs
-Proton only: its version picker offers GE-Proton Latest, GE-Proton releases by
-tag, Valve's Proton and other Proton builds, with no system Wine, Wine builds or
-custom executables. A configured version that isn't Proton falls back to
+Proton** has a tab for each Proton fork Qtris downloads, GE-Proton and
+Proton-CachyOS (``qtris.util.wine.proton_releases``), listing installed builds
+and recent releases for the host architecture from GitHub. Proton-CachyOS gets
+its x86-64-v3 build when the CPU supports that level. Downloads are checked
+against their SHA-512 checksums and installed into Steam's
+``compatibilitytools.d`` directory. The remove action moves builds from that
+directory to the Trash. Other Proton locations are listed without a remove
+action. GE-Proton Latest is listed first on the GE-Proton tab: it runs with
+umu's rolling ``PROTONPATH=GE-Latest``, which umu keeps in one folder and
+updates when a game starts, and the row shows the release umu last downloaded.
+The Wine runner runs Proton only: its version picker offers GE-Proton Latest,
+GE-Proton and Proton-CachyOS releases by release name, Valve's Proton and other
+Proton builds, with no system Wine, Wine builds or custom executables. A
+configured version that isn't Proton falls back to
 GE-Proton Latest, except in a Wine prefix Proton has never run in.
 
 Selecting a source in Qt exposes **Sign In**, **Sync Library**, and

@@ -18,6 +18,7 @@ def test_ge_proton_folder_names_become_release_tags(tmp_path: Path, monkeypatch:
         "games/tagged.yml": "GE-Proton10-25",
         "games/plain-wine.yml": "lutris-7.2-2-x86_64",
         "games/valve.yml": "Proton 11.0",
+        "games/cachyos.yml": "proton-cachyos-11.0-20261015-slr-x86_64_v3",
     }
     for name, version in versions.items():
         write_yaml_to_file({"wine": {"version": version}}, str(tmp_path / name))
@@ -38,4 +39,5 @@ def test_ge_proton_folder_names_become_release_tags(tmp_path: Path, monkeypatch:
     assert version("games/tagged.yml") == "GE-Proton10-25"
     assert version("games/plain-wine.yml") == "lutris-7.2-2-x86_64"
     assert version("games/valve.yml") == "Proton 11.0"
+    assert version("games/cachyos.yml") == "proton-cachyos-11.0-20261015-slr"
     assert read_yaml_from_file(str(tmp_path / "games" / "no-version.yml")) == {"game": {"exe": "game.exe"}}

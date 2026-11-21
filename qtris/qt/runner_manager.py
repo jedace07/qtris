@@ -22,7 +22,8 @@ class RunnerManagerController(QObject):
         self._prompts = prompts
         self._runners: tuple[runners.RunnerCatalogEntry, ...] = ()
         self._builds: tuple[runners.ProtonBuild, ...] = ()
-        self._releases: tuple[str, ...] = ()
+        self._family = 0
+        self._releases: dict[str, tuple[str, ...]] = {}
         self._latest_release: str | None = None
         self._proton = False
         self._task: asyncio.Task[None] | None = None
@@ -35,12 +36,13 @@ class RunnerManagerController(QObject):
 
     def _entries(self) -> list[dict[str, str | bool]]:
         if self._proton:
+            latest = [self._latest_entry()] if self._family_name == runners.PROTON_FAMILIES[0] else []
             return [
-                self._latest_entry(),
+                *latest,
                 *(
                     {
                         "key": build.version,
-                        "label": build.version,
+                        "label": build.label or build.version,
                         "description": "",
                         "installed": build.installed,
                         "canInstall": not build.installed,
@@ -81,9 +83,33 @@ class RunnerManagerController(QObject):
             "manageProton": False,
         }
 
+    @property
+    def _family_name(self) -> str:
+        return runners.PROTON_FAMILIES[self._family]
+
     @Property(bool, notify=stateChanged)
     def proton(self) -> bool:
         return self._proton
+
+    @Property(list, constant=True)
+    def protonFamilies(self) -> list[str]:  # noqa: N802
+        return list(runners.PROTON_FAMILIES)
+
+    @Property(int, notify=stateChanged)
+    def protonFamily(self) -> int:  # noqa: N802
+        return self._family
+
+    @Property(str, notify=stateChanged)
+    def protonNote(self) -> str:  # noqa: N802
+        if self._family_name == runners.PROTON_FAMILIES[0]:
+            return _(
+                "GE-Proton Latest follows the newest GE-Proton release, and umu keeps it up to date. "
+                "Install a specific release to pin games to it."
+            )
+        return _(
+            "Proton-CachyOS is tuned for performance. Qtris installs the build optimized for "
+            "x86-64-v3 processors when yours supports it."
+        )
 
     @Property(bool, notify=stateChanged)
     def busy(self) -> bool:
@@ -107,7 +133,13 @@ class RunnerManagerController(QObject):
     def show_proton(self) -> None:
         if self._task is None:
             self._proton = True
-            self._start(self._load_proton(), _("Looking up Proton releases…"))
+            self._start(self._load_proton(), _("Looking up %s releases…") % self._family_name)
+
+    @Slot(int)
+    def select_family(self, index: int) -> None:
+        if self._task is None and 0 <= index < len(runners.PROTON_FAMILIES) and index != self._family:
+            self._family = index
+            self.show_proton()
 
     @Slot(str)
     def install(self, key: str) -> None:
@@ -143,11 +175,12 @@ class RunnerManagerController(QObject):
         self._runners = await runners.list_runner_catalog()
 
     async def _load_proton(self) -> None:
+        family = self._family_name
         self._latest_release = await runners.get_ge_proton_latest_release()
-        self._builds = await runners.list_proton_builds(self._releases)
+        self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
         self.stateChanged.emit()
-        self._releases = await runners.list_proton_releases()
-        self._builds = await runners.list_proton_builds(self._releases)
+        self._releases[family] = await runners.list_proton_releases(family)
+        self._builds = await runners.list_proton_builds(family, self._releases[family])
 
     async def _install(self, key: str) -> None:
         name, version = ("wine", key) if self._proton else (key, None)
@@ -169,7 +202,8 @@ class RunnerManagerController(QObject):
     async def _refresh_after_change(self) -> None:
         self.runnersChanged.emit()
         if self._proton:
-            self._builds = await runners.list_proton_builds(self._releases)
+            family = self._family_name
+            self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
         else:
             await self._load_runners()
 

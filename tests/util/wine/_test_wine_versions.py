@@ -16,6 +16,7 @@ INSTALLED = {
     "Proton - Experimental": "/steam/common/Proton - Experimental",
     "GE-Proton10-25": "/compat/GE-Proton10-25",
     "Proton 10.0": "/steam/common/Proton 10.0",
+    "proton-cachyos-11.0-20261015-slr-x86_64_v3": "/compat/proton-cachyos-11.0-20261015-slr-x86_64_v3",
 }
 
 
@@ -37,6 +38,7 @@ class TestInstalledWineVersions(unittest.TestCase):
                 "GE-Proton11-12",
                 "GE-Proton10-25",
                 "GE-Proton10-9",
+                "proton-cachyos-11.0-20261015-slr",
                 "Proton - Experimental",
                 "Proton Hotfix",
                 "Proton 11.0",
@@ -54,6 +56,9 @@ class TestInstalledWineVersions(unittest.TestCase):
     def test_ge_proton_latest_has_no_marker_in_its_label(self, _versions):
         self.assertEqual(wine.get_wine_version_label(GE_PROTON_LATEST), "GE-Proton Latest")
         self.assertEqual(wine.get_wine_version_label("GE-Proton11-12"), "GE-Proton11-12")
+        self.assertEqual(
+            wine.get_wine_version_label("proton-cachyos-11.0-20261015-slr"), "Proton-CachyOS 11.0-20261015"
+        )
 
 
 @patch.object(proton.LINUX_SYSTEM, "arch", "x86_64")

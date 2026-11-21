@@ -143,9 +143,9 @@ class TestPinnedGeProton(TestCase):
         install_proton_release.assert_called_once_with(delegate, "GE-Proton11-7", callback=None)
 
     @patch.object(wine.proton, "get_steam_compat_dir")
-    @patch.object(wine.proton, "get_proton_checksum")
+    @patch.object(wine.proton_releases, "get_proton_checksum")
     @patch.object(
-        wine.proton,
+        wine.proton_releases,
         "get_proton_release_urls",
         return_value=("https://dl/GE-Proton11-7-x86_64.tar.gz", "https://dl/GE-Proton11-7-x86_64.sha512sum"),
     )
@@ -176,9 +176,9 @@ class TestPinnedGeProton(TestCase):
                 extract.call_args.kwargs, {"merge_single": False, "executable": "GE-Proton11-7-x86_64/proton"}
             )
 
-    @patch.object(wine.proton, "get_proton_checksum", return_value="0" * 128)
+    @patch.object(wine.proton_releases, "get_proton_checksum", return_value="0" * 128)
     @patch.object(
-        wine.proton,
+        wine.proton_releases,
         "get_proton_release_urls",
         return_value=("https://dl/GE-Proton11-7-x86_64.tar.gz", "https://dl/GE-Proton11-7-x86_64.sha512sum"),
     )
@@ -202,7 +202,38 @@ class TestPinnedGeProton(TestCase):
             extract.assert_not_called()
             self.assertEqual(os.listdir(temp_dir), [])
 
-    @patch.object(wine.proton, "get_proton_release_urls", return_value=None)
+    @patch.object(wine.proton_releases, "get_proton_checksum")
+    @patch.object(
+        wine.proton_releases,
+        "get_proton_release_urls",
+        return_value=(
+            "https://dl/proton-cachyos-11.0-20261015-slr-x86_64_v3.tar.xz",
+            "https://dl/proton-cachyos-11.0-20261015-slr-x86_64_v3.sha512sum",
+        ),
+    )
+    def test_proton_cachyos_unpacks_from_its_xz_archive(self, _urls, get_checksum):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_checksum.return_value = hashlib.sha512(b"build").hexdigest()
+
+            def download(_url, destination):
+                with open(destination, "wb") as archive:
+                    archive.write(b"build")
+                return True
+
+            delegate = InstallUIDelegate()
+            delegate.download_install_file = download
+            runner = wine.wine()
+            with (
+                patch.object(wine.settings, "CACHE_DIR", temp_dir),
+                patch.object(wine.proton, "get_steam_compat_dir", return_value=temp_dir),
+                patch.object(runner, "extract") as extract,
+            ):
+                runner.install_proton_release(delegate, "proton-cachyos-11.0-20261015-slr")
+            self.assertEqual(
+                extract.call_args.kwargs["executable"], "proton-cachyos-11.0-20261015-slr-x86_64_v3/proton"
+            )
+
+    @patch.object(wine.proton_releases, "get_proton_release_urls", return_value=None)
     def test_release_without_a_build_fails_cleanly(self, _urls):
         with self.assertRaises(wine.RunnerInstallationError):
             wine.wine().install_proton_release(InstallUIDelegate(), "GE-Proton11-7")

@@ -24,7 +24,6 @@ from qtris.util.graphics.gpu import get_gpus
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.process import Process
-from qtris.util.sniper import get_sniper_ld_library_path, get_sniper_run_command
 
 if TYPE_CHECKING:
     from qtris.config import GameConfigDict, LaunchConfigDict, RunnerConfigDict, SystemConfigDict
@@ -71,7 +70,6 @@ class Runner:  # pylint: disable=too-many-public-methods
     arch = None  # If the runner is only available for an architecture that isn't x86_64
     runner_name: str = ""
     human_name = ""
-    use_sniper_runtime = False
 
     def __init__(self, config: QtrisConfig | None = None):
         """Initialize runner."""
@@ -286,23 +284,6 @@ class Runner:  # pylint: disable=too-many-public-methods
 
             raise
 
-        if self.sniper_enabled:
-            sniper_cmd = get_sniper_run_command()
-            if sniper_cmd:
-                # pressure-vessel overrides LD_LIBRARY_PATH, so we must set
-                # library paths inside the container via bash -c. Sniper runtime
-                # paths come first (so module-loading libs like gdk-pixbuf use
-                # their own loaders), then host /run/host/ paths as fallback for
-                # libraries missing from Sniper (e.g. libgtkmm-3.0, libpulsecommon).
-                host_lib_paths = get_sniper_ld_library_path()
-                shell_cmd = 'export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:%s"; exec "$@"' % host_lib_paths
-                command = [sniper_cmd, "--", "bash", "-c", shell_cmd, "bash"] + command
-            else:
-                logger.warning(
-                    "Runner %s wants Sniper runtime but it is not available; falling back to running without it.",
-                    self.name,
-                )
-
         return command
 
     def get_env(self, os_env: bool = False) -> dict[str, str]:
@@ -511,18 +492,6 @@ class Runner:  # pylint: disable=too-many-public-methods
 
         command_runner = MonitoredCommand(command, runner=self, env=env)
         command_runner.start()
-
-    @property
-    def sniper_enabled(self) -> bool:
-        """Whether the Sniper runtime should be used for this runner.
-
-        The system option takes precedence; if not set, falls back to the
-        runner's class attribute (use_sniper_runtime).
-        """
-        config_value = self.system_config.get("use_sniper_runtime")
-        if config_value is not None:
-            return bool(config_value)
-        return self.use_sniper_runtime
 
     def filter_game_pids(self, candidate_pids: Iterable[int], game_uuid: str, game_folder: str) -> set[int]:
         """Checks the pids given and returns a set containing only those that are part of the running game,

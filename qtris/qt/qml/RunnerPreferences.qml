@@ -35,10 +35,31 @@ ColumnLayout {
         }
     }
 
+    TabBar {
+        objectName: "protonFamilies"
+        visible: page.controller.proton
+        enabled: !page.controller.busy
+        currentIndex: page.controller.protonFamily
+
+        Repeater {
+            model: page.controller.protonFamilies
+
+            TabButton {
+                required property string modelData
+                required property int index
+
+                objectName: "protonFamily_" + index
+                text: modelData
+                width: implicitWidth
+                onClicked: page.controller.select_family(index)
+            }
+        }
+    }
+
     Label {
         Layout.fillWidth: true
         visible: page.controller.proton
-        text: qsTr("GE-Proton Latest follows the newest GE-Proton release, and umu keeps it up to date. Install a specific release to pin games to it.")
+        text: page.controller.protonNote
         wrapMode: Text.WordWrap
         font.pointSize: Theme.smallSize
         color: Theme.textMuted

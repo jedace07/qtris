@@ -34,10 +34,6 @@ class linux(Runner):
             ),
         },
     ]
-    system_options_override = [
-        {"option": "use_sniper_runtime", "available": False},
-    ]
-
     game_options = [
         {
             "option": "exe",

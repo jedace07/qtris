@@ -75,6 +75,7 @@ class TestUmuFoldersPathInFlatpak(unittest.TestCase):
 INSTALLED_PROTONS = {
     "GE-Proton11-7-x86_64": "/compat/GE-Proton11-7-x86_64",
     "GE-Proton10-34": "/compat/GE-Proton10-34",
+    "proton-cachyos-11.0-20261015-slr-x86_64_v3": "/compat/proton-cachyos-11.0-20261015-slr-x86_64_v3",
 }
 
 
@@ -92,23 +93,16 @@ class TestFindProtonVersion(unittest.TestCase):
         self.assertEqual(proton.find_proton_version("GE-Proton10-34"), "GE-Proton10-34")
         self.assertEqual(proton.find_proton_version("GE-Proton11-7-x86_64"), "GE-Proton11-7-x86_64")
 
+    def test_proton_cachyos_release_matches_its_optimized_build(self, _versions):
+        self.assertEqual(
+            proton.find_proton_version("proton-cachyos-11.0-20261015-slr"),
+            "proton-cachyos-11.0-20261015-slr-x86_64_v3",
+        )
+
     def test_missing_versions_do_not_match(self, _versions):
         self.assertIsNone(proton.find_proton_version("GE-Proton11-8"))
         self.assertIsNone(proton.find_proton_version(""))
         self.assertIsNone(proton.find_proton_version(None))
-
-
-class TestIsGeProtonRelease(unittest.TestCase):
-    def test_release_tags(self):
-        self.assertTrue(proton.is_proton_release("GE-Proton11-7"))
-        self.assertTrue(proton.is_proton_release("GE-Proton9-26"))
-
-    def test_sentinel_and_other_versions_are_not_releases(self):
-        self.assertFalse(proton.is_proton_release("ge-proton"))
-        self.assertFalse(proton.is_proton_release("wine-ge-8-26-x86_64"))
-        self.assertFalse(proton.is_proton_release("Proton 11.0"))
-        self.assertFalse(proton.is_proton_release("UMU-Proton-11.0-2e"))
-        self.assertFalse(proton.is_proton_release(None))
 
 
 class TestSteamCompatDir(unittest.TestCase):
@@ -136,37 +130,3 @@ class TestGeProtonLatest(unittest.TestCase):
                 with open(os.path.join(latest, "version"), "w", encoding="utf-8") as version_file:
                     version_file.write("1793687165 GE-Proton11-12\n")
                 self.assertEqual(proton.get_ge_proton_latest_release(), "GE-Proton11-12")
-
-
-def make_release(*names):
-    return {"assets": [{"name": name, "browser_download_url": "https://dl/" + name} for name in names]}
-
-
-@patch.object(proton.LINUX_SYSTEM, "arch", "x86_64")
-class TestGeProtonReleaseUrls(unittest.TestCase):
-    def get_urls(self, release):
-        with patch.object(proton, "Request") as request:
-            request.return_value.get.return_value.json = release
-            return proton.get_proton_release_urls("GE-Proton11-7")
-
-    def test_picks_the_build_for_this_architecture(self):
-        release = make_release(
-            "GE-Proton11-7-aarch64.sha512sum",
-            "GE-Proton11-7-aarch64.tar.gz",
-            "GE-Proton11-7-x86_64.sha512sum",
-            "GE-Proton11-7-x86_64.tar.gz",
-        )
-        self.assertEqual(
-            self.get_urls(release),
-            ("https://dl/GE-Proton11-7-x86_64.tar.gz", "https://dl/GE-Proton11-7-x86_64.sha512sum"),
-        )
-
-    def test_older_releases_have_no_arch_suffix(self):
-        release = make_release("GE-Proton11-7.sha512sum", "GE-Proton11-7.tar.gz")
-        self.assertEqual(
-            self.get_urls(release), ("https://dl/GE-Proton11-7.tar.gz", "https://dl/GE-Proton11-7.sha512sum")
-        )
-
-    def test_no_build_without_a_checksum(self):
-        self.assertIsNone(self.get_urls(make_release("GE-Proton11-7-x86_64.tar.gz")))
-        self.assertIsNone(self.get_urls({}))

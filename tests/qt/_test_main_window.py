@@ -780,11 +780,14 @@ def test_qml_manages_ge_proton_from_preferences(
     async def list_catalog() -> tuple[runners.RunnerCatalogEntry, ...]:
         return (runners.RunnerCatalogEntry("wine", "Wine", "Runs Windows games", True, False, False),)
 
-    async def list_builds(available: tuple[str, ...]) -> tuple[runners.ProtonBuild, ...]:
+    families: list[str] = []
+
+    async def list_builds(family: str, available: tuple[str, ...]) -> tuple[runners.ProtonBuild, ...]:
         return tuple(runners.ProtonBuild(tag, installed, installed) for tag in available)
 
-    async def list_releases() -> tuple[str, ...]:
-        return (version,)
+    async def list_releases(family: str) -> tuple[str, ...]:
+        families.append(family)
+        return (version,) if family == "GE-Proton" else ()
 
     async def install_runner(name: str, tag: str, *, interaction: runners.RunnerInstallInteraction) -> None:
         nonlocal installed
@@ -845,6 +848,11 @@ def test_qml_manages_ge_proton_from_preferences(
             await wait_for_qml(qt_application, lambda: bool(prompt.property("visible")))
             assert QMetaObject.invokeMethod(prompt, "accept")
             await wait_for_qml(qt_application, lambda: not installed)
+
+            manager = window.controller._runner_manager
+            await click("protonFamily_1")
+            await wait_for_qml(qt_application, lambda: families[-1:] == ["Proton-CachyOS"] and not manager.busy)
+            assert manager.property("protonFamily") == 1 and manager.property("entries") == []
         finally:
             window.shutdown()
 

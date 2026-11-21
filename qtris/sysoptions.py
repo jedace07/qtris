@@ -10,7 +10,6 @@ from qtris import runners
 from qtris.util import linux, system
 from qtris.util.display import SCREEN_SAVER_INHIBITOR, get_display_manager, is_compositing_enabled, is_display_x11
 from qtris.util.graphics.gpu import get_gpus
-from qtris.util.sniper import get_sniper_run_command
 
 if TYPE_CHECKING:
     from qtris.config import QtrisConfig
@@ -81,19 +80,6 @@ def get_output_list() -> list[tuple[str, str]]:
     return choices
 
 
-def _is_not_wine_runner(_option_key: str, config: "QtrisConfig") -> bool:
-    """Hide option for Wine-based runners since they already use Sniper via umu."""
-    if not config.runner_slug:
-        return True
-    try:
-        from qtris.runners.wine import wine
-
-        runner = runners.import_runner(config.runner_slug)
-        return not issubclass(runner, wine)
-    except runners.InvalidRunnerError, ImportError:
-        return True
-
-
 def _is_cloud_sync_game(_option_key: str, config: "QtrisConfig") -> bool:
     """Show cloud sync option at system level, or at game level only for GOG games."""
     if config.level != "game":
@@ -112,20 +98,6 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "default": os.path.expanduser("~/Games"),
         "scope": ["runner", "system"],
         "help": _("The default folder where you install your games."),
-    },
-    {
-        "section": _("Qtris"),
-        "option": "use_sniper_runtime",
-        "type": "bool",
-        "label": _("Use Sniper runtime"),
-        "default": False,
-        "condition": lambda: get_sniper_run_command() is not None,
-        "visible": _is_not_wine_runner,
-        "help": _(
-            "Run the game inside the Steam Sniper runtime (pressure-vessel container), "
-            "with Valve's curated library set. "
-            "Requires umu-launcher or Steam to be installed."
-        ),
     },
     {
         "section": _("Qtris"),

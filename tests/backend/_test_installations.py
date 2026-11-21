@@ -22,7 +22,7 @@ from qtris.exceptions import QtrisError
 from qtris.installer import interpreter
 from qtris.runners.runner import Runner
 from qtris.util.test_config import setup_test_environment
-from qtris.util.wine import proton
+from qtris.util.wine import proton, proton_releases
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -69,7 +69,7 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
     monkeypatch.setattr(proton, "get_steam_compat_dir", lambda: str(compat_dir))
     monkeypatch.setattr(proton, "_iter_proton_locations", lambda: iter((str(alternate), str(compat_dir))))
     monkeypatch.setattr(
-        proton, "get_proton_release_urls", lambda _tag: (f"{server}/{archive.name}", server + "/checksum")
+        proton_releases, "get_proton_release_urls", lambda _tag: (f"{server}/{archive.name}", server + "/checksum")
     )
     progress: list[tuple[str, float | None]] = []
 
@@ -88,7 +88,7 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
     async def run() -> None:
         await asyncio.wait_for(runners.install_runner("wine", tag, interaction=interaction), timeout=10)
         assert (compat_dir / build_name / "proton").is_file()
-        assert (await runners.list_proton_builds((tag,)))[0] == runners.ProtonBuild(tag, True, True)
+        assert (await runners.list_proton_builds("GE-Proton", (tag,)))[0] == runners.ProtonBuild(tag, True, True, tag)
         assert progress and progress[0][0] == "Downloading…"
         await runners.uninstall_runner("wine", tag)
         assert (tmp_path / "trash" / "proton").is_file()

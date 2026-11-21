@@ -10,7 +10,7 @@ from qtris.exceptions import MissingExecutableError, UnspecifiedVersionError
 from qtris.util import cache_single, system
 from qtris.util.log import logger
 from qtris.util.process import Process
-from qtris.util.wine import proton
+from qtris.util.wine import proton, proton_releases
 
 # Proton only runs 64-bit prefixes
 WINE_DEFAULT_ARCH: str = "win64"
@@ -96,18 +96,18 @@ def get_installed_wine_versions() -> list[str]:
 
 def get_wine_version_label(version: str) -> str:
     """Return how a Wine version is shown to the user."""
-    return _("GE-Proton Latest") if version == GE_PROTON_LATEST else version
+    return _("GE-Proton Latest") if version == GE_PROTON_LATEST else proton_releases.get_release_label(version)
 
 
 def get_proton_version_or_default(version: str | None) -> str:
-    """Return the Proton build a configured Wine version names, using the bare release
-    tag for GE-Proton. Anything that isn't Proton, such as system Wine, an old Wine build
+    """Return the Proton build a configured Wine version names, using the release name
+    for GE-Proton and Proton-CachyOS builds. Anything that isn't Proton, such as system Wine, an old Wine build
     or a custom executable, gives the default, GE-Proton Latest."""
     if not version or version == GE_PROTON_LATEST:
         return GE_PROTON_LATEST
-    tag = proton.get_proton_release_tag(version)
-    if tag:
-        return tag
+    release = proton_releases.get_release_of_build(version)
+    if release:
+        return release
     if proton.is_proton_version(version):
         return version
     logger.debug("Wine version '%s' isn't a Proton build; using GE-Proton Latest", version)
