@@ -12,6 +12,8 @@ from qtris.exceptions import MissingExecutableError
 from qtris.monitored_command import RUNNING_COMMANDS
 from qtris.util import cache_single, system
 from qtris.util.linux import LINUX_SYSTEM
+from qtris.util.steam.appinfo import get_compat_tool_names
+from qtris.util.steam.appmanifest import AppManifest, get_appmanifests
 from qtris.util.steam.config import get_steamapps_dirs
 from qtris.util.strings import get_natural_sort_key
 from qtris.util.wine import proton_releases
@@ -23,6 +25,8 @@ DEFAULT_GAMEID = "umu-default"
 # umu's name for the newest GE-Proton release, which it downloads by itself when told
 # to run without a Proton build
 UMU_GE_LATEST = "GE-Latest"
+# The file ProtonPlus leaves in each Proton build it installs and keeps up to date
+PROTONPLUS_MARKER = ".protonplus"
 
 
 # Matches a umu log line such as
@@ -235,11 +239,17 @@ def _sort_valve_proton_versions(names: list[str]) -> list[str]:
     return [*sorted((name for name in names if rank(name) < 2), key=rank), *numbered]
 
 
+def is_protonplus_build(path: str | os.PathLike[str]) -> bool:
+    """True if ProtonPlus installed the Proton build in this folder. ProtonPlus manages
+    these builds for Steam, and its rolling ones duplicate the ones Qtris keeps."""
+    return os.path.isfile(os.path.join(path, PROTONPLUS_MARKER))
+
+
 @cache_single
 def get_proton_versions() -> dict[str, str]:
     """Return the dict of Proton versions installed in Steam, which is cached.
     The keys are the versions, and the values are the paths to those versions,
-    which are their wine-paths."""
+    which are their wine-paths. Builds ProtonPlus installed are left out."""
     try:
         # We can only use a Proton install via the Umu launcher script.
         _ = get_umu_path()
@@ -258,9 +268,47 @@ def get_proton_versions() -> dict[str, str]:
             for version in os.listdir(proton_path):
                 if version not in versions and os.path.join(proton_path, version) not in rolling_paths:
                     wine_path = os.path.join(proton_path, version)
-                    if os.path.isfile(os.path.join(wine_path, "proton")):
+                    if os.path.isfile(os.path.join(wine_path, "proton")) and not is_protonplus_build(wine_path):
                         versions[version] = wine_path
     return versions
+
+
+def get_steam_proton_label(version: str) -> str | None:
+    """Return the name Steam shows for one of its own Proton builds, or None if the
+    version isn't one. Steam installs Proton 9.0 into a folder named 'Proton 9.0 (Beta)',
+    for instance, and offers it in its compatibility tool menu as 'Proton 9.0-4'."""
+    return get_steam_proton_labels().get(version)
+
+
+@cache_single
+def get_steam_proton_labels() -> dict[str, str]:
+    """Return the names Steam shows for the installed Proton builds it installed, by
+    version. They are the names in Steam's compatibility tool menu, or the app's name if
+    Steam's app cache can't be read."""
+    versions = {os.path.normpath(path): version for version, path in get_proton_versions().items()}
+    if not versions:
+        return {}
+    try:
+        steamapp_dirs = get_steamapps_dirs()
+    except Exception:
+        return {}  # in case of corrupt or unreadable Steam configuration files!
+    tool_names: dict[int, str] | None = None
+    labels = {}
+    for steamapps in steamapp_dirs:
+        try:
+            manifest_files = get_appmanifests(steamapps)
+        except OSError:
+            continue
+        for manifest_file in manifest_files:
+            manifest = AppManifest(os.path.join(steamapps, manifest_file))
+            if not manifest.installdir:
+                continue
+            version = versions.get(os.path.normpath(os.path.join(steamapps, "common", manifest.installdir)))
+            if version and version not in labels:
+                if tool_names is None:
+                    tool_names = get_compat_tool_names()
+                labels[version] = tool_names.get(int(manifest.steamid)) or manifest.name or version
+    return labels
 
 
 def _iter_proton_locations() -> Generator[str, None, None]:

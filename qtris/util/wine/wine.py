@@ -99,8 +99,9 @@ def get_installed_wine_versions() -> list[str]:
 
 
 def get_wine_version_label(version: str) -> str:
-    """Return how a Wine version is shown to the user."""
-    return proton_releases.get_release_label(version)
+    """Return how a Wine version is shown to the user: Steam's own Proton builds by the
+    names Steam gives them, and the releases Qtris downloads by their release names."""
+    return proton.get_steam_proton_label(version) or proton_releases.get_release_label(version)
 
 
 def get_proton_version_or_default(version: str | None) -> str:
@@ -123,6 +124,7 @@ def get_proton_version_or_default(version: str | None) -> str:
 def clear_wine_version_cache() -> None:
     get_installed_wine_versions.cache_clear()
     proton.get_proton_versions.cache_clear()
+    proton.get_steam_proton_labels.cache_clear()
     proton.get_umu_path.cache_clear()
 
 

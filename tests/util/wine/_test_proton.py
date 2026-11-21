@@ -1,8 +1,10 @@
 import os
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from qtris.util.wine import proton
+from qtris.util.wine import proton, wine
 
 QTRIS_ENV = {"HOME": "/home/player", "XDG_DATA_HOME": "/home/player/.local/share"}
 
@@ -87,3 +89,70 @@ class TestSteamCompatDir(unittest.TestCase):
         environ = {"HOME": "/home/player", "XDG_DATA_HOME": "/sandbox", "HOST_XDG_DATA_HOME": "/host"}
         with patch.dict(os.environ, environ, clear=True):
             self.assertEqual(proton.get_steam_compat_dir(), "/host/Steam/compatibilitytools.d")
+
+
+def _install_build(folder, marker: str = "") -> None:
+    folder.mkdir(parents=True)
+    (folder / "proton").touch()
+    if marker:
+        (folder / marker).write_text("{}", encoding="utf-8")
+
+
+def _write_manifest(steamapps, appid: int, name: str, installdir: str) -> None:
+    (steamapps / f"appmanifest_{appid}.acf").write_text(
+        '"AppState"\n{\n\t"appid"\t\t"%s"\n\t"name"\t\t"%s"\n\t"installdir"\t\t"%s"\n}\n' % (appid, name, installdir),
+        encoding="utf-8",
+    )
+
+
+class TestSteamProtonBuilds(unittest.TestCase):
+    """Steam's Proton builds are shown by the names Steam gives them, and the builds
+    ProtonPlus manages in Steam's compatibilitytools.d are left to it."""
+
+    def setUp(self):
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        steamapps, compat = root / "steamapps", root / "compatibilitytools.d"
+        _install_build(steamapps / "common" / "Proton 9.0 (Beta)")
+        _write_manifest(steamapps, 2805730, "Proton 9.0", "Proton 9.0 (Beta)")
+        _install_build(steamapps / "common" / "Proton 8.0")
+        _write_manifest(steamapps, 2348590, "Proton 8.0", "Proton 8.0")
+        _write_manifest(steamapps, 440, "Team Fortress 2", "Team Fortress 2")
+        _install_build(compat / "Proton-GE Latest", proton.PROTONPLUS_MARKER)
+        _install_build(compat / "GE-Proton11-12")
+        self.compat = compat
+        locations = (str(root / "qtris"), str(steamapps / "common"), str(compat))
+        for patcher in (
+            patch.object(proton, "get_umu_path", return_value="/umu/umu-run"),
+            patch.object(proton, "get_proton_dir", return_value=str(root / "qtris")),
+            patch.object(proton, "_iter_proton_locations", side_effect=lambda: iter(locations)),
+            patch.object(proton, "get_steamapps_dirs", return_value=[str(steamapps)]),
+            # Steam's menu names Proton 9.0, but its app cache doesn't hold Proton 8.0
+            patch.object(proton, "get_compat_tool_names", return_value={2805730: "Proton 9.0-4"}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.clear_caches()
+        self.addCleanup(self.clear_caches)
+
+    @staticmethod
+    def clear_caches():
+        proton.get_proton_versions.cache_clear()
+        proton.get_steam_proton_labels.cache_clear()
+
+    def test_protonplus_builds_are_left_out(self):
+        self.assertEqual(set(proton.get_proton_versions()), {"Proton 9.0 (Beta)", "Proton 8.0", "GE-Proton11-12"})
+        self.assertTrue(proton.is_protonplus_build(self.compat / "Proton-GE Latest"))
+        self.assertFalse(proton.is_protonplus_build(self.compat / "GE-Proton11-12"))
+
+    def test_steam_builds_have_the_names_steam_shows(self):
+        self.assertEqual(proton.get_steam_proton_label("Proton 9.0 (Beta)"), "Proton 9.0-4")
+        self.assertEqual(proton.get_steam_proton_label("Proton 8.0"), "Proton 8.0")
+        self.assertIsNone(proton.get_steam_proton_label("GE-Proton11-12"))
+        self.assertIsNone(proton.get_steam_proton_label("Team Fortress 2"))
+
+    def test_wine_version_labels_use_steam_names(self):
+        self.assertEqual(wine.get_wine_version_label("Proton 9.0 (Beta)"), "Proton 9.0-4")
+        self.assertEqual(wine.get_wine_version_label("GE-Proton11-12"), "GE-Proton11-12")
+        self.assertEqual(wine.get_wine_version_label(wine.GE_PROTON_LATEST), "GE-Proton Latest")

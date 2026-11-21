@@ -11,7 +11,7 @@ from qtris import settings
 from qtris.config import QtrisConfig, write_game_config
 from qtris.database import sql
 from qtris.database.games import add_game, get_games, update_existing
-from qtris.database.services import ServiceGameCollection
+from qtris.database.services import DBServiceGame, ServiceGameCollection
 from qtris.game import Game
 from qtris.installer.installer_file import InstallerFile
 from qtris.runners.steam import get_steam_game_platform
@@ -19,6 +19,7 @@ from qtris.services.base import BaseService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util.log import logger
+from qtris.util.steam.appinfo import get_app_type
 from qtris.util.steam.appmanifest import AppManifest, get_appmanifests
 from qtris.util.steam.config import get_active_steamid64, get_steam_library, get_steamapps_dirs
 from qtris.util.strings import slugify
@@ -91,6 +92,9 @@ class SteamService(BaseService):
         "1070560",  # Steam Linux Runtime
     ]
     game_class = SteamGame
+    # The kinds of apps Steam lists in its library, as its app cache names them; this
+    # leaves out tools such as Proton, the Steam Linux Runtime and dedicated servers
+    library_app_types = frozenset(("game", "demo", "mod", "application"))
 
     def load(self):
         """Return importable Steam games"""
@@ -140,7 +144,7 @@ class SteamService(BaseService):
         if appid in self.excluded_appids:
             return
         try:
-            service_game = ServiceGameCollection.get_game(self.id, appid)
+            service_game = ServiceGameCollection.get_game(self.id, appid) or self.add_unlisted_game(manifest)
             if not service_game:
                 return
             qtris_game_id = "%s-%s" % (self.id, appid)
@@ -179,6 +183,18 @@ class SteamService(BaseService):
         except Exception as ex:
             logger.error("Failed to install from Steam: %s", ex)
             return None
+
+    def add_unlisted_game(self, manifest: AppManifest) -> DBServiceGame | None:
+        """Add an installed game that the Steam Web API leaves out of the library, from
+        its app manifest. The API doesn't list apps that belong to another game, such as
+        Team Fortress 2 Classified, which is a mod of Team Fortress 2."""
+        app_type = get_app_type(manifest.steamid)
+        if app_type not in self.library_app_types or not manifest.name:
+            logger.debug("Skipping Steam app %s, which is a %s", manifest.steamid, app_type or "app Steam doesn't know")
+            return None
+        logger.info("Adding %s, which Steam's Web API doesn't list", manifest.name)
+        self.game_class.new_from_steam_game({"appid": manifest.steamid, "name": manifest.name}).save()
+        return ServiceGameCollection.get_game(self.id, manifest.steamid)
 
     def get_store_url(self, db_game: dict) -> str:
         appid = db_game.get("appid")

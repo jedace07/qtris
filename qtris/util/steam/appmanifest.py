@@ -66,10 +66,7 @@ class AppManifest:
     @property
     def name(self) -> str:
         """Return the game name from either the state or the user config"""
-        _name = str(self.app_state.get("name"))
-        if not _name:
-            _name = str(self.user_config.get("name"))
-        return _name
+        return str(self.app_state.get("name") or self.user_config.get("name") or "")
 
     @property
     def slug(self) -> str:
@@ -79,7 +76,7 @@ class AppManifest:
     @property
     def installdir(self) -> str:
         """Path where the game is installed"""
-        return str(self.app_state.get("installdir"))
+        return str(self.app_state.get("installdir") or "")
 
     @property
     def states(self) -> list[str]:

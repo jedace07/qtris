@@ -159,7 +159,8 @@ def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
 
 def _managed_proton_path(version: str) -> Path | None:
     """Return where a Proton release or rolling build Qtris can remove is installed:
-    Qtris's own Proton folder, or Steam's, where Qtris used to install releases."""
+    Qtris's own Proton folder, or Steam's, where Qtris used to install releases. Builds
+    ProtonPlus manages there are its own to remove."""
     if rolling := proton_releases.get_rolling(version):
         path = Path(proton.get_rolling_path(rolling))
         return path if (path / "proton").is_file() else None
@@ -168,7 +169,7 @@ def _managed_proton_path(version: str) -> Path | None:
     for root in _managed_proton_dirs():
         for name in proton_releases.get_build_folder_names(version):
             path = root / name
-            if not path.is_symlink() and (path / "proton").is_file():
+            if not path.is_symlink() and (path / "proton").is_file() and not proton.is_protonplus_build(path):
                 return path
     return None
 
@@ -187,7 +188,11 @@ def _proton_builds(family: proton_releases.ProtonFamily, available: tuple[str, .
     installed_names = list(proton.get_proton_versions())
     for root in _managed_proton_dirs():
         if root.is_dir():
-            installed_names.extend(path.name for path in root.iterdir() if (path / "proton").is_file())
+            installed_names.extend(
+                path.name
+                for path in root.iterdir()
+                if (path / "proton").is_file() and not proton.is_protonplus_build(path)
+            )
     installed = {
         release
         for name in installed_names

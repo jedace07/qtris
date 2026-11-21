@@ -7,11 +7,14 @@ from unittest.mock import PropertyMock, patch
 from qtris import settings
 from qtris.config import write_game_config
 from qtris.database import categories, games, schema, sql
+from qtris.database.services import ServiceGameCollection
 from qtris.game import Game
 from qtris.services.steam import SteamGame, SteamService
 from qtris.util.steam.appmanifest import APP_STATE_FLAGS
 
 APPID = "12345"
+# A game the Steam Web API leaves out of the library
+UNLISTED_APPID = "3545060"
 FULLY_INSTALLED = 1 << (APP_STATE_FLAGS.index("Fully Installed") - 1)
 # With playtime, so the dedup at the end of add_installed_games() keeps the entry
 PLAYTIME = 1.0
@@ -61,16 +64,47 @@ class TestImportInstalledSteamGames(TestCase):
         patcher = patch("qtris.runners.steam.get_compat_tools", return_value={})
         self.get_compat_tools = patcher.start()
         self.addCleanup(patcher.stop)
+        patcher = patch("qtris.services.steam.get_app_type", return_value="game")
+        self.get_app_type = patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def set_installed_in_steam(self, installed):
-        manifest = self.steamapps / ("appmanifest_%s.acf" % APPID)
+    def set_installed_in_steam(self, installed, appid=APPID):
+        manifest = self.steamapps / ("appmanifest_%s.acf" % appid)
         if installed:
-            manifest.write_text(APPMANIFEST % (APPID, FULLY_INSTALLED), encoding="utf-8")
+            manifest.write_text(APPMANIFEST % (appid, FULLY_INSTALLED), encoding="utf-8")
         else:
             manifest.unlink()
 
-    def get_imported_games(self):
-        return games.get_games(filters={"service": "steam", "service_id": APPID})
+    def get_imported_games(self, appid=APPID):
+        return games.get_games(filters={"service": "steam", "service_id": appid})
+
+    def test_installed_game_missing_from_the_web_api_is_imported(self):
+        # Mods such as Team Fortress 2 Classified are left out of the owned games
+        self.set_installed_in_steam(True, UNLISTED_APPID)
+        SteamService().add_installed_games()
+
+        self.get_app_type.assert_any_call(UNLISTED_APPID)
+        service_game = ServiceGameCollection.get_game("steam", UNLISTED_APPID)
+        assert service_game is not None
+        self.assertEqual(service_game["name"], "Test Game")
+        imported = self.get_imported_games(UNLISTED_APPID)
+        self.assertEqual(len(imported), 1)
+        self.assertEqual(imported[0]["installed"], 1)
+        self.assertEqual(imported[0]["runner"], "steam")
+
+    def test_installed_tools_are_not_imported(self):
+        self.get_app_type.return_value = "tool"
+        self.set_installed_in_steam(True, UNLISTED_APPID)
+        SteamService().add_installed_games()
+
+        self.assertIsNone(ServiceGameCollection.get_game("steam", UNLISTED_APPID))
+        self.assertEqual(self.get_imported_games(UNLISTED_APPID), [])
+
+    def test_apps_steam_does_not_know_are_not_imported(self):
+        self.get_app_type.return_value = ""
+        self.set_installed_in_steam(True, UNLISTED_APPID)
+        SteamService().add_installed_games()
+        self.assertEqual(self.get_imported_games(UNLISTED_APPID), [])
 
     def test_installed_game_is_imported_once(self):
         self.set_installed_in_steam(True)

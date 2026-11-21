@@ -37,11 +37,15 @@ def encode_vdf(data: dict, keys: list[str] | None) -> bytes:
     return encode(data)
 
 
-def build_appinfo(apps: dict[int, dict], version: int) -> bytes:
+def build_appinfo(apps: dict[int, dict], version: int, extended: dict[int, dict] | None = None) -> bytes:
+    """Build an appinfo.vdf holding the common section, and any extended section, of apps."""
     keys: list[str] | None = [] if version == V29 else None
     entries = b""
     for appid, common in apps.items():
-        blob = encode_vdf({"appinfo": {"appid": appid, "common": common}}, keys)
+        app = {"appid": appid, "common": common}
+        if extended and appid in extended:
+            app["extended"] = extended[appid]
+        blob = encode_vdf({"appinfo": app}, keys)
         # Info state, last update, access token, two SHA-1s and change number
         metadata = b"\x00" * 60
         entries += struct.pack("<II", appid, len(metadata) + len(blob)) + metadata + blob
@@ -63,11 +67,17 @@ class AppInfoTest(TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         appinfo._index = None
-        appinfo._oslists.clear()
+        appinfo._apps.clear()
 
-    def write_appinfo(self, apps: dict[int, dict], version: int = V29, mtime_ns: int | None = None) -> None:
+    def write_appinfo(
+        self,
+        apps: dict[int, dict],
+        version: int = V29,
+        mtime_ns: int | None = None,
+        extended: dict[int, dict] | None = None,
+    ) -> None:
         path = self.steam_dir / "appcache" / "appinfo.vdf"
-        path.write_bytes(build_appinfo(apps, version))
+        path.write_bytes(build_appinfo(apps, version, extended))
         if mtime_ns:
             os.utime(path, ns=(mtime_ns, mtime_ns))
 
@@ -96,6 +106,30 @@ class AppInfoTest(TestCase):
         self.assertEqual(appinfo.get_app_oslist("440"), ("windows",))
         self.write_appinfo({440: {"oslist": "windows,linux"}}, mtime_ns=2_000_000_000)
         self.assertEqual(appinfo.get_app_oslist("440"), ("windows", "linux"))
+
+    def test_reads_the_kind_of_app(self):
+        self.write_appinfo({3545060: {"type": "Game", "parent": 440}, 2805730: {"type": "Tool"}, 440: {}})
+        self.assertEqual(appinfo.get_app_type(3545060), "game")
+        self.assertEqual(appinfo.get_app_type("2805730"), "tool")
+        self.assertEqual(appinfo.get_app_type(440), "")
+        self.assertEqual(appinfo.get_app_type(12345), "")
+
+    def test_reads_the_names_steam_gives_its_compatibility_tools(self):
+        compat_tools = {
+            "proton_9": {"appid": 2805730, "display_name": "Proton 9.0-4", "from_oslist": "windows"},
+            "proton_experimental": {"appid": 1493710, "display_name": "Proton Experimental"},
+            "unnamed": {"appid": 4183110},
+            "not_a_tool": "text",
+        }
+        self.write_appinfo(
+            {appinfo.STEAMPLAY_MANIFESTS_APPID: {"type": "Config"}},
+            extended={appinfo.STEAMPLAY_MANIFESTS_APPID: {"compat_tools": compat_tools}},
+        )
+        self.assertEqual(appinfo.get_compat_tool_names(), {2805730: "Proton 9.0-4", 1493710: "Proton Experimental"})
+
+    def test_no_compatibility_tools_without_their_app(self):
+        self.write_appinfo({440: {"type": "game"}})
+        self.assertEqual(appinfo.get_compat_tool_names(), {})
 
 
 class BinaryKeyTableTest(TestCase):

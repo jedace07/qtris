@@ -1,7 +1,7 @@
 """Read what Steam's local app cache, appcache/appinfo.vdf, says about apps.
 
 Steam keeps the store's metadata for every app it has seen in this binary file,
-including the operating systems each app has builds for. Its entries are read
+such as the kind of app and the operating systems it has builds for. Entries are read
 only for the apps asked about, since the file holds thousands of apps."""
 
 from __future__ import annotations
@@ -43,25 +43,60 @@ class _AppInfoIndex:
     entries: dict[int, tuple[int, int]]
 
 
+# The app holding the compatibility tools Steam offers, such as its Proton builds
+STEAMPLAY_MANIFESTS_APPID = 891390
+
 _lock = threading.Lock()
 _index: _AppInfoIndex | None = None
-_oslists: dict[int, tuple[str, ...]] = {}
+_apps: dict[int, dict[str, Any]] = {}
 
 
 def get_app_oslist(appid: str | int) -> tuple[str, ...]:
     """Return the operating systems Steam has builds of an app for, such as
     ("windows", "linux"), or an empty tuple if Steam's cache doesn't say."""
+    oslist = _get_section(appid, "common").get("oslist", "")
+    return tuple(name.strip().casefold() for name in str(oslist).split(",") if name.strip())
+
+
+def get_app_type(appid: str | int) -> str:
+    """Return the kind of app Steam says an app is, such as "game", "demo" or "tool",
+    or an empty string if Steam's cache doesn't say."""
+    return str(_get_section(appid, "common").get("type", "")).strip().casefold()
+
+
+def get_compat_tool_names() -> dict[int, str]:
+    """Return the names Steam shows in its compatibility tool menu, such as
+    "Proton 9.0-4", by the app ID of the tool."""
+    tools = _get_section(STEAMPLAY_MANIFESTS_APPID, "extended").get("compat_tools")
+    if not isinstance(tools, dict):
+        return {}
+    names = {}
+    for tool in tools.values():
+        if not isinstance(tool, dict):
+            continue
+        try:
+            appid = int(tool.get("appid", 0))
+        except TypeError, ValueError:
+            continue
+        if appid and (name := str(tool.get("display_name") or "").strip()):
+            names[appid] = name
+    return names
+
+
+def _get_section(appid: str | int, section: str) -> dict[str, Any]:
+    """Return a section of what Steam's cache holds about an app, or an empty dict."""
     try:
         appid = int(appid)
     except TypeError, ValueError:
-        return ()
+        return {}
     with _lock:
         index = _get_index()
         if not index or appid not in index.entries:
-            return ()
-        if appid not in _oslists:
-            _oslists[appid] = _read_oslist(index, appid)
-        return _oslists[appid]
+            return {}
+        if appid not in _apps:
+            _apps[appid] = _read_app(index, appid)
+        value = _apps[appid].get(section)
+    return value if isinstance(value, dict) else {}
 
 
 def _get_index() -> _AppInfoIndex | None:
@@ -77,7 +112,7 @@ def _get_index() -> _AppInfoIndex | None:
         return None
     if _index and _index.path == path and _index.mtime_ns == mtime_ns:
         return _index
-    _oslists.clear()
+    _apps.clear()
     try:
         _index = _read_index(path, mtime_ns)
     except (OSError, ValueError, struct.error) as ex:
@@ -112,7 +147,7 @@ def _read_index(path: str, mtime_ns: int) -> _AppInfoIndex:
     return _AppInfoIndex(path, mtime_ns, key_table, entries)
 
 
-def _read_oslist(index: _AppInfoIndex, appid: int) -> tuple[str, ...]:
+def _read_app(index: _AppInfoIndex, appid: int) -> dict[str, Any]:
     start, end = index.entries[appid]
     try:
         with open(index.path, "rb") as appinfo_file:
@@ -120,7 +155,6 @@ def _read_oslist(index: _AppInfoIndex, appid: int) -> tuple[str, ...]:
             data = vdf.binary_loads(appinfo_file.read(end - start), key_table=index.key_table)
     except (OSError, SyntaxError, IndexError, struct.error) as ex:
         logger.warning("Unable to read app %s from Steam's app cache: %s", appid, ex)
-        return ()
-    common: Any = data.get("appinfo", {}).get("common", {})
-    oslist = common.get("oslist", "") if isinstance(common, dict) else ""
-    return tuple(name.strip().casefold() for name in str(oslist).split(",") if name.strip())
+        return {}
+    app: Any = data.get("appinfo", {})
+    return app if isinstance(app, dict) else {}
