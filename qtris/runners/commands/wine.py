@@ -70,7 +70,7 @@ def create_prefix(
         prefix = os.readlink(prefix)
 
     if not runner:
-        runner = import_runner("wine")(prefix=prefix, wine_arch=arch)
+        runner = import_runner("wine")(prefix=prefix)
 
     # Wine does not allow creating a prefix in a parent directory that does not
     # exist. For example, if the prefix is /mnt/a/b/c/d but the parent directory
@@ -297,7 +297,7 @@ def wineexec(
         exclude_processes = shlex.split(exclude_processes)
 
     if not runner:
-        runner = cast(type["wine"], import_runner("wine"))(prefix=prefix, working_dir=working_dir, wine_arch=arch)
+        runner = cast(type["wine"], import_runner("wine"))(prefix=prefix, working_dir=working_dir)
 
     if not wine_path:
         wine_path = runner.get_executable()

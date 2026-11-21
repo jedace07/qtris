@@ -297,7 +297,6 @@ class _Form:
             label = _plain(label)
             if value == default:
                 default_label = label
-                label = _("%s (default)") % label
             result.append(ConfigChoice(label=label, value="" if value is None else str(value)))
         return tuple(result), default_label
 

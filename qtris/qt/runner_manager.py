@@ -23,6 +23,7 @@ class RunnerManagerController(QObject):
         self._runners: tuple[runners.RunnerCatalogEntry, ...] = ()
         self._builds: tuple[runners.ProtonBuild, ...] = ()
         self._releases: tuple[str, ...] = ()
+        self._latest_release: str | None = None
         self._proton = False
         self._task: asyncio.Task[None] | None = None
         self._message = ""
@@ -35,17 +36,20 @@ class RunnerManagerController(QObject):
     def _entries(self) -> list[dict[str, str | bool]]:
         if self._proton:
             return [
-                {
-                    "key": build.version,
-                    "label": build.version,
-                    "description": "",
-                    "installed": build.installed,
-                    "canInstall": not build.installed,
-                    "canRemove": build.can_remove,
-                    "canConfigure": False,
-                    "manageProton": False,
-                }
-                for build in self._builds
+                self._latest_entry(),
+                *(
+                    {
+                        "key": build.version,
+                        "label": build.version,
+                        "description": "",
+                        "installed": build.installed,
+                        "canInstall": not build.installed,
+                        "canRemove": build.can_remove,
+                        "canConfigure": False,
+                        "manageProton": False,
+                    }
+                    for build in self._builds
+                ),
             ]
         return [
             {
@@ -60,6 +64,22 @@ class RunnerManagerController(QObject):
             }
             for entry in self._runners
         ]
+
+    def _latest_entry(self) -> dict[str, str | bool]:
+        if self._latest_release:
+            description = _("Currently %s. umu updates it when a game starts.") % self._latest_release
+        else:
+            description = _("umu downloads it the first time a game uses it.")
+        return {
+            "key": runners.GE_PROTON_LATEST,
+            "label": _("GE-Proton Latest"),
+            "description": description,
+            "installed": bool(self._latest_release),
+            "canInstall": False,
+            "canRemove": False,
+            "canConfigure": False,
+            "manageProton": False,
+        }
 
     @Property(bool, notify=stateChanged)
     def proton(self) -> bool:
@@ -123,6 +143,7 @@ class RunnerManagerController(QObject):
         self._runners = await runners.list_runner_catalog()
 
     async def _load_proton(self) -> None:
+        self._latest_release = await runners.get_ge_proton_latest_release()
         self._builds = await runners.list_proton_builds(self._releases)
         self.stateChanged.emit()
         self._releases = await runners.list_proton_releases()

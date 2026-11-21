@@ -800,6 +800,7 @@ def test_qml_manages_ge_proton_from_preferences(
     monkeypatch.setattr(runners, "list_runner_catalog", list_catalog)
     monkeypatch.setattr(runners, "list_proton_builds", list_builds)
     monkeypatch.setattr(runners, "list_proton_releases", list_releases)
+    monkeypatch.setattr(runners, "get_ge_proton_latest_release", lambda: asyncio.sleep(0, "GE-Proton11-12"))
     monkeypatch.setattr(runners, "install_runner", install_runner)
     monkeypatch.setattr(runners, "uninstall_runner", uninstall_runner)
 
@@ -830,6 +831,8 @@ def test_qml_manages_ge_proton_from_preferences(
 
             await click("runnerVersions_wine")
             await click(f"runnerInstall_{version}")
+            latest = window.controller._runner_manager.property("entries")[0]
+            assert latest["label"] == "GE-Proton Latest" and "GE-Proton11-12" in latest["description"]
             await click(f"runnerRemove_{version}")
             prompt = window.window.findChild(QObject, "qtrisInput")
             assert prompt is not None

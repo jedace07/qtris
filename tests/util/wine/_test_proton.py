@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -121,6 +122,20 @@ class TestSteamCompatDir(unittest.TestCase):
         environ = {"HOME": "/home/player", "XDG_DATA_HOME": "/sandbox", "HOST_XDG_DATA_HOME": "/host"}
         with patch.dict(os.environ, environ, clear=True):
             self.assertEqual(proton.get_steam_compat_dir(), "/host/Steam/compatibilitytools.d")
+
+
+class TestGeProtonLatest(unittest.TestCase):
+    @patch.object(proton.LINUX_SYSTEM, "is_flatpak", return_value=False)
+    def test_reads_the_release_umu_downloaded(self, _is_flatpak):
+        with tempfile.TemporaryDirectory() as data_home:
+            with patch.dict(os.environ, {"HOME": "/home/player", "XDG_DATA_HOME": data_home}, clear=True):
+                self.assertIsNone(proton.get_ge_proton_latest_release())
+                latest = proton.get_ge_proton_latest_path()
+                self.assertEqual(latest, os.path.join(data_home, "umu", "compatibilitytools", "GE-Latest"))
+                os.makedirs(latest)
+                with open(os.path.join(latest, "version"), "w", encoding="utf-8") as version_file:
+                    version_file.write("1793687165 GE-Proton11-12\n")
+                self.assertEqual(proton.get_ge_proton_latest_release(), "GE-Proton11-12")
 
 
 def make_release(*names):

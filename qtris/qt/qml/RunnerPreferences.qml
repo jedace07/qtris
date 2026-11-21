@@ -38,7 +38,7 @@ ColumnLayout {
     Label {
         Layout.fillWidth: true
         visible: page.controller.proton
-        text: qsTr("GE-Proton (Latest) is downloaded by umu when needed. Install a specific release to select it in Runner Options.")
+        text: qsTr("GE-Proton Latest follows the newest GE-Proton release, and umu keeps it up to date. Install a specific release to pin games to it.")
         wrapMode: Text.WordWrap
         font.pointSize: Theme.smallSize
         color: Theme.textMuted

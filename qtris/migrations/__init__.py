@@ -3,7 +3,7 @@ import importlib
 from qtris import settings
 from qtris.util.log import logger
 
-MIGRATION_VERSION = 21  # Never decrease this number
+MIGRATION_VERSION = 22  # Never decrease this number
 
 # Replace deprecated migrations with empty lists
 MIGRATIONS = [
@@ -28,6 +28,7 @@ MIGRATIONS = [
     [],
     ["remove_lutris_account"],
     ["retire_standalone_emulators"],
+    ["migrate_proton_release_tags"],
 ]
 
 

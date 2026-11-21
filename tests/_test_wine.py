@@ -42,8 +42,8 @@ class TestProtonGraphics(TestCase):
         runner = wine.wine()
         with (
             patch.object(wine.LINUX_SYSTEM, "is_vulkan_supported", return_value=vulkan),
-            patch.object(runner, "get_executable", return_value="/usr/bin/wine"),
-            patch.object(runner, "read_version_from_config", return_value="system"),
+            patch.object(runner, "get_executable", return_value="/umu/umu-run"),
+            patch.object(runner, "read_version_from_config", return_value=wine.GE_PROTON_LATEST),
         ):
             return runner.get_env()
 
@@ -54,6 +54,33 @@ class TestProtonGraphics(TestCase):
     def test_no_dxvk_or_vkd3d_options(self):
         option_names = {option["option"] for option in wine.wine().runner_options}
         self.assertFalse(option_names & {"dxvk", "dxvk_version", "vkd3d", "vkd3d_version", "dxvk_nvapi", "d3d_extras"})
+
+    def test_ge_proton_latest_is_kept_up_to_date_by_umu(self):
+        self.assertEqual(self.get_env(vulkan=True)["PROTONPATH"], "GE-Latest")
+
+
+class TestProtonOnly(TestCase):
+    """The Wine runner runs Proton only: no system Wine, custom executables or
+    options that only plain Wine builds honored."""
+
+    def test_no_options_for_plain_wine(self):
+        runner = wine.wine()
+        option_names = {option["option"] for option in runner.runner_options + runner.game_options}
+        self.assertFalse(option_names & {"custom_wine_path", "arch", "Desktop", "WineDesktop"})
+
+    @patch.object(wine.proton, "get_proton_versions", return_value={"Proton 11.0": "/steam/Proton 11.0"})
+    def test_version_choices_are_proton_builds(self, _versions):
+        wine.get_installed_wine_versions.cache_clear()
+        self.addCleanup(wine.get_installed_wine_versions.cache_clear)
+        self.assertEqual(
+            wine._get_wine_version_choices(),
+            [("GE-Proton Latest", wine.GE_PROTON_LATEST), ("Proton 11.0", "Proton 11.0")],
+        )
+
+    def test_umu_gets_ge_latest(self):
+        env = {}
+        wine.proton.update_proton_env("/umu/umu-run", env)
+        self.assertEqual(env["PROTONPATH"], "GE-Latest")
 
 
 class TestInstallerRunnerVersion(TestCase):
@@ -74,10 +101,10 @@ class TestInstallerRunnerVersion(TestCase):
         interpreter = SimpleNamespace(installer=self.get_installer({}))
         self.assertTrue(runner.is_installed_for(interpreter))
 
-    def test_script_version_is_kept(self):
+    def test_script_wine_build_uses_default(self):
         runner = wine.wine()
         installer = self.get_installer({"wine": {"version": "wine-ge-8-26-x86_64"}})
-        self.assertEqual(runner.get_installer_runner_version(installer, use_default=True), "wine-ge-8-26-x86_64")
+        self.assertEqual(runner.get_installer_runner_version(installer, use_default=True), wine.GE_PROTON_LATEST)
 
     @patch.object(
         wine.proton, "get_proton_versions", return_value={"GE-Proton11-7-x86_64": "/compat/GE-Proton11-7-x86_64"}
@@ -260,7 +287,12 @@ class TestMissingWineVersion(TestCase):
         self.game_config = {"prefix": os.path.join(parent, "prefix")}
         self.assertEqual(self.get_runner().get_executable(), "/umu/umu-run")
 
-    def test_installed_version_is_used(self):
+    def test_installed_proton_version_is_used(self):
+        self.game_version = "GE-Proton11-7"
         self.make_prefix()
-        with patch.object(wine.system, "path_exists", return_value=True):
-            self.assertIn("wine-test-missing-1", self.get_runner().get_executable())
+        wine_path = "/compat/GE-Proton11-7-x86_64/files/bin/wine"
+        with (
+            patch.object(wine.proton, "get_proton_versions", return_value={"GE-Proton11-7-x86_64": "/compat"}),
+            patch.object(wine.proton, "get_proton_wine_path", return_value=wine_path),
+        ):
+            self.assertEqual(self.get_runner().get_executable(), wine_path)

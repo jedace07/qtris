@@ -5,7 +5,6 @@ from pathlib import PureWindowsPath
 
 from qtris.settings import get_qtris_directory_settings, set_qtris_directory_settings
 from qtris.util import joypad, system
-from qtris.util.display import get_display_manager
 from qtris.util.log import logger
 from qtris.util.wine.registry import WineRegistry
 from qtris.util.xdgshortcuts import get_xdg_entry
@@ -274,35 +273,6 @@ class WinePrefixManager:
             "ShowCrashDialog",
             1 if enabled else 0,
         )
-
-    def set_virtual_desktop(self, enabled):
-        """Enable or disable wine virtual desktop.
-        The Qtris virtual desktop is refered to as 'WineDesktop', in Wine the
-        virtual desktop name is 'default'.
-        """
-        path = self.hkcu_prefix + "/Software/Wine/Explorer"
-        if enabled:
-            self.set_registry_key(path, "Desktop", "WineDesktop")
-            default_resolution = "x".join(get_display_manager().get_current_resolution())
-            logger.debug(
-                "Enabling wine virtual desktop with default resolution of %s",
-                default_resolution,
-            )
-            self.set_registry_key(
-                self.hkcu_prefix + "/Software/Wine/Explorer/Desktops",
-                "WineDesktop",
-                default_resolution,
-            )
-        else:
-            self.clear_registry_key(path)
-
-    def set_desktop_size(self, desktop_size):
-        """Sets the desktop size if one is given but do not reset the key if
-        one isn't.
-        """
-        path = self.hkcu_prefix + "/Software/Wine/Explorer/Desktops"
-        if desktop_size:
-            self.set_registry_key(path, "WineDesktop", desktop_size)
 
     def set_dpi(self, dpi: int | None) -> None:
         """Sets the DPI for WINE to use. None to remove the Qtris setting,

@@ -30,7 +30,7 @@ from qtris.runners.commands.wine import (  # noqa: F401 pylint: disable=unused-i
 )
 from qtris.runners.runner import RunDataDict, Runner
 from qtris.util import system
-from qtris.util.display import get_default_dpi, get_display_manager, is_display_x11
+from qtris.util.display import get_default_dpi, is_display_x11
 from qtris.util.graphics import vkquery
 from qtris.util.http import HTTPError
 from qtris.util.linux import LINUX_SYSTEM
@@ -41,21 +41,20 @@ from qtris.util.wine import proton
 from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
-from qtris.util.wine.versions import normalize_version_architecture
 from qtris.util.wine.wine import (
     GE_PROTON_LATEST,
     WINE_DEFAULT_ARCH,
-    WINE_PATHS,
     clear_wine_version_cache,
-    detect_arch,
+    detect_prefix_arch,
     get_default_wine_version,
     get_installed_wine_versions,
     get_overrides_env,
+    get_proton_version_or_default,
     get_real_executable,
     get_runner_files_dir_for_version,
-    get_system_wine_version,
     get_wine_path_for_version,
-    is_gstreamer_build,
+    get_wine_version_label,
+    is_prefix_directory,
     is_winewayland_available,
 )
 
@@ -76,25 +75,17 @@ def is_missing_proton_release(version: str | None) -> bool:
     return proton.is_proton_release(version) and not proton.is_proton_version(version)
 
 
-def _is_proton_config(config: QtrisConfig) -> bool:
-    return is_umu_managed_version(config.runner_config.get("version"))
-
-
-def _is_pre_proton(_option_key: str, config: QtrisConfig) -> bool:
-    return not _is_proton_config(config)
-
-
 def _is_proton_hdr_available(_option_key: str, config: QtrisConfig) -> bool:
-    if _is_proton_config(config):
-        version = config.runner_config.get("version")
-        return bool(version and is_winewayland_available(version) and config.runner_config.get("Graphics") == "wayland")
+    version = config.runner_config.get("version")
+    return bool(version and is_winewayland_available(version) and config.runner_config.get("Graphics") == "wayland")
 
-    return False
+
+def _is_32_bit_prefix(prefix_path: str | None) -> bool:
+    return bool(prefix_path and is_prefix_directory(prefix_path) and detect_prefix_arch(prefix_path) == "win32")
 
 
 def _get_version_warning(_option_key: str, config: QtrisConfig) -> str | None:
-    arch = config.game_config.get("arch")
-    if arch == "win32" and _is_proton_config(config):
+    if _is_32_bit_prefix(config.game_config.get("prefix")):
         return _("Proton is not compatible with 32-bit prefixes.")
 
     return None
@@ -135,17 +126,6 @@ def _get_exe_warning(_option_key: str, config: QtrisConfig) -> str | None:
     return None
 
 
-def _get_virtual_desktop_warning(_option_key: str, config: QtrisConfig) -> str | None:
-    message = _("Wine virtual desktop is no longer supported")
-    runner_config = config.runner_config
-    if runner_config.get("Desktop"):
-        version = str(runner_config.get("version")).casefold()
-        if "-ge-" in version or "proton" in version:
-            message += "\n"
-            message += _("Virtual desktops cannot be enabled in Proton or GE Wine versions.")
-    return message
-
-
 def _get_wine_wayland_warning(_option_key: str, config: QtrisConfig) -> str | None:
     runner_config = config.runner_config
     if runner_config.get("Graphics") == "wayland":
@@ -158,33 +138,13 @@ def _get_wine_wayland_warning(_option_key: str, config: QtrisConfig) -> str | No
             return _("You cannot use winewayland driver when using an X11-based session")
 
         if not is_winewayland_available(runner_version):
-            if _is_proton_config(config):
-                return _("Your Proton version does not support winewayland graphics driver")
-            else:
-                return _("Your Wine version does not support winewayland graphics driver")
+            return _("Your Proton version does not support winewayland graphics driver")
 
     return None
 
 
-def _get_wine_version_choices():
-    version_choices = [(_("Custom (select executable below)"), "custom")]
-    system_wine_labels = {
-        "winehq-devel": _("WineHQ Devel ({})"),
-        "winehq-staging": _("WineHQ Staging ({})"),
-        "wine-development": _("Wine Development ({})"),
-        "system": _("System ({})"),
-    }
-    versions = get_installed_wine_versions()
-    for version in versions:
-        if version == GE_PROTON_LATEST:
-            label = _("GE-Proton (Latest)")
-        elif version in system_wine_labels:
-            version_number = get_system_wine_version(WINE_PATHS[version])
-            label = system_wine_labels[version].format(version_number)
-        else:
-            label = version
-        version_choices.append((label, version))
-    return version_choices
+def _get_wine_version_choices() -> list[tuple[str, str]]:
+    return [(get_wine_version_label(version), version) for version in get_installed_wine_versions()]
 
 
 class wine(Runner):
@@ -229,15 +189,6 @@ class wine(Runner):
             ),
         },
         {
-            "option": "arch",
-            "type": "choice",
-            "label": _("Prefix architecture"),
-            "visible": _is_pre_proton,
-            "choices": [(_("Auto"), "auto"), (_("32-bit"), "win32"), (_("64-bit"), "win64")],
-            "default": "auto",
-            "help": _("The architecture of the Windows environment"),
-        },
-        {
             "option": "desktop_integration",
             "type": "bool",
             "label": _("Integrate system files in the prefix"),
@@ -253,23 +204,16 @@ class wine(Runner):
     runner_options = [
         {
             "option": "version",
-            "label": _("Wine version"),
+            "label": _("Proton version"),
             "type": "choice",
             "choices": _get_wine_version_choices,
             "default": get_default_wine_version,
             "warning": _get_version_warning,
             "help": _(
-                "The version of Wine used to launch the game.\n"
-                "Using the last version is generally recommended, "
-                "but some games work better on older versions."
+                "The Proton build used to launch the game.\n"
+                "GE-Proton Latest is kept up to date by umu and is generally recommended, "
+                "but some games work better on a specific release."
             ),
-        },
-        {
-            "option": "custom_wine_path",
-            "label": _("Custom Wine executable"),
-            "type": "file",
-            "advanced": True,
-            "help": _('The Wine executable to be used if you have selected "Custom" as the Wine version.'),
         },
         {
             "option": "system_winetricks",
@@ -316,32 +260,6 @@ class wine(Runner):
             "type": "bool",
             "default": True,
             "help": _("Use the Proton EasyAntiCheat Runtime installed through Steam for supported games."),
-        },
-        {
-            "option": "Desktop",
-            "section": _("Virtual Desktop"),
-            "label": _("Windowed (virtual desktop)"),
-            "type": "bool",
-            "advanced": True,
-            "visible": _is_pre_proton,
-            "warning": _get_virtual_desktop_warning,
-            "default": False,
-            "help": _(
-                "Run the whole Windows desktop in a window.\n"
-                "Otherwise, run it fullscreen.\n"
-                "This corresponds to Wine's Virtual Desktop option."
-            ),
-        },
-        {
-            "option": "WineDesktop",
-            "section": _("Virtual Desktop"),
-            "label": _("Virtual desktop resolution"),
-            "type": "choice_with_entry",
-            "visible": _is_pre_proton,
-            "conditional_on": "Desktop",
-            "advanced": True,
-            "choices": lambda: get_display_manager().get_resolutions(),
-            "help": _("The size of the virtual desktop in pixels."),
         },
         {
             "option": "Dpi",
@@ -458,8 +376,6 @@ class wine(Runner):
         "Audio": r"%s/Drivers" % reg_prefix,
         "Graphics": r"%s/Drivers" % reg_prefix,
         "MouseWarpOverride": r"%s/DirectInput" % reg_prefix,
-        "Desktop": "MANAGED",
-        "WineDesktop": "MANAGED",
         "ShowCrashDialog": "MANAGED",
     }
 
@@ -473,11 +389,10 @@ class wine(Runner):
         "wineboot.exe",
     )
 
-    def __init__(self, config=None, prefix=None, working_dir=None, wine_arch=None):  # noqa: C901
+    def __init__(self, config=None, prefix=None, working_dir=None):
         super().__init__(config)
         self._prefix = prefix
         self._working_dir = working_dir
-        self._wine_arch = wine_arch
         self.dll_overrides = DEFAULT_DLL_OVERRIDES.copy()  # we'll modify this, so we better copy it
 
     @property
@@ -548,18 +463,9 @@ class wine(Runner):
         return self.game_path or self.shader_cache_dir
 
     @property
-    def wine_arch(self):
-        """Return the wine architecture.
-
-        Get it from the config or detect it from the prefix"""
-        arch = self._wine_arch or self.game_config.get("arch") or "auto"
-        if arch not in ("win32", "win64"):
-            prefix_path = self.prefix_path
-            if prefix_path:
-                arch = detect_arch(prefix_path, self.get_executable())
-            else:
-                arch = WINE_DEFAULT_ARCH
-        return arch
+    def wine_arch(self) -> str:
+        """Return the prefix architecture, which is always 64-bit with Proton."""
+        return WINE_DEFAULT_ARCH
 
     def read_version_from_config(self) -> str:
         """Return the Wine version to use: the game's, else the runner's, else the
@@ -575,10 +481,6 @@ class wine(Runner):
                     return runner_version
 
         return get_default_wine_version()
-
-    def get_path_for_version(self, version: str) -> str:
-        """Return the absolute path of a wine executable for a given version"""
-        return get_wine_path_for_version(version, config=self.runner_config)
 
     def resolve_config_path(self, path, relative_to=None):
         # Resolve paths with tolerance for Windows-isms;
@@ -610,50 +512,25 @@ class wine(Runner):
         return exe
 
     def get_executable(self, version: str = "", fallback: bool = True) -> str:
-        """Return the path to the Wine executable.
-        A specific version can be specified if needed.
-        """
+        """Return the program that runs Wine: umu for GE-Proton Latest, and the wine
+        executable of any other Proton build. A version that names no installed Proton
+        build, such as an old Wine build, falls back to GE-Proton Latest unless
+        'fallback' is off."""
         if not version:
             version = self.read_version_from_config()
-        if version == GE_PROTON_LATEST:
-            return proton.get_umu_path()
+        if not fallback or version == GE_PROTON_LATEST or proton.is_proton_version(version):
+            return get_wine_path_for_version(version)
 
-        if proton.is_proton_version(version):
-            return proton.get_proton_wine_path(version)
-        try:
-            wine_path = self.get_path_for_version(version)
-            if system.path_exists(wine_path):
-                return wine_path
-        except MissingExecutableError:
-            if not fallback:
-                raise
-
-        if not fallback:
-            raise MissingExecutableError(_("The Wine executable at '%s' is missing.") % wine_path)
-
-        # Fallback to default version
-        default_version = get_default_wine_version()
-        wine_path = self.get_path_for_version(default_version)
-        if not system.path_exists(wine_path):
-            raise MissingExecutableError(_("The Wine executable at '%s' is missing.") % wine_path)
+        wine_path = proton.get_umu_path()
         # Proton upgrades a Wine prefix in place, and that can't be undone.
-        if proton.is_umu_path(wine_path) and proton.is_wine_only_prefix(self.prefix_path):
+        if proton.is_wine_only_prefix(self.prefix_path):
             raise MissingExecutableError(
                 _(
-                    "Wine version '%s' is not installed. Qtris won't switch this game's Wine prefix to Proton "
-                    "automatically; choose another Wine version for this game."
+                    "Wine version '%s' isn't a Proton build. Qtris won't switch this game's Wine prefix to Proton "
+                    "automatically; choose a Proton version for this game."
                 )
                 % version
             )
-
-        # Update the version in the config
-        if version == self.runner_config.get("version"):
-            self.runner_config["version"] = default_version
-            # TODO: runner_config is a dict so we have to instanciate a
-            # QtrisConfig object to save it.
-            # XXX: The version key could be either in the game specific
-            # config or the runner specific config. We need to know
-            # which one to get the correct QtrisConfig object.
         return wine_path
 
     def get_command(self) -> list[str]:
@@ -662,15 +539,14 @@ class wine(Runner):
             if proton.is_proton_path(command[0]) and not proton.is_umu_path(command[0]):
                 command[0] = proton.get_umu_path()
 
-            if proton.is_umu_path(command[0]) and self.wine_arch == "win32":
+            if _is_32_bit_prefix(self.prefix_path):
                 raise RuntimeError(_("Proton is not compatible with 32-bit prefixes."))
 
         return command
 
     def is_installed(self, flatpak_allowed: bool = True, version: str | None = None, fallback: bool = True) -> bool:
-        """Check if Wine is installed.
-        If no version is passed, checks if any version of wine is available
-        """
+        """Check if a Proton version is installed. Without a version, this is always
+        true, since umu downloads GE-Proton Latest when a game needs it."""
         try:
             if version:
                 # We don't care where Wine is, but only if it was found at all.
@@ -686,17 +562,9 @@ class wine(Runner):
             version = self.get_installer_runner_version(interpreter.installer, use_default=True)
         except MisconfigurationError:
             return False
-        if is_missing_proton_release(version):
-            return False
-        # Proton versions (including the 'ge-proton' sentinel) are managed by umu and
-        # fetched on demand at launch; there is no Wine runner build to download, so the
-        # installer never needs to install one for them.
-        if is_umu_managed_version(version):
-            return True
-        try:
-            return self.is_installed(version=version, fallback=False)
-        except MisconfigurationError:
-            return False
+        # GE-Proton Latest is fetched by umu at launch, and installed Proton builds are
+        # ready; only a pinned GE-Proton release that isn't installed yet needs installing.
+        return is_umu_managed_version(version) and not is_missing_proton_release(version)
 
     def install(
         self,
@@ -708,13 +576,11 @@ class wine(Runner):
         if version and is_missing_proton_release(version):
             self.install_proton_release(install_ui_delegate, version, callback=callback)
             return
-        if is_umu_managed_version(version) or self.is_installed(version=version, fallback=False):
+        if is_umu_managed_version(version):
             if callback:
                 callback()
             return
-        raise NonInstallableRunnerError(
-            _("Wine build '%s' is unavailable. Choose a Proton release or a locally installed Wine build.") % version
-        )
+        raise NonInstallableRunnerError(_("Wine version '%s' isn't a Proton build. Choose a Proton version.") % version)
 
     def install_proton_release(
         self, install_ui_delegate: "InstallUIDelegate", version: str, callback: Callable[[], None] | None = None
@@ -759,7 +625,8 @@ class wine(Runner):
         version = None
         if installer.script.get(installer.runner):
             version = installer.script[installer.runner].get("version")
-            version = normalize_version_architecture(version)
+            if version:
+                version = get_proton_version_or_default(version)
         # If the installer is an extension, use the wine version from the base game
         elif installer.requires:
             db_game = get_game_by_field(installer.requires, field="installer_slug")
@@ -776,7 +643,7 @@ class wine(Runner):
         if not version and use_runner_config:
             # Try to read the version from the saved runner config for Wine.
             try:
-                return wine.get_runner_version_and_config()[0]
+                return get_proton_version_or_default(wine.get_runner_version_and_config()[0])
             except UnspecifiedVersionError:
                 pass  # fall back to the API in this case
 
@@ -792,7 +659,7 @@ class wine(Runner):
     def adjust_installer_runner_config(self, installer_runner_config: dict[str, Any]) -> None:
         version = installer_runner_config.get("version")
         if version:
-            installer_runner_config["version"] = normalize_version_architecture(version)
+            installer_runner_config["version"] = get_proton_version_or_default(version)
 
     @classmethod
     def get_runner_version_and_config(cls) -> tuple[str, QtrisConfig]:
@@ -922,8 +789,6 @@ class wine(Runner):
         # any calls to regedit.
         managed_keys = {
             "ShowCrashDialog": prefix_manager.set_crash_dialogs,
-            "Desktop": prefix_manager.set_virtual_desktop,
-            "WineDesktop": prefix_manager.set_desktop_size,
         }
         for key, path in self.reg_keys.items():
             # An option the user can't even see, like the virtual desktop in a Proton
@@ -936,14 +801,9 @@ class wine(Runner):
             if not value or (value == "auto" and key not in managed_keys):
                 prefix_manager.clear_registry_subkeys(path, [key])
             elif key in self.runner_config:
-                if value and key == "Graphics" and value == "wayland":
-                    if not is_winewayland_available(self.read_version_from_config()):
-                        logger.warning("Your Wine version does not support winewayland graphics driver")
-                        continue
-
-                    graphics_exe = self.get_executable()
-                    if proton.is_proton_path(graphics_exe) or proton.is_umu_path(graphics_exe):
-                        continue
+                if key == "Graphics" and value == "wayland":
+                    # Proton turns on its Wayland driver with PROTON_ENABLE_WAYLAND instead
+                    continue
 
                 if key in managed_keys:
                     # Do not pass fallback 'auto' value to managed keys
@@ -1051,9 +911,6 @@ class wine(Runner):
         ]
 
         managers = {}
-        wine_exe = self.get_executable()
-        is_proton = proton.is_proton_path(wine_exe) or proton.is_umu_path(wine_exe)
-
         for manager_class, enabled_option, version_option in manager_classes:
             enabled = bool(self.runner_config.get(enabled_option))
             version = self.runner_config.get(version_option)
@@ -1063,7 +920,7 @@ class wine(Runner):
                 if not manager.can_enable():
                     enabled = False
 
-                if not manager.proton_compatible and is_proton:
+                if not manager.proton_compatible:
                     enabled = False
 
                 if enabled or not enabled_only:
@@ -1101,27 +958,16 @@ class wine(Runner):
                 env["UMU_LOG"] = "debug"
         env["WINEARCH"] = self.wine_arch
         wine_exe = self.get_executable()
-        is_proton = proton.is_proton_path(wine_exe) or proton.is_umu_path(wine_exe)
 
         wine_config_version = self.read_version_from_config()
         if wine_config_version == GE_PROTON_LATEST:
-            env["PROTONPATH"] = "GE-Proton"
-            is_proton_version = True
-        else:
-            is_proton_version = proton.is_proton_version(wine_config_version)
+            env["PROTONPATH"] = proton.UMU_GE_LATEST
         env["WINE"] = wine_exe
 
         files_dir = get_runner_files_dir_for_version(wine_config_version)
         if files_dir:
             env["WINE_MONO_CACHE_DIR"] = os.path.join(files_dir, "mono")
             env["WINE_GECKO_CACHE_DIR"] = os.path.join(files_dir, "gecko")
-
-        # We don't want to override gstreamer for proton, it has it's own version
-        if files_dir and not is_proton and is_gstreamer_build(wine_exe):
-            path_64 = os.path.join(files_dir, "lib64/gstreamer-1.0/")
-            path_32 = os.path.join(files_dir, "lib/gstreamer-1.0/")
-            if os.path.exists(path_64) or os.path.exists(path_32):
-                env["GST_PLUGIN_SYSTEM_PATH_1_0"] = path_64 + ":" + path_32
 
         if self.prefix_path:
             env["WINEPREFIX"] = self.prefix_path
@@ -1143,12 +989,7 @@ class wine(Runner):
         if "PROTON_DXVK_D3D8" not in env:
             env["PROTON_DXVK_D3D8"] = "1" if has_vulkan else "0"
 
-        if (
-            has_vulkan
-            and is_proton_version
-            and "PROTON_DXVK_SAREK" not in env
-            and not os.environ.get("QTRIS_NO_VKQUERY")
-        ):
+        if has_vulkan and "PROTON_DXVK_SAREK" not in env and not os.environ.get("QTRIS_NO_VKQUERY"):
             lib_api_version = vkquery.get_vulkan_api_version()
             devices = vkquery.get_device_info()
             if (lib_api_version and lib_api_version < vkquery.REQUIRED_VULKAN_API_VERSION) or (
@@ -1156,11 +997,7 @@ class wine(Runner):
             ):
                 env["PROTON_DXVK_SAREK"] = "1"
 
-        if (
-            self.runner_config.get("Graphics") == "wayland"
-            and is_winewayland_available(wine_config_version)
-            and is_proton_version
-        ):
+        if self.runner_config.get("Graphics") == "wayland" and is_winewayland_available(wine_config_version):
             env["PROTON_ENABLE_WAYLAND"] = "1"
 
             if self.runner_config.get("proton_hdr"):
@@ -1181,10 +1018,8 @@ class wine(Runner):
         super().finish_env(env, game)
 
         wine_exe = self.get_executable()
-
-        if proton.is_proton_path(wine_exe) or proton.is_umu_path(wine_exe):
-            game_id = proton.get_game_id(game, env)
-            proton.update_proton_env(wine_exe, env, game_id=game_id)
+        game_id = proton.get_game_id(game, env)
+        proton.update_proton_env(wine_exe, env, game_id=game_id)
 
     def get_run_data(self) -> RunDataDict:
         # The standalone run() path does not call finish_env() the way launching a
@@ -1194,26 +1029,11 @@ class wine(Runner):
         self.finish_env(data["env"])
         return data
 
-    def get_wine_executable_pids(self):
-        """Return a list of pids of processes using the current wine exe."""
-        try:
-            exe = self.get_executable()
-            if proton.is_proton_path(exe) or proton.is_umu_path(exe):
-                logger.debug("Tracking PIDs of Proton games is not possible at the moment")
-                return set()
-            if not exe.startswith("/"):
-                exe = system.find_required_executable(exe)
-            pids = system.get_pids_using_file(exe)
-            if self.wine_arch == "win64" and os.path.basename(exe) == "wine":
-                pids = pids | system.get_pids_using_file(exe + "64")
-        except MisconfigurationError:
-            return set()
-
-        # Add wineserver PIDs to the mix (at least one occurence of fuser not
-        # picking the games's PID from wine/wine64 but from wineserver for some
-        # unknown reason.
-        pids = pids | system.get_pids_using_file(os.path.join(os.path.dirname(exe), "wineserver"))
-        return pids
+    def get_wine_executable_pids(self) -> set[int]:
+        """Return the pids of processes using the current Wine. Proton runs games
+        inside umu's container, so they can't be tracked this way."""
+        logger.debug("Tracking PIDs of Proton games is not possible at the moment")
+        return set()
 
     def configure_desktop_integration(self, wine_prefix):
         try:
@@ -1252,27 +1072,23 @@ class wine(Runner):
         """Checks the pids given and returns a set containing only those that are part of the running game,
         identified by its UUID and directory."""
 
-        wine_exe = self.get_executable()
-        if proton.is_proton_path(wine_exe) or proton.is_umu_path(wine_exe):
-            folder_pids = set()
-            gamescope_pids = set()
-            has_gamescope = self.system_config.get("gamescope")
+        folder_pids = set()
+        gamescope_pids = set()
+        has_gamescope = self.system_config.get("gamescope")
 
-            for pid in candidate_pids:
-                proc = Process(pid)
-                cmdline = proc.cmdline or ""
-                # pressure-vessel: This could potentially pick up PIDs not started by qtris?
-                if game_folder in cmdline or "pressure-vessel" in cmdline:
-                    folder_pids.add(pid)
-                # Include gamescope-related processes when gamescope is enabled
-                if has_gamescope and (proc.name or "").startswith("gamescope"):
-                    gamescope_pids.add(pid)
+        for pid in candidate_pids:
+            proc = Process(pid)
+            cmdline = proc.cmdline or ""
+            # pressure-vessel: This could potentially pick up PIDs not started by qtris?
+            if game_folder in cmdline or "pressure-vessel" in cmdline:
+                folder_pids.add(pid)
+            # Include gamescope-related processes when gamescope is enabled
+            if has_gamescope and (proc.name or "").startswith("gamescope"):
+                gamescope_pids.add(pid)
 
-            uuid_pids = set(pid for pid in candidate_pids if Process(pid).environ.get("QTRIS_GAME_UUID") == game_uuid)
+        uuid_pids = set(pid for pid in candidate_pids if Process(pid).environ.get("QTRIS_GAME_UUID") == game_uuid)
 
-            return (folder_pids & uuid_pids) | gamescope_pids
-        else:
-            return super().filter_game_pids(candidate_pids, game_uuid, game_folder)
+        return (folder_pids & uuid_pids) | gamescope_pids
 
     def force_stop_game(self, game_pids: Iterable[int]) -> None:
         """Kill WINE with kindness, or at least with -k. This seems to leave a process

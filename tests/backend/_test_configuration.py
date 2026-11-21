@@ -191,7 +191,7 @@ def test_runner_and_system_forms_write_their_own_files(config_dir: Path) -> None
     assert read_yaml_from_file(str(config_dir / "system.yml"))["system"]["game_path"] == "/games"
 
 
-def test_choices_mark_the_default_and_keep_unknown_values(config_dir: Path) -> None:
+def test_choices_name_the_default_and_keep_unknown_values(config_dir: Path) -> None:
     write_yaml_to_file({"system": {"gamescope_window_mode": "--gone"}}, str(config_dir / "system.yml"))
 
     async def run() -> None:
@@ -200,8 +200,9 @@ def test_choices_mark_the_default_and_keep_unknown_values(config_dir: Path) -> N
         assert mode.type == "choice"
         assert mode.choices[0].value == "--gone" and mode.value == "--gone"
         assert "no longer available" in mode.warning
-        assert [choice.value for choice in mode.choices if choice.label.endswith("(default)")] == ["-f"]
-        assert mode.default == "-f" and mode.default_label
+        assert not [choice for choice in mode.choices if "(default)" in choice.label]
+        assert mode.default == "-f"
+        assert mode.default_label == next(choice.label for choice in mode.choices if choice.value == "-f")
         await configuration.close_config(form.id)
 
     asyncio.run(run())

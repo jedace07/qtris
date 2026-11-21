@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from qtris.game import Game
 
 DEFAULT_GAMEID = "umu-default"
+# umu's name for the newest GE-Proton release, which it keeps in a single folder and
+# replaces in place when a newer release comes out
+UMU_GE_LATEST = "GE-Latest"
 
 GE_PROTON_RELEASES_URL = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases"
 _GE_PROTON_RELEASE_TAG = re.compile(r"GE-Proton\d+-\d+")
@@ -68,7 +71,7 @@ class UmuLaunchStatusParser:
 def is_proton_version(version: str | None) -> bool:
     """True if the version indicated specifies a Proton version of Wine; these
     require special handling. This does not recognize the special 'ge-proton' version
-    found in configurations; this must be specially  handled elsewhere."""
+    found in configurations; this must be specially handled elsewhere."""
     return find_proton_version(version) is not None
 
 
@@ -204,8 +207,36 @@ def get_proton_path_by_path(wine_path: str) -> str:
 
 
 def list_proton_versions() -> list[str]:
-    """Return the list of Proton versions installed in Steam, in sorted order."""
-    return sorted(get_proton_versions().keys(), key=get_natural_sort_key, reverse=True)
+    """Return the installed Proton builds in presentation order: GE-Proton releases by
+    their release tags, newest first, then Valve's Proton (Experimental, Hotfix, then by
+    version, newest first), then any other builds by name."""
+    releases: set[str] = set()
+    valve: list[str] = []
+    others: list[str] = []
+    for name in get_proton_versions():
+        tag = get_proton_release_tag(name)
+        if tag:
+            releases.add(tag)
+        elif name.startswith("Proton "):
+            valve.append(name)
+        else:
+            others.append(name)
+    return [
+        *sorted(releases, key=get_natural_sort_key, reverse=True),
+        *_sort_valve_proton_versions(valve),
+        *sorted(others, key=get_natural_sort_key),
+    ]
+
+
+def _sort_valve_proton_versions(names: list[str]) -> list[str]:
+    """Sort Valve's Proton with Experimental first and Hotfix second, then numbered
+    releases newest first."""
+
+    def rank(name: str) -> int:
+        return 0 if "Experimental" in name else 1 if "Hotfix" in name else 2
+
+    numbered = sorted((name for name in names if rank(name) == 2), key=get_natural_sort_key, reverse=True)
+    return [*sorted((name for name in names if rank(name) < 2), key=rank), *numbered]
 
 
 @cache_single
@@ -247,13 +278,40 @@ def _iter_proton_locations() -> Generator[str, None, None]:
         yield path
 
 
+def _get_data_home() -> str:
+    """Return the data folder umu uses: the host's when running as a Flatpak."""
+    data_home_var = "HOST_XDG_DATA_HOME" if LINUX_SYSTEM.is_flatpak() else "XDG_DATA_HOME"
+    return os.environ.get(data_home_var) or os.path.expanduser("~/.local/share")
+
+
 def get_steam_compat_dir() -> str:
     """Return the compatibilitytools.d folder where Steam and umu keep Proton builds;
     this is where Qtris installs the GE-Proton releases it downloads. Like umu, this
     follows the host's data folder when running as a Flatpak."""
-    data_home_var = "HOST_XDG_DATA_HOME" if LINUX_SYSTEM.is_flatpak() else "XDG_DATA_HOME"
-    data_home = os.environ.get(data_home_var) or os.path.expanduser("~/.local/share")
-    return os.path.join(data_home, "Steam", "compatibilitytools.d")
+    return os.path.join(_get_data_home(), "Steam", "compatibilitytools.d")
+
+
+def get_ge_proton_latest_path() -> str:
+    """Return the folder where umu keeps GE-Proton Latest."""
+    return os.path.join(_get_data_home(), "umu", "compatibilitytools", UMU_GE_LATEST)
+
+
+def get_ge_proton_latest_release() -> str | None:
+    """Return the GE-Proton release umu last downloaded as GE-Proton Latest, or None
+    if no game has used it yet. Proton's 'version' file reads '<build id> <release>'."""
+    try:
+        with open(os.path.join(get_ge_proton_latest_path(), "version"), encoding="utf-8") as version_file:
+            fields = version_file.read().split()
+    except OSError:
+        return None
+    return fields[-1] if fields else None
+
+
+def get_ge_proton_latest_files_dir() -> str | None:
+    """Return the directory holding GE-Proton Latest's Wine files, or None if umu
+    hasn't downloaded it yet."""
+    files_path = os.path.join(get_ge_proton_latest_path(), "files")
+    return files_path if os.path.exists(os.path.join(files_path, "bin/wine")) else None
 
 
 def get_proton_release_urls(tag: str) -> tuple[str, str] | None:
@@ -339,7 +397,7 @@ def update_proton_env(wine_path: str, env: dict[str, str], game_id: str = DEFAUL
 
     if "PROTONPATH" not in env:
         if is_umu_path(wine_path):
-            env["PROTONPATH"] = "GE-Proton"
+            env["PROTONPATH"] = UMU_GE_LATEST
         else:
             env["PROTONPATH"] = get_proton_path_by_path(wine_path)
 

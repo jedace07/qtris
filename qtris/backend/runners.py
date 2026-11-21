@@ -5,7 +5,6 @@ runner has, and RunnerInstallationError.
 """
 
 import asyncio
-import os
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from gettext import gettext as _
@@ -13,7 +12,6 @@ from pathlib import Path
 from time import monotonic
 from typing import Any
 
-from qtris import settings
 from qtris.backend.models import RunnerInfo
 from qtris.delegates import InstallUIDelegate
 from qtris.exceptions import QtrisError
@@ -25,6 +23,7 @@ from qtris.util.http import HTTPError
 from qtris.util.log import logger
 from qtris.util.strings import get_natural_sort_key, human_size
 from qtris.util.wine import proton
+from qtris.util.wine.wine import GE_PROTON_LATEST as GE_PROTON_LATEST
 from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions
 
 
@@ -87,11 +86,6 @@ class _InstallDelegate(InstallUIDelegate):
             % {"downloaded": human_size(downloader.downloaded_size), "total": human_size(downloader.full_size)},
             min(1.0, downloader.progress_fraction),
         )
-
-
-def _get_wine_version_path(version: str) -> str:
-    """Return where a Wine version Qtris downloads (such as lutris-GE-Proton8-26) goes."""
-    return os.path.join(settings.RUNNER_DIR, "wine", f"{version}{'' if '-x86_64' in version else '-x86_64'}")
 
 
 async def list_runners() -> list[str]:
@@ -166,8 +160,14 @@ async def list_proton_releases() -> tuple[str, ...]:
         return ()
 
 
+async def get_ge_proton_latest_release() -> str | None:
+    """Return the GE-Proton release umu keeps as GE-Proton Latest, or None if no game
+    has used it yet."""
+    return await asyncio.to_thread(proton.get_ge_proton_latest_release)
+
+
 async def list_wine_versions() -> tuple[str, ...]:
-    """Return installed Wine builds and available upstream Proton releases."""
+    """Return the installed Proton builds and available GE-Proton releases."""
     installed, available = await asyncio.gather(asyncio.to_thread(get_installed_wine_versions), list_proton_releases())
     return tuple(dict.fromkeys((*available, *installed)))
 
@@ -178,12 +178,11 @@ def parse_runner_name(name: str) -> tuple[str, str | None]:
 
 
 async def is_runner_installed(name: str, version: str | None = None) -> bool:
-    """True if a runner is installed; for "wine", a version names one of the Wine
-    versions Qtris downloads."""
+    """True if a runner is installed; for "wine", a version names a GE-Proton release."""
     if name == "wine" and version:
-        if proton.is_proton_release(version):
-            return bool(_managed_proton_path(version) or proton.is_proton_version(version))
-        return os.path.isdir(_get_wine_version_path(version))
+        return proton.is_proton_release(version) and bool(
+            _managed_proton_path(version) or proton.is_proton_version(version)
+        )
     return import_runner(name)().is_installed()
 
 
@@ -244,17 +243,12 @@ async def _wait_for_callbacks(start: Callable[[Callable[[], None], Callable[[Exc
 
 
 async def uninstall_runner(name: str, version: str | None = None) -> None:
-    """Move a runner, or one Wine version Qtris downloaded, to the trash."""
+    """Move a runner, or one GE-Proton release Qtris downloaded, to the trash."""
     if name == "wine" and version:
-        if proton.is_proton_release(version):
-            proton_path = _managed_proton_path(version)
-            if proton_path is None:
-                raise QtrisError(_("%s is outside the Proton folder managed here.") % version)
-            await _wait_for_callbacks(lambda done, error: system.remove_folder(str(proton_path), done, error))
-            clear_wine_version_cache()
-            return
-        path = _get_wine_version_path(version)
-        await _wait_for_callbacks(lambda done, error: system.remove_folder(path, done, error))
+        proton_path = _managed_proton_path(version)
+        if proton_path is None:
+            raise QtrisError(_("%s is outside the Proton folder managed here.") % version)
+        await _wait_for_callbacks(lambda done, error: system.remove_folder(str(proton_path), done, error))
         clear_wine_version_cache()
         return
     runner = import_runner(name)()

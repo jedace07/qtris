@@ -5,51 +5,25 @@ import re
 import signal
 from collections import OrderedDict
 from gettext import gettext as _
-from typing import Any
 
-from qtris.exceptions import MisconfigurationError, UnspecifiedVersionError
-from qtris.settings import WINE_DIR
-from qtris.util import cache_single, linux, system
+from qtris.exceptions import MissingExecutableError, UnspecifiedVersionError
+from qtris.util import cache_single, system
 from qtris.util.log import logger
 from qtris.util.process import Process
-from qtris.util.strings import get_natural_sort_key, parse_version
 from qtris.util.wine import proton
 
-WINE_DEFAULT_ARCH: str = "win64" if linux.LINUX_SYSTEM.is_64_bit else "win32"
+# Proton only runs 64-bit prefixes
+WINE_DEFAULT_ARCH: str = "win64"
+# The configured version that means GE-Proton Latest, which umu keeps up to date
 GE_PROTON_LATEST: str = "ge-proton"
-WINE_PATHS: dict[str, str] = {
-    "winehq-devel": "/opt/wine-devel/bin/wine",
-    "winehq-staging": "/opt/wine-staging/bin/wine",
-    "wine-development": "/usr/lib/wine-development/wine",
-    "system": "wine",
-}
-
-# Insert additional system-wide Wine installations.
-try:
-    if system.path_exists("/usr/lib"):
-        for _candidate in os.listdir("/usr/lib/"):
-            if _candidate.startswith("wine-"):
-                _wine_path = os.path.join("/usr/lib/", _candidate, "bin/wine")
-                if os.path.isfile(_wine_path):
-                    WINE_PATHS["System " + _candidate] = _wine_path
-    _candidate = None
-    _wine_path = None
-except Exception as ex:
-    logger.exception("Unable to enumerate system Wine versions: %s", ex)
 
 
 def detect_arch(prefix_path: str | None = None, wine_path: str | None = None) -> str:
-    """Given a Wine prefix path, return its architecture.
-
-    Existing prefixes are detected from their registry. For a prefix that does not
-    exist yet we fall back to the host default (64-bit on a 64-bit system): 32-bit
-    prefixes should only be created on a 32-bit host or when the user explicitly
-    asks for one. Older Wine builds shipped a separate 'wine64' binary, but modern
-    builds using the new WoW64 mode ship a single 'wine' binary, so the absence of
-    'wine64' no longer implies a 32-bit-only build."""
-    if wine_path:
-        if proton.is_proton_path(wine_path) or system.path_exists(wine_path + "64"):
-            return "win64"
+    """Return the architecture of a Wine prefix. Proton only runs 64-bit prefixes, so
+    that's what a Proton build gets; otherwise an existing prefix is detected from its
+    registry, and a new one is 64-bit."""
+    if wine_path and proton.is_proton_path(wine_path):
+        return "win64"
     if prefix_path and is_prefix_directory(prefix_path):
         return detect_prefix_arch(prefix_path)
     return WINE_DEFAULT_ARCH
@@ -96,14 +70,6 @@ def set_drive_path(prefix: str, letter: str, path: str) -> None:
     system.create_symlink(path, drive_path)
 
 
-def is_gstreamer_build(wine_path: str) -> bool:
-    """Returns whether a wine build ships with gstreamer libraries.
-    This allows to set GST_PLUGIN_SYSTEM_PATH_1_0 for the builds that support it.
-    """
-    base_path = os.path.dirname(os.path.dirname(wine_path))
-    return system.path_exists(os.path.join(base_path, "lib64/gstreamer-1.0"))
-
-
 def is_winewayland_available(runner_version: str) -> bool:
     """Check if winewayland graphics driver available"""
     files_dir = get_runner_files_dir_for_version(runner_version)
@@ -116,54 +82,36 @@ def is_winewayland_available(runner_version: str) -> bool:
         )
         return any(os.path.exists(os.path.join(files_dir, winewayland_path)) for winewayland_path in winewayland_paths)
 
-    # If there's no file dir to check, we assume Wayland is available- this
-    # happens for GE_PROTON_LATEST.
+    # If there's no file dir to check, we assume Wayland is available; this
+    # happens for GE-Proton Latest before umu first downloads it
     return True
-
-
-def is_installed_systemwide() -> bool:
-    """Return whether Wine is installed outside of Qtris"""
-    for build in WINE_PATHS.values():
-        if system.can_find_executable(build):
-            return True
-    return False
-
-
-def list_system_wine_versions() -> list[str]:
-    """Return the list of wine versions installed on the system"""
-    versions = [name for name, path in WINE_PATHS.items() if get_system_wine_version(path)]
-    return sorted(versions, key=get_natural_sort_key, reverse=True)
-
-
-def list_qtris_wine_versions() -> list[str]:
-    """Return the list of wine versions installed by qtris"""
-    if not system.path_exists(WINE_DIR):
-        return []
-    versions = []
-    for dirname in version_sort(os.listdir(WINE_DIR), reverse=True):
-        try:
-            wine_path = os.path.join(WINE_DIR, dirname, "bin/wine")
-            if wine_path and os.path.isfile(wine_path):
-                versions.append(dirname)
-        except MisconfigurationError:
-            pass  # if it's not properly installed, skip it
-    return sorted(versions, key=get_natural_sort_key, reverse=True)
 
 
 @cache_single
 def get_installed_wine_versions() -> list[str]:
-    """Return the list of Wine versions installed, with no duplicates and in
-    the presentation order."""
-    # A dict, unlike a set, removes duplicates while keeping the order
-    versions = dict.fromkeys(
-        [
-            GE_PROTON_LATEST,
-            *proton.list_proton_versions(),
-            *list_qtris_wine_versions(),
-            *list_system_wine_versions(),
-        ]
-    )
-    return list(versions)
+    """Return the Wine versions that can be chosen, in presentation order: GE-Proton
+    Latest, then the installed Proton builds."""
+    return [GE_PROTON_LATEST, *proton.list_proton_versions()]
+
+
+def get_wine_version_label(version: str) -> str:
+    """Return how a Wine version is shown to the user."""
+    return _("GE-Proton Latest") if version == GE_PROTON_LATEST else version
+
+
+def get_proton_version_or_default(version: str | None) -> str:
+    """Return the Proton build a configured Wine version names, using the bare release
+    tag for GE-Proton. Anything that isn't Proton, such as system Wine, an old Wine build
+    or a custom executable, gives the default, GE-Proton Latest."""
+    if not version or version == GE_PROTON_LATEST:
+        return GE_PROTON_LATEST
+    tag = proton.get_proton_release_tag(version)
+    if tag:
+        return tag
+    if proton.is_proton_version(version):
+        return version
+    logger.debug("Wine version '%s' isn't a Proton build; using GE-Proton Latest", version)
+    return GE_PROTON_LATEST
 
 
 def clear_wine_version_cache() -> None:
@@ -173,83 +121,31 @@ def clear_wine_version_cache() -> None:
 
 
 def get_runner_files_dir_for_version(version: str) -> str | None:
-    """This returns the path to the root of the Wine files for a specific version. The
-    'bin' directory for that version is there, and we can place more directories there.
-    If we shouldn't do that, this will return None."""
+    """Return the root of a Proton build's Wine files, the directory holding 'bin', or
+    None if the version names no installed Proton build."""
     if version == GE_PROTON_LATEST:
-        return None
-    if version in WINE_PATHS:
-        return None
-    elif proton.is_proton_version(version):
+        return proton.get_ge_proton_latest_files_dir()
+    if proton.is_proton_version(version):
         return proton.get_proton_wine_files_dir(version)
-    else:
-        return os.path.join(WINE_DIR, version)
+    return None
 
 
-def get_wine_path_for_version(version: str, config: dict | None = None) -> str:
-    """Return the absolute path of a wine executable for a given version,
-    or the configured version if you don't ask for a version."""
-    if not version and config:
-        version = config["version"]
-
+def get_wine_path_for_version(version: str) -> str:
+    """Return the program that runs a Wine version: umu for GE-Proton Latest, and the
+    wine executable of any other Proton build."""
     if not version:
         raise UnspecifiedVersionError(_("The Wine version must be specified."))
 
     if version == GE_PROTON_LATEST:
         return proton.get_umu_path()
-    if version in WINE_PATHS:
-        return system.find_required_executable(WINE_PATHS[version])
     if proton.is_proton_version(version):
         return proton.get_proton_wine_path(version)
-    if version == "custom":
-        if config is None:
-            raise RuntimeError("Custom wine paths are only supported when a configuration is available.")
-        wine_path = config.get("custom_wine_path")
-        if not wine_path:
-            raise RuntimeError("The 'custom' Wine version can be used only if the custom wine path is set.")
-        return wine_path
-    return os.path.join(WINE_DIR, version, "bin/wine")
-
-
-def parse_wine_version(version: str) -> tuple[list[int], str, str]:
-    """This is a specialized parse_version() that adjusts some odd
-    Wine versions for correct parsing."""
-    version = version.replace("Proton7-", "Proton-7.")
-    version = version.replace("Proton8-", "Proton-8.")
-    version = version.replace("Proton9-", "Proton-9.")
-    return parse_version(version)
-
-
-def version_sort(versions: list[str], reverse: bool = False) -> list[str]:
-    def version_key(version: str) -> list[Any]:
-        version_list, suffix, prefix = parse_wine_version(version)
-        # Normalize the length of sub-versions
-        sort_key: list[Any] = list(version_list) + [0] * (10 - len(version_list))
-        sort_key.append(suffix)
-        sort_key.append(prefix)
-        return sort_key
-
-    return sorted(versions, key=version_key, reverse=reverse)
+    raise MissingExecutableError(_("Wine version '%s' isn't an installed Proton build.") % version)
 
 
 def get_default_wine_version() -> str:
     """Return the default version of wine."""
     return GE_PROTON_LATEST
-
-
-def get_system_wine_version(wine_path: str = "wine") -> str:
-    """Return the version of Wine installed on the system."""
-    if wine_path != "wine" and not system.path_exists(wine_path):
-        return ""
-    if wine_path == "wine" and not system.can_find_executable("wine"):
-        return ""
-    version = system.read_process_output([wine_path, "--version"])
-    if not version:
-        logger.error("Error reading wine version for %s", wine_path)
-        return ""
-    if version.startswith("wine-"):
-        version = version[5:]
-    return version
 
 
 def get_real_executable(windows_executable: str, working_dir: str | None) -> tuple[str, list[str], str | None]:

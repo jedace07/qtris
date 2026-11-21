@@ -22,7 +22,7 @@ from qtris.util.gogdl import clear_stale_manifest, run_gogdl
 from qtris.util.jobs import schedule_repeating_at_idle
 from qtris.util.log import logger
 from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
-from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_default_wine_version, get_wine_path_for_version
+from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_proton_version_or_default, get_wine_path_for_version
 
 
 class CommandsMixin:
@@ -32,27 +32,16 @@ class CommandsMixin:
     installer: QtrisInstaller = NotImplemented
 
     def get_wine_path(self) -> str:
-        """Return absolute path of wine version used during the installation, but
-        None if the wine exe can't be located."""
+        """Return the program that runs Wine during the installation: the Proton build
+        the script names, else the Wine runner's, else GE-Proton Latest."""
         runner = self.get_runner_class(self.installer.runner)()
         version = runner.get_installer_runner_version(self.installer, use_runner_config=False)
-        if version:
-            wine_path = get_wine_path_for_version(version)
-            return wine_path
-
-        # Special case that lets the Wine configuration explicit specify the path
-        # to the Wine executable, not just a version number.
-        if self.installer.runner == "wine":
+        if not version and self.installer.runner == "wine":
             try:
-                config_version, runner_config = wine.get_runner_version_and_config()
-                wine_path = get_wine_path_for_version(config_version, config=runner_config.runner_level["wine"])
-                return wine_path
+                version = wine.get_runner_version_and_config()[0]
             except UnspecifiedVersionError:
                 pass
-
-        version = get_default_wine_version()
-        wine_path = get_wine_path_for_version(version)
-        return wine_path
+        return get_wine_path_for_version(get_proton_version_or_default(version))
 
     def get_runner_class(self, runner_name):
         """Runner the runner class from its name"""

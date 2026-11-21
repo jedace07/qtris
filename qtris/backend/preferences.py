@@ -12,7 +12,7 @@ from qtris import settings
 from qtris.backend.models import SourceSetting, SteamAccount, StoragePaths, SystemInfoSection
 from qtris.cache import get_custom_cache_path, save_custom_cache_path, validate_custom_cache_path
 from qtris.config import QtrisConfig
-from qtris.exceptions import QtrisError
+from qtris.exceptions import MissingExecutableError, QtrisError
 from qtris.services import SERVICES
 from qtris.util import linux, system
 from qtris.util.linux import gather_system_info, gather_system_info_dict
@@ -20,7 +20,7 @@ from qtris.util.log import get_log_contents
 from qtris.util.retroarch.firmware import scan_firmware_directory
 from qtris.util.steam.config import STEAM_ACCOUNT_SETTING, get_steam_users
 from qtris.util.strings import human_size
-from qtris.util.wine.wine import is_installed_systemwide
+from qtris.util.wine import proton
 
 MAX_BIOS_FOLDER_SIZE = 8e9
 MAX_BIOS_FILES_IN_FOLDER = 5000
@@ -175,9 +175,17 @@ async def set_steam_account(account_id: str) -> None:
 # System information
 
 
+def _has_umu() -> bool:
+    try:
+        proton.get_umu_path()
+    except MissingExecutableError:
+        return False
+    return True
+
+
 _FEATURES: tuple[tuple[str, Callable[[], object]], ...] = (
     (_("Vulkan support"), linux.LINUX_SYSTEM.is_vulkan_supported),
-    (_("Wine installed"), is_installed_systemwide),
+    (_("umu installed"), _has_umu),
     (_("Gamescope"), lambda: system.can_find_executable("gamescope")),
     (_("Mangohud"), lambda: system.can_find_executable("mangohud")),
     (_("Steam"), linux.LINUX_SYSTEM.has_steam),

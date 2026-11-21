@@ -7,7 +7,6 @@ from unittest import TestCase
 
 from qtris.util import fileio, strings, system
 from qtris.util.steam import vdfutils
-from qtris.util.wine import wine
 
 
 class TestFileUtils(TestCase):
@@ -141,38 +140,6 @@ class TestStringUtils(TestCase):
         self.assertEqual(strings.computer_size("1.14 GB"), int(1.14 * 1024**3))
         self.assertEqual(strings.computer_size("0"), 0)
         self.assertEqual(strings.computer_size("not a size"), 0)
-
-
-class TestVersionSort(TestCase):
-    def test_parse_version(self):
-        self.assertEqual(wine.parse_wine_version("3.6-staging"), ([3, 6], "-staging", ""))
-
-    def test_versions_are_correctly_sorted(self):
-        versions = ["1.8", "1.7.4", "1.9.1", "1.9.10", "1.9.4"]
-        versions = wine.version_sort(versions)
-        self.assertEqual(versions[0], "1.7.4")
-        self.assertEqual(versions[1], "1.8")
-        self.assertEqual(versions[2], "1.9.1")
-        self.assertEqual(versions[3], "1.9.4")
-        self.assertEqual(versions[4], "1.9.10")
-
-    def test_version_sorting_supports_extra_strings(self):
-        versions = ["1.8", "1.8-staging", "1.7.4", "1.9.1", "1.9.10-staging", "1.9.10", "1.9.4", "staging-1.9.4"]
-        versions = wine.version_sort(versions)
-        self.assertEqual(versions[0], "1.7.4")
-        self.assertEqual(versions[1], "1.8")
-        self.assertEqual(versions[2], "1.8-staging")
-        self.assertEqual(versions[3], "1.9.1")
-        self.assertEqual(versions[4], "1.9.4")
-        self.assertEqual(versions[5], "staging-1.9.4")
-        self.assertEqual(versions[6], "1.9.10")
-        self.assertEqual(versions[7], "1.9.10-staging")
-
-    def test_versions_can_be_reversed(self):
-        versions = ["1.9", "1.6", "1.7", "1.8"]
-        versions = wine.version_sort(versions, reverse=True)
-        self.assertEqual(versions[0], "1.9")
-        self.assertEqual(versions[3], "1.6")
 
 
 class TestEvilConfigParser(TestCase):
