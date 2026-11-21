@@ -1,7 +1,6 @@
 """Steam for Linux runner"""
 
 import os
-import re
 import signal
 import time
 from collections.abc import Iterable
@@ -21,7 +20,7 @@ from qtris.util.steam.vdfutils import to_vdf
 from qtris.util.strings import split_arguments
 
 # Default time (seconds) to keep monitoring after the launcher exits while
-# waiting for Steam's per-game reaper to appear, before concluding the launch
+# waiting for the game's processes to appear, before concluding the launch
 # failed. Covers slow hand-off, shader pre-caching and first-launch
 # prerequisites. Overridable per-game via the "launch_grace_seconds" option.
 DEFAULT_LAUNCH_GRACE_SECONDS = 120
@@ -30,30 +29,18 @@ DEFAULT_LAUNCH_GRACE_SECONDS = 120
 STOP_TIMEOUT_SECONDS = 5.0
 
 
-def is_reaper_for(cmdline: str, appid: str) -> bool:
-    """True if a command line is Steam's reaper for this appid.
+def get_steam_game_pids(appid: str) -> set[int]:
+    """Return the PIDs of a running Steam game's processes, wherever they run.
 
-    When Steam launches a game it starts its reaper program, ".../reaper SteamLaunch
-    AppId=<appid> -- ...", which exists for the game's whole lifetime (through shader
-    pre-caching and play) and exits when the game does, for native, Proton and
-    Flatpak Steam alike. Only the reaper itself matches, not a process that merely
-    mentions it, and 440 doesn't match a reaper for 4400."""
-    return re.match(r"(\S*/)?reaper SteamLaunch AppId=%s( |$)" % re.escape(appid), cmdline) is not None
-
-
-def find_reapers(appid: str, processes: Iterable[host_processes.HostProcess]) -> list[int]:
-    """Return the PIDs of the reapers Steam started for a game."""
+    Steam gives every process of a game its appid in SteamAppId and SteamGameId,
+    and they keep it through Proton, the Steam Linux Runtime's containers and the
+    new sandboxes the Steam Flatpak starts through the Flatpak portal, where the
+    game is no longer under the process that Steam launched it with. The Steam
+    client itself doesn't have them. Steam runs on the host, so from the Flatpak
+    sandbox this asks the host."""
     if not appid:
-        return []
-    return [process.pid for process in processes if is_reaper_for(process.cmdline, appid)]
-
-
-def get_steam_game_pids(appid: str) -> list[int]:
-    """Return the PIDs of the reapers of a running Steam game. Steam runs on the
-    host, so from the Flatpak sandbox this asks the host."""
-    if not appid:
-        return []
-    return find_reapers(appid, host_processes.list_processes())
+        return set()
+    return host_processes.find_by_environment([f"SteamAppId={appid}", f"SteamGameId={appid}"])
 
 
 class steam(Runner):
@@ -137,7 +124,7 @@ class steam(Runner):
         super().__init__(config)
         # Launch-window tracking for keep_game_alive()
         self._launch_monitor_start: Optional[float] = None
-        self._steam_reaper_seen: bool = False
+        self._steam_game_seen: bool = False
 
     @property
     def launch_grace_seconds(self) -> float:
@@ -271,7 +258,7 @@ class steam(Runner):
         # Reset launch-window tracking for this run (the runner instance may be
         # reused across launches); see keep_game_alive().
         self._launch_monitor_start = None
-        self._steam_reaper_seen = False
+        self._steam_game_seen = False
         game_args = self.game_config.get("args") or ""
 
         binary_path = self.game_config.get("steamless_binary")
@@ -308,66 +295,45 @@ class steam(Runner):
         }
 
     def force_stop_game(self, game_pids: Iterable[int]) -> None:
-        """Stop a running Steam game without harming the Steam client.
-
-        Steam's reaper doesn't pass signals on to the game it started, so stopping
-        it alone would leave the game running: this stops every process under it
-        instead, killing what's left after STOP_TIMEOUT_SECONDS, and the reaper
-        exits with its last child. Steam runs on the host, which the Flatpak
-        sandbox reaches through flatpak-spawn. Blocks until the game is gone.
-        """
+        """Stop a running Steam game without harming the Steam client: send SIGTERM
+        to every process of the game, and SIGKILL to those left after
+        STOP_TIMEOUT_SECONDS. Blocks until the game is gone."""
         super().force_stop_game(game_pids)
         if not self.appid or not self.runs_through_steam:
             return
-        processes = host_processes.list_processes()
-        reapers = find_reapers(self.appid, processes)
-        if not reapers:
+        pids = get_steam_game_pids(self.appid)
+        if not pids:
             return
         logger.info("Stopping Steam game %s", self.appid)
-        host_processes.send_signal(signal.SIGTERM, host_processes.get_descendants(reapers, processes))
+        host_processes.send_signal(signal.SIGTERM, pids)
         deadline = time.monotonic() + STOP_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             time.sleep(0.5)
-            processes = host_processes.list_processes()
-            reapers = find_reapers(self.appid, processes)
-            if not reapers:
+            if not (pids := get_steam_game_pids(self.appid)):
                 return
         logger.warning("Steam game %s didn't quit; killing it", self.appid)
-        host_processes.send_signal(signal.SIGKILL, {*reapers, *host_processes.get_descendants(reapers, processes)})
+        host_processes.send_signal(signal.SIGKILL, pids)
 
     def keep_game_alive(self, game_pids: Iterable[int], game_thread_running: bool) -> bool:
         """Keep beat() monitoring a Steam game across the out-of-process launch.
 
-        Steam launches the game via a non-blocking URI, so game_thread exits
-        within seconds. There's then a brief window before Steam's per-game
-        reaper process appears. We:
-
-        * report alive while game_thread is still running (normal early phase);
-        * report alive while the reaper for this appid is present (the whole
-          game lifetime, detected via the reaper PID scan);
-        * during the launch window -- after game_thread exits but before the
-          reaper has ever appeared -- report alive until LAUNCH_GRACE_SECONDS
-          elapses, so a slow hand-off / shader pre-cache doesn't trigger a
-          premature on_game_quit(). Once the reaper has been seen and then
-          disappears, the game has genuinely quit and we return False.
+        Steam launches the game through a URI, so game_thread exits within seconds,
+        and the game's processes may take a while to appear (Steam starting,
+        updates, shader pre-caching). The game is alive while game_thread runs or
+        any of its processes do. Before any has appeared, it's given
+        launch_grace_seconds; once its processes have been seen and are gone, it
+        has quit.
         """
         if not self.appid or not self.runs_through_steam:
             return False
 
-        reaper_alive = bool(get_steam_game_pids(self.appid))
-
-        if game_thread_running or reaper_alive:
-            if reaper_alive:
-                self._steam_reaper_seen = True
+        running = bool(get_steam_game_pids(self.appid))
+        if game_thread_running or running:
+            self._steam_game_seen = self._steam_game_seen or running
             self._launch_monitor_start = self._launch_monitor_start or time.monotonic()
             return True
-
-        # game_thread has exited and no reaper is visible.
-        if self._steam_reaper_seen:
-            # We saw the game running and it's now gone -> genuinely quit.
+        if self._steam_game_seen:
             return False
-
-        # Reaper has never appeared yet: stay alive through the launch window.
         if self._launch_monitor_start is None:
             self._launch_monitor_start = time.monotonic()
         return (time.monotonic() - self._launch_monitor_start) < self.launch_grace_seconds

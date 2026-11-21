@@ -1,8 +1,8 @@
-"""See and signal the processes of the host, even from inside the Flatpak sandbox.
+"""Find and signal the processes of the host, even from inside the Flatpak sandbox.
 
 Qtris's Flatpak has a PID namespace of its own, so /proc only shows its own processes.
 Games that another program starts, such as Steam's, run outside it; from the sandbox,
-`flatpak-spawn --host` lists and signals them with the host's ps and kill.
+`flatpak-spawn --host` searches and signals them with the host's grep and kill.
 """
 
 from __future__ import annotations
@@ -12,18 +12,10 @@ import shutil
 import signal
 import subprocess
 from collections.abc import Iterable
-from dataclasses import dataclass
 
 from qtris.util.log import logger
 
 _TIMEOUT_SECONDS = 10
-
-
-@dataclass(frozen=True)
-class HostProcess:
-    pid: int
-    ppid: int
-    cmdline: str
 
 
 def _host_command() -> list[str] | None:
@@ -35,65 +27,47 @@ def _host_command() -> list[str] | None:
     return [spawn, "--host"] if spawn else None
 
 
-def list_processes() -> list[HostProcess]:
-    """Return every process of the host that Qtris can see."""
+def find_by_environment(entries: Iterable[str]) -> set[int]:
+    """Return the PIDs of the host's processes whose environment holds any of the
+    entries ("NAME=value"). The environment survives where the process tree doesn't,
+    such as a program a Flatpak starts in a new sandbox through the Flatpak portal."""
+    entries = list(entries)
     prefix = _host_command()
-    if prefix is None:
-        return []
+    if prefix is None or not entries:
+        return set()
     if not prefix:
-        return _read_proc()
+        return _find_by_environment(set(entries))
+    patterns = [argument for entry in entries for argument in ("-e", entry)]
+    # One grep over every process's environment, its entries split at NULs
+    script = 'exec grep -lsxzF "$@" /proc/[0-9]*/environ'
     try:
         output = subprocess.run(
-            [*prefix, "ps", "-e", "-ww", "-o", "pid=,ppid=,args="],
+            [*prefix, "sh", "-c", script, "sh", *patterns],
             capture_output=True,
             text=True,
             errors="replace",
             timeout=_TIMEOUT_SECONDS,
-            check=True,
+            check=False,
         ).stdout
     except (OSError, subprocess.SubprocessError) as ex:
-        logger.warning("Could not list the host's processes: %s", ex)
-        return []
-    return list(parse_ps_output(output))
+        logger.warning("Could not search the host's processes: %s", ex)
+        return set()
+    return {int(parts[2]) for line in output.split() if len(parts := line.split("/")) > 2 and parts[2].isdigit()}
 
 
-def parse_ps_output(output: str) -> Iterable[HostProcess]:
-    for line in output.splitlines():
-        fields = line.split(None, 2)
-        if len(fields) >= 2 and fields[0].isdigit() and fields[1].isdigit():
-            yield HostProcess(int(fields[0]), int(fields[1]), fields[2] if len(fields) == 3 else "")
-
-
-def _read_proc() -> list[HostProcess]:
-    processes = []
+def _find_by_environment(entries: set[str]) -> set[int]:
+    pids = set()
     for name in os.listdir("/proc"):
         if not name.isdigit():
             continue
         try:
-            with open(f"/proc/{name}/cmdline", "rb") as cmdline_file:
-                cmdline = cmdline_file.read().replace(b"\x00", b" ").decode("utf-8", "replace").strip()
-            with open(f"/proc/{name}/stat", encoding="utf-8", errors="replace") as stat_file:
-                # The command name in parentheses may hold spaces; the fields after it don't
-                ppid = int(stat_file.read().rpartition(")")[2].split()[1])
-        except OSError, IndexError, ValueError:
+            with open(f"/proc/{name}/environ", "rb") as environ_file:
+                environ = environ_file.read().decode("utf-8", "replace").split("\0")
+        except OSError:
             continue
-        processes.append(HostProcess(int(name), ppid, cmdline))
-    return processes
-
-
-def get_descendants(roots: Iterable[int], processes: Iterable[HostProcess]) -> set[int]:
-    """Return the PIDs of every process under the roots, not counting the roots."""
-    children: dict[int, list[int]] = {}
-    for process in processes:
-        children.setdefault(process.ppid, []).append(process.pid)
-    descendants: set[int] = set()
-    pending = list(roots)
-    while pending:
-        for child in children.get(pending.pop(), ()):
-            if child not in descendants:
-                descendants.add(child)
-                pending.append(child)
-    return descendants
+        if entries.intersection(environ):
+            pids.add(int(name))
+    return pids
 
 
 def send_signal(sig: signal.Signals, pids: Iterable[int]) -> None:

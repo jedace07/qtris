@@ -21,7 +21,10 @@ from qtris.util.linux import LINUX_SYSTEM
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
 
-DEFAULT_SERVICES = ["gog", "egs", "ea_app", "ubisoft", "steam"]
+# The stores a new profile starts with turned on: those with a client that installs
+# and runs their games for Qtris (Steam itself, gogdl, legendary and Nile), not
+# just a launcher inside a Wine prefix
+DEFAULT_SERVICES = ["steam", "gog", "egs", "amazon"]
 
 
 def get_services() -> dict[str, "type[BaseService]"]:

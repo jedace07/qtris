@@ -1,9 +1,11 @@
 """Tests for the Steam runner's reaper-based tracking and stopping of games."""
 
+import os
 import signal
+import subprocess
 from contextlib import contextmanager
 from unittest import TestCase
-from unittest.mock import PropertyMock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 from qtris.util.test_config import setup_test_environment
 
@@ -41,27 +43,27 @@ class KeepGameAliveTest(TestCase):
 
     def test_alive_while_thread_running(self):
         with make_runner() as runner:
-            with patch.object(steam, "get_steam_game_pids", return_value=[]):
+            with patch.object(steam, "get_steam_game_pids", return_value=set()):
                 # game_thread still running -> always keep monitoring
                 self.assertTrue(runner.keep_game_alive(set(), game_thread_running=True))
 
     def test_alive_while_reaper_present(self):
         with make_runner() as runner:
-            with patch.object(steam, "get_steam_game_pids", return_value=[5555]):
+            with patch.object(steam, "get_steam_game_pids", return_value={5555}):
                 self.assertTrue(runner.keep_game_alive({5555}, game_thread_running=False))
-            self.assertTrue(runner._steam_reaper_seen)
+            self.assertTrue(runner._steam_game_seen)
 
     def test_alive_during_launch_window_before_reaper(self):
         with make_runner() as runner:
             # Thread exited, reaper not up yet, never seen -> stay alive (grace)
-            with patch.object(steam, "get_steam_game_pids", return_value=[]):
+            with patch.object(steam, "get_steam_game_pids", return_value=set()):
                 self.assertTrue(runner.keep_game_alive(set(), game_thread_running=False))
 
     def test_quit_after_reaper_seen_then_gone(self):
         with make_runner() as runner:
-            with patch.object(steam, "get_steam_game_pids", return_value=[5555]):
+            with patch.object(steam, "get_steam_game_pids", return_value={5555}):
                 runner.keep_game_alive({5555}, game_thread_running=False)  # sees reaper
-            with patch.object(steam, "get_steam_game_pids", return_value=[]):
+            with patch.object(steam, "get_steam_game_pids", return_value=set()):
                 # reaper gone after having been seen -> game genuinely quit
                 self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
 
@@ -69,7 +71,7 @@ class KeepGameAliveTest(TestCase):
         with make_runner() as runner:
             runner._launch_monitor_start = 0.0  # far in the past
             with (
-                patch.object(steam, "get_steam_game_pids", return_value=[]),
+                patch.object(steam, "get_steam_game_pids", return_value=set()),
                 patch.object(steam.time, "monotonic", return_value=runner.launch_grace_seconds + 1),
             ):
                 self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
@@ -80,12 +82,12 @@ class KeepGameAliveTest(TestCase):
             self.assertEqual(runner.launch_grace_seconds, 10)
             runner._launch_monitor_start = 0.0
             with (
-                patch.object(steam, "get_steam_game_pids", return_value=[]),
+                patch.object(steam, "get_steam_game_pids", return_value=set()),
                 patch.object(steam.time, "monotonic", return_value=5),  # within 10s window
             ):
                 self.assertTrue(runner.keep_game_alive(set(), game_thread_running=False))
             with (
-                patch.object(steam, "get_steam_game_pids", return_value=[]),
+                patch.object(steam, "get_steam_game_pids", return_value=set()),
                 patch.object(steam.time, "monotonic", return_value=11),  # past 10s window
             ):
                 self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
@@ -110,96 +112,77 @@ class KeepGameAliveTest(TestCase):
         config = {"appid": "440", "run_without_steam": True, "steamless_binary": "/games/tf/hl2.sh"}
         with make_runner() as runner, patch.object(steam.steam, "game_config", new_callable=PropertyMock) as game:
             game.return_value = config
-            with patch.object(steam, "get_steam_game_pids", return_value=[]):
+            with patch.object(steam, "get_steam_game_pids", return_value=set()):
                 self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
 
 
-def process(pid, ppid, cmdline):
-    return host_processes.HostProcess(pid, ppid, cmdline)
-
-
-STEAM = process(10, 1, "/home/me/.local/share/Steam/ubuntu12_32/steam")
-REAPER = process(100, 10, "/home/me/.local/share/Steam/ubuntu12_32/reaper SteamLaunch AppId=440 -- /tf/hl2.sh")
-GAME = process(101, 100, "/tf/hl2_linux -game tf")
-GAME_CHILD = process(102, 101, "/tf/crashhandler")
-OTHER_REAPER = process(200, 10, "/home/me/.local/share/Steam/ubuntu12_32/reaper SteamLaunch AppId=4400 -- /x")
-OTHER_GAME = process(201, 200, "/x/game")
-
-
 class ForceStopGameTest(TestCase):
-    """Steam's reaper doesn't pass signals on, so force_stop_game stops the game's
-    whole process tree, and never the Steam client or another game."""
+    """force_stop_game stops every process carrying the game's appid, wherever it
+    runs, and kills what ignores SIGTERM."""
 
-    def test_stops_the_game_tree_and_waits_for_the_reaper(self):
-        listings = [
-            [STEAM, REAPER, GAME, GAME_CHILD, OTHER_REAPER, OTHER_GAME],
-            [STEAM, OTHER_REAPER, OTHER_GAME],
-        ]
+    def test_stops_the_game_and_waits_for_it(self):
         with make_runner() as runner:
             with (
-                patch.object(host_processes, "list_processes", side_effect=listings),
+                patch.object(steam, "get_steam_game_pids", side_effect=[{100, 101}, set()]),
                 patch.object(host_processes, "send_signal") as send,
                 patch.object(steam.time, "sleep"),
             ):
                 runner.force_stop_game([])
-        send.assert_called_once_with(signal.SIGTERM, {101, 102})
+        send.assert_called_once_with(signal.SIGTERM, {100, 101})
 
     def test_kills_what_ignores_sigterm(self):
-        running = [STEAM, REAPER, GAME, GAME_CHILD]
         clock = iter(range(100))
         with make_runner() as runner:
             with (
-                patch.object(host_processes, "list_processes", return_value=running),
+                patch.object(steam, "get_steam_game_pids", return_value={100, 101}),
                 patch.object(host_processes, "send_signal") as send,
                 patch.object(steam.time, "sleep"),
                 patch.object(steam.time, "monotonic", side_effect=lambda: next(clock)),
             ):
                 runner.force_stop_game([])
-        self.assertEqual(send.call_args_list[-1].args, (signal.SIGKILL, {100, 101, 102}))
+        self.assertEqual(send.call_args_list[-1].args, (signal.SIGKILL, {100, 101}))
 
     def test_nothing_to_stop(self):
         with make_runner() as runner:
             with (
-                patch.object(host_processes, "list_processes", return_value=[STEAM, OTHER_REAPER, OTHER_GAME]),
+                patch.object(steam, "get_steam_game_pids", return_value=set()),
                 patch.object(host_processes, "send_signal") as send,
             ):
                 runner.force_stop_game([])
         send.assert_not_called()
 
-
-class ReaperTest(TestCase):
-    def test_matches_only_the_reaper_of_the_appid(self):
-        processes = [STEAM, REAPER, GAME, OTHER_REAPER]
-        self.assertEqual(steam.find_reapers("440", processes), [100])
-        self.assertEqual(steam.find_reapers("", processes), [])
-
-    def test_a_process_that_mentions_the_reaper_is_not_one(self):
-        self.assertFalse(steam.is_reaper_for("bash -c run reaper SteamLaunch AppId=440", "440"))
-        self.assertFalse(steam.is_reaper_for("steamwebhelper SteamLaunch AppId=440", "440"))
-        self.assertTrue(steam.is_reaper_for("reaper SteamLaunch AppId=440", "440"))
+    def test_looks_for_both_variables_steam_sets(self):
+        with patch.object(host_processes, "find_by_environment", return_value={7}) as find:
+            self.assertEqual(steam.get_steam_game_pids("440"), {7})
+        find.assert_called_once_with(["SteamAppId=440", "SteamGameId=440"])
+        self.assertEqual(steam.get_steam_game_pids(""), set())
 
 
 class HostProcessesTest(TestCase):
-    def test_parses_ps_output(self):
-        output = "    1     0 /sbin/init splash\n  100    10 /Steam/reaper SteamLaunch AppId=440 -- x\n  7  1\n"
-        self.assertEqual(
-            list(host_processes.parse_ps_output(output)),
-            [
-                process(1, 0, "/sbin/init splash"),
-                process(100, 10, "/Steam/reaper SteamLaunch AppId=440 -- x"),
-                process(7, 1, ""),
-            ],
-        )
+    def test_finds_processes_by_an_exact_environment_entry(self):
+        def start(appid):
+            env = {**os.environ, "SteamAppId": appid}
+            process = subprocess.Popen(["sleep", "30"], env=env)
+            self.addCleanup(process.wait)
+            self.addCleanup(process.kill)
+            return process.pid
 
-    def test_descendants(self):
-        processes = [STEAM, REAPER, GAME, GAME_CHILD, OTHER_REAPER, OTHER_GAME]
-        self.assertEqual(host_processes.get_descendants([100], processes), {101, 102})
-        self.assertEqual(host_processes.get_descendants([10], processes), {100, 101, 102, 200, 201})
+        game = start("4400440")
+        other = start("44004400")
+        with patch.object(host_processes, "_host_command", return_value=set()):
+            found = host_processes.find_by_environment(["SteamAppId=4400440"])
+        self.assertIn(game, found)
+        self.assertNotIn(other, found)
 
-    def test_sandbox_signals_through_flatpak_spawn(self):
+    def test_sandbox_searches_and_signals_through_flatpak_spawn(self):
+        output = "/proc/12/environ\n/proc/345/environ\n"
         with (
             patch.object(host_processes, "_host_command", return_value=["flatpak-spawn", "--host"]),
-            patch.object(host_processes.subprocess, "run") as run,
+            patch.object(host_processes.subprocess, "run", return_value=Mock(stdout=output)) as run,
         ):
+            self.assertEqual(host_processes.find_by_environment(["SteamAppId=440"]), {12, 345})
+            command = run.call_args.args[0]
+            self.assertEqual(command[:3], ["flatpak-spawn", "--host", "sh"])
+            self.assertEqual(command[-2:], ["-e", "SteamAppId=440"])
             host_processes.send_signal(signal.SIGTERM, [102, 101])
         self.assertEqual(run.call_args.args[0], ["flatpak-spawn", "--host", "kill", "-s", "TERM", "--", "101", "102"])
