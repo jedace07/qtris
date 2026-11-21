@@ -30,7 +30,7 @@ from qtris.config import QtrisConfig, make_game_config_id, rename_config
 from qtris.database import games as games_db
 from qtris.exceptions import QtrisError
 from qtris.game import Game
-from qtris.runners import InvalidRunnerError, get_installed, import_runner
+from qtris.runners import InvalidRunnerError, get_runner_names, import_runner, is_runner_enabled
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import get_formatted_playtime, parse_playtime, slugify
@@ -177,7 +177,7 @@ class _Form:
             pages=tuple(self.page(section) for section in self.sections),
             show_advanced=settings.read_setting(_SHOW_ADVANCED_SETTING) == "True",
             game=details,
-            runner_choices=_runner_choices() if self.level == "game" else (),
+            runner_choices=_runner_choices(details.runner if details else "") if self.level == "game" else (),
         )
 
     def page(self, section: str) -> ConfigPage:
@@ -449,8 +449,10 @@ def _checked_value(option: Option, value: Any) -> Any:
     return "" if value is None else str(value)
 
 
-def _runner_choices() -> tuple[ConfigChoice, ...]:
-    runners = sorted(get_installed(), key=lambda runner: runner.human_name.casefold())
+def _runner_choices(current: str) -> tuple[ConfigChoice, ...]:
+    """The runners a game can use: those turned on, and the one it already has."""
+    names = [name for name in get_runner_names() if name == current or is_runner_enabled(name)]
+    runners = sorted((import_runner(name)() for name in names), key=lambda runner: runner.human_name.casefold())
     return tuple(
         ConfigChoice(label=f"{runner.human_name} ({getattr(runner, 'description', '')})", value=runner.name)
         for runner in runners

@@ -16,7 +16,14 @@ from qtris.backend.models import RunnerInfo
 from qtris.delegates import InstallUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.game import Game
-from qtris.runners import RunnerInstallationError, get_installed, get_runner_names, import_runner
+from qtris.runners import (
+    RunnerInstallationError,
+    get_enabled,
+    get_runner_names,
+    import_runner,
+    is_runner_enabled,
+)
+from qtris.runners import set_runner_enabled as _save_runner_enabled
 from qtris.util import system
 from qtris.util.downloader import BaseDownloader, SimpleDownloader
 from qtris.util.http import HTTPError
@@ -35,6 +42,7 @@ class RunnerCatalogEntry:
     name: str
     label: str
     description: str
+    enabled: bool
     installed: bool
     can_install: bool
     can_remove: bool
@@ -108,10 +116,20 @@ async def list_runners() -> list[str]:
     return sorted(get_runner_names(), key=lambda name: name.lower())
 
 
-async def list_installed_runners() -> list[RunnerInfo]:
-    """Return the runners that are installed, in alphabetical order of their names."""
-    installed = await asyncio.to_thread(get_installed)
-    return sorted((RunnerInfo(r.name, r.human_name) for r in installed), key=lambda r: r.human_name.casefold())
+async def list_enabled_runners() -> list[RunnerInfo]:
+    """Return the runners that are turned on, in alphabetical order of their names."""
+    enabled = await asyncio.to_thread(get_enabled)
+    return sorted((RunnerInfo(r.name, r.human_name) for r in enabled), key=lambda r: r.human_name.casefold())
+
+
+async def set_runner_enabled(name: str, enabled: bool, *, interaction: RunnerInstallInteraction | None = None) -> None:
+    """Turn a runner on or off; turning on one Qtris can install, such as a Flathub
+    emulator, installs it. Turning one off hides it, and leaves it installed."""
+    _save_runner_enabled(name, enabled)
+    if enabled:
+        runner = import_runner(name)()
+        if runner.can_install and not await asyncio.to_thread(runner.is_installed):
+            await install_runner(name, interaction=interaction)
 
 
 async def list_runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
@@ -123,12 +141,14 @@ def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
     entries = []
     for name in get_runner_names():
         runner = import_runner(name)()
-        installed = runner.is_installed()
+        # Wine downloads the Proton build a game needs when it first runs, so it's always ready
+        installed = name == "wine" or runner.is_installed()
         entries.append(
             RunnerCatalogEntry(
                 name,
                 runner.human_name,
                 str(getattr(runner, "description", "")),
+                is_runner_enabled(name),
                 installed,
                 not installed and runner.can_install,
                 name != "wine" and runner.can_uninstall(),

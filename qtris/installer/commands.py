@@ -8,6 +8,7 @@ import shlex
 import shutil
 from gettext import gettext as _
 from pathlib import Path
+from typing import Any
 
 from qtris.cache import is_file_in_custom_cache
 from qtris.exceptions import UnspecifiedVersionError
@@ -16,20 +17,23 @@ from qtris.installer.installer import QtrisInstaller
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import InvalidRunnerError, import_runner, import_task
 from qtris.runners.wine import wine
-from qtris.util import extract, selective_merge, system
+from qtris.util import extract, legendary, nile, selective_merge, system
 from qtris.util.gog import apply_gog_config, find_gog_config_dir
 from qtris.util.gogdl import clear_stale_manifest, run_gogdl
 from qtris.util.jobs import schedule_repeating_at_idle
 from qtris.util.log import logger
 from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
+from qtris.util.store_cli import StoreClientError
 from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_proton_version_or_default, get_wine_path_for_version
 
 
 class CommandsMixin:
     """The directives for the `installer:` part of the install script."""
 
-    # pylint: disable=no-member
+    # Set by ScriptInterpreter, which the directives run in
     installer: QtrisInstaller = NotImplemented
+    target_path: str
+    interpreter_ui_delegate: Any
 
     def get_wine_path(self) -> str:
         """Return the program that runs Wine during the installation: the Proton build
@@ -479,35 +483,64 @@ class CommandsMixin:
                 args += " /SUPPRESSMSGBOXES /VERYSILENT /NOGUI"
             return self.task({"name": "wineexec", "prefix": "$GAMEDIR", "executable": file_id, "args": args})
 
-    def autosetup_amazon(self, file_and_dir_dict):
-        files = file_and_dir_dict["files"]
-        directories = file_and_dir_dict["directories"]
+    def legendary_setup(self, data):
+        """Download, update or repair an Epic Games Store game with legendary.
 
-        # create directories
-        for directory in directories:
-            self.mkdir(f"$GAMEDIR/drive_c/game/{directory}")
+        Params:
+            app_name: the game's app name (defaults to the installer's app ID)
+            command: "download" | "update" | "repair" (default: "download")
+        """
+        app_name = str(data.get("app_name") or self.installer.service_appid or "")
+        command = data.get("command", "download")
+        if not app_name:
+            raise ScriptingError(_("legendary_setup requires an app_name."), faulty_data=data)
+        installed = self._run_store_client(
+            _("Epic Games Store"), lambda progress: legendary.install(app_name, self.target_path, command, progress)
+        )
+        if command == "download" and installed.get("executable"):
+            exe = os.path.join(installed["install_path"], installed["executable"])
+            self.installer.script.setdefault("game", {}).setdefault("exe", exe)
 
-        # move installed files from CACHE to game folder
-        for file_hash, file_data in files.items():
-            if file_hash not in self.game_files:
-                logger.warning("Amazon: Missing file hash %s (expected at %s)", file_hash, file_data["paths"][0])
-                continue
+    def nile_setup(self, data):
+        """Download, update or repair an Amazon Games game with Nile.
 
-            source_file = self.game_files[file_hash]
-            paths = file_data["paths"]
+        Params:
+            game_id: the game's ID (defaults to the installer's app ID)
+            command: "download" | "update" | "repair" (default: "download")
+        """
+        game_id = str(data.get("game_id") or self.installer.service_appid or "")
+        command = data.get("command", "download")
+        if not game_id:
+            raise ScriptingError(_("nile_setup requires a game_id."), faulty_data=data)
+        self._run_store_client(_("Amazon"), lambda progress: nile.install(game_id, self.target_path, command, progress))
+        if command == "download":
+            # Nile reads the game's executable from its fuel.json
+            launch = nile.get_launch_parameters(game_id)
+            exe = (launch.get("command") or {}).get("instruction")
+            if exe:
+                self.installer.script.setdefault("game", {}).setdefault("exe", exe)
 
-            for path in paths:
-                dest_path = f"$GAMEDIR/drive_c/game/{path}"
+    def _run_store_client(self, store, install):
+        """Run a store client's download, reporting its progress; return what the
+        client knows of the installed game."""
+        os.makedirs(self.target_path, exist_ok=True)
+        self.interpreter_ui_delegate.report_status(_("Downloading from %s...") % store)
+        self.interpreter_ui_delegate.report_progress(-1)
 
-                abs_dest_path = self._substitute(dest_path)
-                if os.path.isdir(abs_dest_path):
-                    logger.warning("Amazon: Removing conflicting directory %s", abs_dest_path)
-                    shutil.rmtree(abs_dest_path)
+        def progress_callback(progress):
+            parts = []
+            if progress.speed_mib > 0:
+                parts.append(_("{speed:.1f} MiB/s").format(speed=progress.speed_mib))
+            if progress.eta and progress.eta != "00:00:00":
+                parts.append(_("ETA: {eta}").format(eta=progress.eta))
+            self.interpreter_ui_delegate.report_progress(progress.fraction, " — ".join(parts))
 
-                self._killable_process(shutil.copyfile, source_file, abs_dest_path)
-
-            if os.path.exists(source_file):
-                os.remove(source_file)
+        try:
+            installed = install(progress_callback)
+        except StoreClientError as err:
+            raise ScriptingError(_("%(store)s download failed: %(error)s") % {"store": store, "error": err}) from err
+        self.interpreter_ui_delegate.report_progress(None)
+        return installed
 
     def gogdl_setup(self, data):
         """Download and set up a GOG game via depot/CDN using heroic-gogdl.

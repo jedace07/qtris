@@ -405,8 +405,21 @@ for the library endpoint. EA App, Humble Bundle, Steam Families, Game Jolt
 and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
 keeps only cookies from the selected store's domain. ``store_login`` retains the service instance
 until the handoff completes so it can keep transient login data such as
-Amazon's PKCE verifier. The frontend syncs the library on successful
-sign-in. ``services`` also supports manual sync for local sources.
+the device registration Nile starts for Amazon. The frontend syncs the library on successful
+sign-in.
+
+Three stores go through the command-line clients Heroic maintains, which Qtris
+downloads with its other components (``qtris.runtime``) and runs through
+``qtris.util.store_cli``: gogdl for GOG, Heroic's fork of legendary for the Epic
+Games Store, and Nile for Amazon Games. legendary and Nile keep their sign-in,
+library and installed games in ``legendary`` and ``nile`` folders under Qtris's
+configuration folder. Their games install with the ``legendary_setup`` and
+``nile_setup`` directives (download, update or repair) and run on the Wine
+runner. At each launch, ``Game.get_store_launch()`` asks the store, on a worker
+thread, what the game needs: legendary signs the game in to Epic and gives its
+parameters, and Nile gives the Amazon Games SDK settings
+(``BaseService.get_store_launch``). Uninstalling tells the client to forget the
+game and leaves its files to Qtris (``BaseService.forget_installed_game``). ``services`` also supports manual sync for local sources.
 Ubisoft Connect can reuse saved credentials or accept a manual browser handoff:
 paste ``PRODloginData`` if it contains the session fields, or a JSON array of
 ``PRODloginData``, ``PRODrememberMe`` and ``PRODlastProfile`` (``null`` for

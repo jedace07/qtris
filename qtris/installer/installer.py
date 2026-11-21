@@ -123,7 +123,7 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         if self.script_files or self.script.get("game", {}).get("gog") or self.script.get("game", {}).get("prefix"):
             return True
         command_names = [self.interpreter._get_command_name_and_params(c)[0] for c in self.script.get("installer", [])]
-        if "gogdl_setup" in command_names:
+        if {"gogdl_setup", "legendary_setup", "nile_setup"} & set(command_names):
             return True
         if self.uses_gamedir_variable:
             # The script expects $GAMEDIR to expand to something; without a folder it

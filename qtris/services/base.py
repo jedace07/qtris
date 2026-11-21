@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from dataclasses import dataclass, field
 from gettext import gettext as _
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -80,6 +81,15 @@ SERVICE_LOGOUT = NotificationSource()
 # Fired with a service that needs the user to log in again, outside of any
 # login the user started; a frontend answers it by calling service.login()
 SERVICE_LOGIN_REQUIRED = NotificationSource()
+
+
+@dataclass(frozen=True)
+class StoreLaunch:
+    """What a store adds to the command that starts one of its games."""
+
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    working_dir: str = ""
 
 
 class BaseService:
@@ -180,6 +190,14 @@ class BaseService:
     def get_update_installers(self, db_game):
         return []
 
+    def get_store_launch(self, game: Game) -> StoreLaunch | None:
+        """Return what one of the store's games needs to start, for stores whose
+        client gets involved at each launch; runs on a worker thread."""
+        return None
+
+    def forget_installed_game(self, appid: str) -> None:
+        """Tell the store's client that Qtris uninstalled one of its games."""
+
     def generate_installer(self, db_game: dict[str, Any]) -> dict[str, Any]:
         """Used to generate an installer from the data returned from the services"""
         return {}
@@ -196,8 +214,8 @@ class BaseService:
         if not self.client_installer:
             return []
         launchers: dict[str, DbGameDict] = {}
-        for field in ("installer_slug", "slug"):
-            for launcher in get_games(filters={field: self.client_installer, "installed": 1}):
+        for column in ("installer_slug", "slug"):
+            for launcher in get_games(filters={column: self.client_installer, "installed": 1}):
                 if launcher.get("configpath"):
                     launchers[launcher["id"]] = launcher
         preferred = settings.read_setting(f"{self.id}_launcher", section="services")
@@ -384,7 +402,6 @@ class OnlineService(BaseService):
     online = True
     cookies_path = NotImplemented
     cache_path = NotImplemented
-    requires_login_page = False
 
     login_url = NotImplemented
     login_window_width = 390

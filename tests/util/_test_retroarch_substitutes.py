@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from qtris import settings
-from qtris.migrations.retire_standalone_emulators import migrate_config
 from qtris.util.retroarch import content
 from qtris.util.retroarch.content import get_content_path
 from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
@@ -28,19 +27,6 @@ def test_other_runners_are_left_alone() -> None:
     assert translate_runner("dosbox") == "libretro"
     assert translate_runner("yuzu") == "eden"
     assert translate_game_config("wine", {"exe": "game.exe"}) == {"exe": "game.exe"}
-
-
-def test_renamed_runners_keep_their_options() -> None:
-    config = {"game": {"main_file": "game.nsp"}, "yuzu": {"fullscreen": False}}
-    assert migrate_config("yuzu", config) == {"game": {"main_file": "game.nsp"}, "eden": {"fullscreen": False}}
-
-
-def test_migration_moves_game_options_to_libretro() -> None:
-    config = {"game": {"main_file": "/roms/zelda.iso", "platform": "1"}, "dolphin": {"fullscreen": True}, "system": {}}
-    assert migrate_config("dolphin", config) == {
-        "game": {"main_file": "/roms/zelda.iso", "core": "dolphin"},
-        "system": {},
-    }
 
 
 def test_scummvm_core_gets_a_file_naming_the_game(tmp_path: Path) -> None:

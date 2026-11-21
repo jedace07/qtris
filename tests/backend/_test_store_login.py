@@ -1,8 +1,8 @@
 """Exercise browser handoffs without using real account credentials."""
 
 import asyncio
-import hashlib
 import json
+import logging
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -11,12 +11,15 @@ import pytest
 from qtris import settings
 from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
-from qtris.services.amazon import AmazonService
 from qtris.services.gog import GOGService
 from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.util.credentials import save_credentials
+from qtris.util.test_config import setup_test_environment
 from qtris.util.ubisoft.client import UbisoftConnectClient
+from tests.store_clients import install_store_clients
+
+setup_test_environment()
 
 
 def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
@@ -58,31 +61,41 @@ def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
     assert token.stat().st_mode & 0o777 == 0o600
 
 
-def test_amazon_keeps_the_pkce_verifier_for_the_browser_handoff(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_amazon_signs_in_through_nile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    token = tmp_path / ".amazon.user"
-    received: list[str] = []
-
-    def register(self: AmazonService, code: str) -> dict[str, object]:
-        assert self.verifier
-        received.append(hashlib.sha256(self.verifier).hexdigest())
-        assert code == "fixture"
-        return {"tokens": {}}
-
+    install_store_clients(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
-    monkeypatch.setattr(AmazonService, "user_path", str(token))
-    monkeypatch.setattr(AmazonService, "generate_code_verifier", lambda self: b"fixture-pkce-verifier")
-    monkeypatch.setattr(AmazonService, "register_device", register)
 
     async def run() -> None:
         request = await store_login.begin("amazon")
         assert "openid.oa2.code_challenge" in parse_qs(urlsplit(request.url).query)
-        await store_login.finish(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=fixture")
+        with pytest.raises(QtrisError, match="full sign-in redirect URL"):
+            await store_login.finish(request.id, "https://www.amazon.com.example/?openid.oa2.authorization_code=x")
+        await store_login.finish(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code")
         assert (await services.get_source_status("amazon")).signed_in
 
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(run())
+    # Nile prints the tokens it gets; they must never reach the log
+    assert "SECRET-TOKEN" not in caplog.text
+
+
+def test_epic_signs_in_through_legendary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_store_clients(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+
+    async def run() -> None:
+        request = await store_login.begin("egs")
+        assert urlsplit(request.url).netloc == "www.epicgames.com"
+        with pytest.raises(QtrisError, match="Login attempt failed"):
+            await store_login.finish(request.id, '{"authorizationCode": "wrong-code"}')
+        await store_login.finish(request.id, '{"redirectUrl": "https://localhost", "authorizationCode": "epic-code"}')
+        assert (await services.get_source_status("egs")).signed_in
+        await services.disconnect_source("egs")
+        assert not (await services.get_source_status("egs")).signed_in
+
     asyncio.run(run())
-    assert received == [hashlib.sha256(b"fixture-pkce-verifier").hexdigest()]
 
 
 def test_cookie_import_only_persists_the_selected_stores_cookies(

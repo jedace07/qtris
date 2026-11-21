@@ -27,17 +27,6 @@ can use the following command:
 
 ``uv run gdb -ex r --args .venv/bin/python -m qtris.launcher``
 
-Moving from Lutris
-------------------
-
-On its first start, Qtris moves an existing Lutris profile to its own folders
-(``~/.local/share/lutris`` to ``~/.local/share/qtris``, and the same for
-``~/.config`` and ``~/.cache``), along with the Lutris Flatpak's profile when
-Qtris runs as a Flatpak. It renames ``lutris.conf`` to ``qtris.conf`` and
-updates the folders your games and settings refer to. Lutris itself can't use
-that profile afterwards. Desktop and Steam shortcuts that Lutris made still
-start Lutris, so recreate them from Qtris.
-
 Installing games
 ================
 

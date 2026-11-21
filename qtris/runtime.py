@@ -62,14 +62,28 @@ def get_components(arch: str | None) -> list[Component]:
     ]
     if arch in {"x86_64", "aarch64"}:
         asset_arch = {"x86_64": "x86_64", "aarch64": "arm64"}[arch]
-        components.append(
+        # The store clients Heroic maintains: gogdl for GOG, its legendary fork for
+        # the Epic Games Store, and Nile for Amazon Games
+        components += [
             Component(
                 "gogdl",
                 ReleaseSource("Heroic-Games-Launcher/heroic-gogdl", rf"^gogdl_linux_{asset_arch}$"),
                 "gogdl",
                 archive=False,
-            )
-        )
+            ),
+            Component(
+                "legendary",
+                ReleaseSource("Heroic-Games-Launcher/legendary", rf"^legendary_linux_{asset_arch}$"),
+                "legendary",
+                archive=False,
+            ),
+            Component(
+                "nile",
+                ReleaseSource("imLinguin/nile", rf"^nile_linux_{asset_arch}$"),
+                "nile",
+                archive=False,
+            ),
+        ]
     if seven_zip_arch := {"x86_64": "x64", "i386": "x86", "aarch64": "arm64", "armv7": "arm"}.get(arch or ""):
         components.append(Component("7zip", ReleaseSource("ip7z/7zip", rf"-linux-{seven_zip_arch}\.tar\.xz$"), "7zz"))
     if arch == "x86_64":

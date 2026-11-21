@@ -10,7 +10,6 @@ from gettext import gettext as _
 from typing import TYPE_CHECKING, cast
 
 from qtris import settings
-from qtris.config import QtrisConfig
 from qtris.exceptions import MissingExecutableError
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import import_runner
@@ -258,7 +257,6 @@ def wineexec(
     working_dir: str | None = None,
     winetricks_wine: str = "",
     blocking: bool = False,
-    config: QtrisConfig | None = None,
     include_processes: list | None = None,
     exclude_processes: list | None = None,
     env: dict | None = None,
@@ -278,7 +276,6 @@ def wineexec(
         working_dir (str): path to the working dir for the process
         winetricks_wine (str): path to the wine version used by winetricks
         blocking (bool): if true, do not run the process in a thread
-        config (QtrisConfig): QtrisConfig object for the process context
         include_processes (list or str): list of process names to monitor (even when in an ignore list)
         exclude_processes (list or str): list of process names that should not be monitored
         runner (runner): the wine runner that carries the configuration to use
@@ -422,7 +419,6 @@ def winetricks(
     arch: str = WINE_DEFAULT_ARCH,
     silent: bool = True,
     wine_path: str | None = None,
-    config=None,
     env=None,
     system_winetricks=False,
     runner=None,
@@ -476,14 +472,13 @@ def winetricks(
         working_dir=working_dir,
         arch=arch,
         args=args,
-        config=config,
         env=env,
         runner=runner,
         proton_verb=proton_verb,
     )
 
 
-def winecfg(wine_path=None, prefix=None, arch=WINE_DEFAULT_ARCH, config=None, env=None, runner=None, proton_verb=None):
+def winecfg(wine_path=None, prefix=None, arch=WINE_DEFAULT_ARCH, env=None, runner=None, proton_verb=None):
     """Execute winecfg."""
 
     if not wine_path:
@@ -500,7 +495,6 @@ def winecfg(wine_path=None, prefix=None, arch=WINE_DEFAULT_ARCH, config=None, en
         winetricks_wine=wine_path,
         wine_path=wine_path,
         arch=arch,
-        config=config,
         env=env,
         include_processes=["winecfg.exe"],
         runner=runner,

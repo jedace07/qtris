@@ -15,6 +15,7 @@ from qtris.backend import (
     configuration,
     events,
     game_actions,
+    games,
     imports,
     installations,
     installers,
@@ -777,8 +778,25 @@ def test_qml_manages_ge_proton_from_preferences(
     version = "GE-Proton11-7"
     installed = False
 
+    wine_enabled = True
+
     async def list_catalog() -> tuple[runners.RunnerCatalogEntry, ...]:
-        return (runners.RunnerCatalogEntry("wine", "Wine", "Runs Windows games", True, False, False),)
+        return (
+            runners.RunnerCatalogEntry(
+                "wine",
+                "Wine",
+                "Runs Windows games",
+                enabled=wine_enabled,
+                installed=True,
+                can_install=False,
+                can_remove=False,
+            ),
+        )
+
+    async def set_runner_enabled(name: str, enabled: bool, **_kwargs: object) -> None:
+        nonlocal wine_enabled
+        assert name == "wine"
+        wine_enabled = enabled
 
     families: list[str] = []
 
@@ -813,6 +831,7 @@ def test_qml_manages_ge_proton_from_preferences(
         installed = False
 
     monkeypatch.setattr(runners, "list_runner_catalog", list_catalog)
+    monkeypatch.setattr(runners, "set_runner_enabled", set_runner_enabled)
     monkeypatch.setattr(runners, "list_proton_builds", list_builds)
     monkeypatch.setattr(runners, "list_proton_releases", list_releases)
     monkeypatch.setattr(runners, "get_latest_proton", get_latest_proton)
@@ -844,6 +863,20 @@ def test_qml_manages_ge_proton_from_preferences(
                 button = find_item(content, name)
                 assert button is not None and QMetaObject.invokeMethod(button, "clicked")
 
+            manager = window.controller._runner_manager
+            await wait_for_qml(qt_application, lambda: bool(find_item(content, "runnerSwitch_wine")))
+            switch = find_item(content, "runnerSwitch_wine")
+            assert switch is not None and switch.property("checked")
+            switch.setProperty("checked", False)
+            assert QMetaObject.invokeMethod(switch, "toggled")
+            await wait_for_qml(qt_application, lambda: not wine_enabled and not manager.busy)
+            assert not manager.property("entries")[0]["manageProton"]
+            switch = find_item(content, "runnerSwitch_wine")
+            assert switch is not None
+            switch.setProperty("checked", True)
+            assert QMetaObject.invokeMethod(switch, "toggled")
+            await wait_for_qml(qt_application, lambda: wine_enabled and not manager.busy)
+
             await click("runnerVersions_wine")
             await click(f"runnerInstall_{version}")
             latest = window.controller._runner_manager.property("entries")[0]
@@ -862,7 +895,6 @@ def test_qml_manages_ge_proton_from_preferences(
             assert QMetaObject.invokeMethod(prompt, "accept")
             await wait_for_qml(qt_application, lambda: not installed)
 
-            manager = window.controller._runner_manager
             await click("protonFamily_1")
             await wait_for_qml(qt_application, lambda: families[-1:] == ["Proton-CachyOS"] and not manager.busy)
             assert manager.property("protonFamily") == 1
@@ -1134,6 +1166,40 @@ def test_qml_log_tracks_output_and_resets_on_relaunch(
         finally:
             window.shutdown()
             LOG_BUFFERS.pop(target, None)
+
+    asyncio.run(run())
+
+
+def test_runner_install_progress_goes_away_once_the_game_launches(
+    qt_application: QGuiApplication, library: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launched: list[str] = []
+
+    async def prepare_game_runner(game_id: str, interaction: runners.RunnerInstallInteraction) -> bool:
+        interaction.progress("Downloading…", 0.5)
+        interaction.progress("Verifying and installing…", None)
+        return True
+
+    async def launch_game(game_id: str, _delegate: object) -> bool:
+        launched.append(game_id)
+        return False
+
+    monkeypatch.setattr(runners, "prepare_game_runner", prepare_game_runner)
+    monkeypatch.setattr(games, "launch_game", launch_game)
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        try:
+            await settle(window)
+            controller = window.controller
+            shown: list[str] = []
+            controller.statusChanged.connect(lambda: shown.append(controller.property("statusText")))
+            controller.launch(library[0], False)
+            await wait_for_qml(qt_application, lambda: bool(launched) and not controller.property("statusText"))
+            assert "Verifying and installing…" in shown
+        finally:
+            window.shutdown()
 
     asyncio.run(run())
 

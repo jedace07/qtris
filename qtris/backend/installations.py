@@ -159,9 +159,7 @@ class _FileEntry:
     def providers(self) -> tuple[str, ...]:
         if self.file.default_provider == "steam":
             return ("steam",)
-        found = self.file.providers
-        if not (isinstance(self.file, InstallerFileCollection) and self.file.service == "amazon"):
-            found = found | {"user"}
+        found = self.file.providers | {"user"}
         return tuple(provider for provider in ("download", "pga", "user") if provider in found)
 
     @property

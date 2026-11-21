@@ -206,9 +206,8 @@ where services and a real library can be exercised.
 Step B1 - Back up the whole profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The migrations rewrite ``qtris.conf`` and ``games/*.yml``, and
-``migration_version`` never goes back down, so going back to the installed release
-means restoring all of it, not just the database. Skip the runner and runtime
+A new build may rewrite ``qtris.conf`` and ``games/*.yml``, so going back to the
+installed release means restoring all of it, not just the database. Skip the runner and runtime
 downloads, which are large and untouched::
 
     tar -C ~/.local/share --exclude='qtris/runners/*' --exclude='qtris/runtime/*' \
@@ -222,8 +221,8 @@ Step B2 - Open your profile
 
     uv run qtris -d
 
-No HOME or XDG overrides this time: this is your real profile. The first launch of a
-new build runs any pending migrations once, which is what the backup above is for.
+No HOME or XDG overrides this time: this is your real profile, which is what the
+backup above is for.
 
 Item 2 - Library rendering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

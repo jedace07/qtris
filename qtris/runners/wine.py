@@ -561,6 +561,12 @@ class wine(Runner):
         except MisconfigurationError:
             return False
 
+    def install_dialog(self, ui_delegate: "InstallUIDelegate") -> bool:
+        """Download the Proton build the game uses; Wine is always on hand, and Proton
+        comes when a game first needs it, so there is nothing to ask."""
+        self.install(ui_delegate)
+        return self.is_installed()
+
     def is_installed_for(self, interpreter):
         try:
             version = self.get_installer_runner_version(interpreter.installer, use_default=True)
@@ -722,7 +728,6 @@ class wine(Runner):
             wine_path=self.get_executable(),
             prefix=self.prefix_path,
             working_dir=self.prefix_path,
-            config=self,
             env=self.get_env(os_env=True),
             runner=self,
         )
@@ -747,7 +752,6 @@ class wine(Runner):
             wine_path=self.get_executable(),
             prefix=self.prefix_path,
             arch=self.wine_arch,
-            config=self,
             env=self.get_env(os_env=True),
             runner=self,
         )
@@ -776,7 +780,6 @@ class wine(Runner):
             "",
             prefix=self.prefix_path,
             wine_path=self.get_executable(),
-            config=self,
             system_winetricks=system_winetricks,
             env=self.get_env(os_env=True),
             runner=self,

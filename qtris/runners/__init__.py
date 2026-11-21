@@ -16,10 +16,14 @@ from collections.abc import Callable
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, cast
 
+from qtris import settings
 from qtris.exceptions import MisconfigurationError, QtrisError
 
 if TYPE_CHECKING:
     from qtris.runners.runner import Runner
+
+# The runners a new profile starts with turned on; the others are opt-in
+DEFAULT_RUNNERS = ("linux", "steam", "wine")
 
 ADDON_RUNNERS: dict[str, type["Runner"]] = {}
 _cached_runner_human_names: dict[str, str] = {}
@@ -63,14 +67,20 @@ def import_task(runner: str, task: str) -> Callable[..., Any]:
     return cast(Callable[..., Any], getattr(runner_module, task))
 
 
-def get_installed(sort: bool = True) -> list["Runner"]:
-    """Return a list of installed runners (class instances)."""
-    installed = []
-    for runner_name in __all__:
-        runner = import_runner(runner_name)()
-        if runner.is_installed():
-            installed.append(runner)
-    return sorted(installed) if sort else installed
+def is_runner_enabled(runner_name: str) -> bool:
+    """True if the user turned a runner on, or it's one of the defaults they haven't turned off."""
+    return settings.read_bool_setting(runner_name, default=runner_name in DEFAULT_RUNNERS, section="runners")
+
+
+def set_runner_enabled(runner_name: str, enabled: bool) -> None:
+    if not is_valid_runner_name(runner_name):
+        raise InvalidRunnerError("Invalid runner name '%s'" % runner_name)
+    settings.write_setting(runner_name, enabled, section="runners")
+
+
+def get_enabled() -> list["Runner"]:
+    """Return the runners that are turned on (class instances)."""
+    return [import_runner(runner_name)() for runner_name in __all__ if is_runner_enabled(runner_name)]
 
 
 def inject_runners(runners: dict[str, type["Runner"]]) -> None:

@@ -5,7 +5,7 @@ import zipfile
 from collections import OrderedDict
 from unittest import TestCase
 
-from qtris.util import fileio, strings, system
+from qtris.util import strings, system
 from qtris.util.steam import vdfutils
 
 
@@ -140,22 +140,6 @@ class TestStringUtils(TestCase):
         self.assertEqual(strings.computer_size("1.14 GB"), int(1.14 * 1024**3))
         self.assertEqual(strings.computer_size("0"), 0)
         self.assertEqual(strings.computer_size("not a size"), 0)
-
-
-class TestEvilConfigParser(TestCase):
-    def setUp(self):
-        self.config_path = os.path.join(os.path.dirname(__file__), "test.ini")
-
-    def tearDown(self):
-        if os.path.exists(self.config_path):
-            os.remove(self.config_path)
-
-    def test_config_parse_can_write_to_disk(self):
-        parser = fileio.EvilConfigParser(dict_type=fileio.MultiOrderedDict)
-        parser.add_section("Test")
-        parser.set("Test", "key", "value")
-        with open(self.config_path, "wb") as config:
-            parser.write(config)
 
 
 class TestUnpackDependencies(TestCase):

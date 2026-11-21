@@ -45,6 +45,7 @@ from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
     from qtris.delegates import LaunchUIDelegate
+    from qtris.services.base import BaseService, StoreLaunch
 
 HEARTBEAT_DELAY = 2000
 
@@ -188,7 +189,7 @@ class Game:
     @property
     def is_updatable(self) -> bool:
         """Return whether the game can be upgraded"""
-        return self.is_installed and self.service in ["gog", "itchio"]
+        return self.is_installed and self.service in ["gog", "itchio", "egs", "amazon"]
 
     def get_categories(self) -> list[str]:
         """Return the categories the game is in."""
@@ -474,6 +475,11 @@ class Game:
             # self.directory here, not self.resolve_game_path; no guessing at
             # directories when we delete them
             self.runner.remove_game_data(app_id=self.appid, game_path=self.directory)
+        if service := self.get_service():
+            try:
+                service.forget_installed_game(self.appid)
+            except Exception as ex:  # The game is uninstalled for Qtris either way
+                logger.warning("%s could not forget %s: %s", service.name, self, ex)
         self.is_installed = False
         self._config = None
         self._runner = None
@@ -648,9 +654,12 @@ class Game:
             return killswitch
         return ""
 
-    def get_gameplay_info(self, launch_ui_delegate: "LaunchUIDelegate") -> dict[str, Any]:
-        """Return the information provided by a runner's play method.
-        It checks for possible errors and raises exceptions if they occur.
+    def get_gameplay_info(
+        self, launch_ui_delegate: "LaunchUIDelegate", store_launch: "StoreLaunch | None" = None
+    ) -> dict[str, Any]:
+        """Return the information provided by a runner's play method, with what the
+        game's store adds to it. It checks for possible errors and raises exceptions if
+        they occur.
 
         This may invoke methods on the delegates to make decisions,
         and this may show UI.
@@ -671,7 +680,27 @@ class Game:
         if config:  # empty dict for primary configuration
             self.runner.apply_launch_config(gameplay_info, config)
 
+        if store_launch:
+            gameplay_info["command"] = [*gameplay_info["command"], *store_launch.args]
+            gameplay_info["env"] = {**(gameplay_info.get("env") or {}), **store_launch.env}
+            if store_launch.working_dir:
+                gameplay_info["working_dir"] = store_launch.working_dir
         return gameplay_info
+
+    def get_service(self) -> "BaseService | None":
+        """Return the store the game comes from, if Qtris knows it."""
+        if not self.service or not self.appid:
+            return None
+        from qtris.services import SERVICES  # noqa: PLC0415 (the services import this module)
+
+        service_class = SERVICES.get(self.service)
+        return service_class() if service_class else None
+
+    def get_store_launch(self) -> "StoreLaunch | None":
+        """Ask the game's store what the game needs to start, such as a sign-in for
+        it. This may wait on the network, so call it off the main loop."""
+        service = self.get_service()
+        return service.get_store_launch(self) if service else None
 
     def get_path_from_config(self) -> str:
         """Return the path of the main entry point for a game"""
@@ -710,11 +739,11 @@ class Game:
         return store
 
     @watch_game_errors(game_stop_result=False)
-    def configure_game(self, launch_ui_delegate: "LaunchUIDelegate") -> bool:
+    def configure_game(self, launch_ui_delegate: "LaunchUIDelegate", store_launch: "StoreLaunch | None" = None) -> bool:
         """Get the game ready to start, applying all the options.
         This method sets the game_runtime_config attribute.
         """
-        gameplay_info = self.get_gameplay_info(launch_ui_delegate)
+        gameplay_info = self.get_gameplay_info(launch_ui_delegate, store_launch)
         if not gameplay_info:  # if user cancelled - not an error
             return False
         command, env = get_launch_parameters(self.runner, gameplay_info)
@@ -820,13 +849,17 @@ class Game:
 
             GAME_START.fire(self)
 
+            def prepare() -> "StoreLaunch | None":
+                self.runner.prelaunch()
+                return self.get_store_launch()
+
             @watch_game_errors(game_stop_result=False, game=self)
-            def configure_game(_ignored: Any, error: BaseException) -> None:
+            def configure_game(store_launch: "StoreLaunch | None", error: BaseException) -> None:
                 if error:
                     raise error
-                self.configure_game(launch_ui_delegate)
+                self.configure_game(launch_ui_delegate, store_launch)
 
-            jobs.AsyncCall(self.runner.prelaunch, configure_game)
+            jobs.AsyncCall(prepare, configure_game)
 
         launch_ui_delegate.wait_for_component_updates(self, proceed)
         return True

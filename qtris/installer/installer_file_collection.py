@@ -1,13 +1,10 @@
 """Manipulates installer files"""
 
 from gettext import gettext as _
-from urllib.parse import urlparse
 
 from qtris.cache import has_valid_custom_cache_path
 from qtris.util import system
 from qtris.util.file_downloads import FileCollectionDownload
-
-AMAZON_DOMAIN = "a2z.com"
 
 
 class InstallerFileCollection:
@@ -23,7 +20,6 @@ class InstallerFileCollection:
         self.allow_pga_cache = True
         self.full_size = 0
         self._get_files_size()
-        self._get_service()
 
     def _get_files_size(self):
         if len(self.files_list) > 0:
@@ -31,16 +27,6 @@ class InstallerFileCollection:
                 self.full_size = self.files_list[0].total_size
             else:
                 self.full_size = sum(f.size or 0 for f in self.files_list)
-
-    def _get_service(self):
-        """Try to get the service using the url of an InstallerFile"""
-        self.service = None
-        if len(self.files_list) < 1:
-            return
-        url = self.files_list[0].url
-        url_parts = urlparse(url)
-        if url_parts.netloc.endswith(AMAZON_DOMAIN):
-            self.service = "amazon"
 
     def copy(self):
         """Copy InstallerFileCollection"""

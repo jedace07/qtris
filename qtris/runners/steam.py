@@ -1,6 +1,7 @@
 """Steam for Linux runner"""
 
 import os
+import re
 import signal
 import time
 from collections.abc import Iterable
@@ -11,28 +12,13 @@ from qtris.config import QtrisConfig
 from qtris.exceptions import MissingGameExecutableError, UnavailableRunnerError
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import NonInstallableRunnerError
-from qtris.runners.runner import Runner, kill_processes
-from qtris.util import linux, system
+from qtris.runners.runner import Runner
+from qtris.util import host_processes, linux, system
 from qtris.util.log import logger
-from qtris.util.steam.appmanifest import AppManifest, get_appmanifest_from_appid, get_path_from_appmanifest
+from qtris.util.steam.appmanifest import get_appmanifest_from_appid, get_path_from_appmanifest
 from qtris.util.steam.config import get_default_acf, get_steam_dir, get_steamapps_dirs
 from qtris.util.steam.vdfutils import to_vdf
 from qtris.util.strings import split_arguments
-
-# Steam appmanifest StateFlags that mean the game should be treated as "still
-# alive" so beat() keeps polling. "AppRunning" is the normal running case. The
-# others cover the transient window between the Play click and AppRunning being
-# set, when Steam runs a launch-time update/validate ("Update Running",
-# "Validating", "Update Started") and the launcher process may already have
-# exited. Persistent library states that are NOT tied to an active launch
-# (e.g. "Update Required", "Update Paused", "Downloading") are deliberately
-# excluded, so a game with a pending background update isn't seen as running.
-STEAM_ALIVE_STATES = {
-    "AppRunning",
-    "Update Running",
-    "Update Started",
-    "Validating",
-}
 
 # Default time (seconds) to keep monitoring after the launcher exits while
 # waiting for Steam's per-game reaper to appear, before concluding the launch
@@ -40,64 +26,34 @@ STEAM_ALIVE_STATES = {
 # prerequisites. Overridable per-game via the "launch_grace_seconds" option.
 DEFAULT_LAUNCH_GRACE_SECONDS = 120
 
+# How long a game gets to quit after SIGTERM before it's killed
+STOP_TIMEOUT_SECONDS = 5.0
 
-def get_steam_pid() -> Optional[str]:
-    """Return pid of Steam process.
 
-    Steam is single-instance, so this resolves to at most one PID (the call
-    uses pgrep without ``multiple``).
-    """
-    pid = system.get_pid("steam$")
-    # get_pid() can return a list only with multiple=True, which we never pass;
-    # narrow the type so callers get a plain Optional[str].
-    if isinstance(pid, list):
-        return pid[0] if pid else None
-    return pid
+def is_reaper_for(cmdline: str, appid: str) -> bool:
+    """True if a command line is Steam's reaper for this appid.
+
+    When Steam launches a game it starts its reaper program, ".../reaper SteamLaunch
+    AppId=<appid> -- ...", which exists for the game's whole lifetime (through shader
+    pre-caching and play) and exits when the game does, for native, Proton and
+    Flatpak Steam alike. Only the reaper itself matches, not a process that merely
+    mentions it, and 440 doesn't match a reaper for 4400."""
+    return re.match(r"(\S*/)?reaper SteamLaunch AppId=%s( |$)" % re.escape(appid), cmdline) is not None
+
+
+def find_reapers(appid: str, processes: Iterable[host_processes.HostProcess]) -> list[int]:
+    """Return the PIDs of the reapers Steam started for a game."""
+    if not appid:
+        return []
+    return [process.pid for process in processes if is_reaper_for(process.cmdline, appid)]
 
 
 def get_steam_game_pids(appid: str) -> list[int]:
-    """Return the PIDs of the Steam "reaper" processes launched for a given appid.
-
-    When Steam launches a game it spawns a reaper process whose command line
-    contains "SteamLaunch AppId=<appid>". This reaper exists for the entire
-    lifetime of the game (through shader pre-caching and play) and exits when
-    the game stops, for native, Proton/Wine and Flatpak Steam alike.
-
-    This is far more reliable than the appmanifest "AppRunning" StateFlag, which
-    is not updated for Flatpak Steam installs, and it covers the launch window
-    (the reaper appears before the game window does), so beat() does not call
-    on_game_quit() prematurely.
-    """
+    """Return the PIDs of the reapers of a running Steam game. Steam runs on the
+    host, so from the Flatpak sandbox this asks the host."""
     if not appid:
         return []
-    # The reaper cmdline looks like: "reaper SteamLaunch AppId=440 -- ...".
-    # Match "AppId=<appid>" followed by a space or end of string so that appid
-    # 440 does not also match a reaper for 4400 / 44012 (substring collision).
-    prefix = "SteamLaunch AppId=%s" % appid
-    pids = []
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
-            continue
-        try:
-            with open(os.path.join("/proc", pid, "cmdline"), "rb") as cmdline_file:
-                cmdline = cmdline_file.read().replace(b"\x00", b" ").decode("utf-8", "replace")
-        except OSError:
-            continue
-        if "reaper" not in cmdline:
-            continue
-        idx = cmdline.find(prefix)
-        if idx == -1:
-            continue
-        # Character immediately after the appid must be a space or end-of-string.
-        after = cmdline[idx + len(prefix) : idx + len(prefix) + 1]
-        if after in ("", " "):
-            pids.append(int(pid))
-    return pids
-
-
-def is_running():
-    """Checks if Steam is running."""
-    return bool(get_steam_pid())
+    return find_reapers(appid, host_processes.list_processes())
 
 
 class steam(Runner):
@@ -177,23 +133,11 @@ class steam(Runner):
         },
     ]
 
-    # Cache the reaper-PID scan for a fraction of a heartbeat so the two calls
-    # in a single Game.beat() (filter_game_pids + keep_game_alive) only walk
-    # /proc once. Kept well below HEARTBEAT_DELAY so each beat re-scans.
-    _REAPER_CACHE_TTL = 1.0
-
     def __init__(self, config: QtrisConfig | None = None) -> None:
         super().__init__(config)
-        # Cache for the resolved appmanifest path so beat() doesn't re-walk
-        # every steamapps dir on each heartbeat (see _get_cached_appmanifest).
-        self._cached_appmanifest_appid: Optional[str] = None
-        self._cached_appmanifest_path: Optional[str] = None
-        # Launch-window tracking for keep_game_alive().
+        # Launch-window tracking for keep_game_alive()
         self._launch_monitor_start: Optional[float] = None
         self._steam_reaper_seen: bool = False
-        # Per-beat cache of the reaper PID scan (see _get_reaper_pids).
-        self._reaper_pids_cache: list[int] = []
-        self._reaper_pids_cache_at: float = 0.0
 
     @property
     def launch_grace_seconds(self) -> float:
@@ -210,18 +154,10 @@ class steam(Runner):
             logger.warning("Invalid launch_grace_seconds %r; using default", raw)
         return DEFAULT_LAUNCH_GRACE_SECONDS
 
-    def _get_reaper_pids(self) -> list[int]:
-        """Reaper PIDs for this appid, cached briefly so the two calls within a
-        single Game.beat() (filter_game_pids + keep_game_alive) share one
-        /proc scan instead of walking it twice."""
-        if not self.appid:
-            return []
-        now = time.monotonic()
-        if now - self._reaper_pids_cache_at < self._REAPER_CACHE_TTL:
-            return self._reaper_pids_cache
-        self._reaper_pids_cache = get_steam_game_pids(self.appid)
-        self._reaper_pids_cache_at = now
-        return self._reaper_pids_cache
+    @property
+    def runs_through_steam(self) -> bool:
+        """False in DRM-free mode, which runs the game's binary without Steam."""
+        return not (self.game_config.get("run_without_steam") and self.game_config.get("steamless_binary"))
 
     @property
     def runnable_alone(self):
@@ -336,12 +272,10 @@ class steam(Runner):
         # reused across launches); see keep_game_alive().
         self._launch_monitor_start = None
         self._steam_reaper_seen = False
-        self._reaper_pids_cache = []
-        self._reaper_pids_cache_at = 0.0
         game_args = self.game_config.get("args") or ""
 
         binary_path = self.game_config.get("steamless_binary")
-        if self.game_config.get("run_without_steam") and binary_path:
+        if not self.runs_through_steam:
             # Start without steam
             if not system.path_exists(binary_path):
                 raise MissingGameExecutableError(filename=binary_path)
@@ -373,57 +307,33 @@ class steam(Runner):
             "env": self.get_env(),
         }
 
-    def filter_game_pids(self, candidate_pids: Iterable[int], game_uuid: str, game_folder: str) -> set[int]:
-        """Track a running Steam game by its Steam-spawned processes.
-
-        Steam games launch via non-blocking URI handlers (steam://rungameid/ or
-        steam -applaunch) that exit almost immediately, and the real game runs
-        under Steam's PID tree without inheriting QTRIS_GAME_UUID. So the base
-        PID detection finds nothing and beat() fires on_game_quit() too early.
-
-        The reliable signal is Steam's per-game "reaper" process, whose command
-        line contains "SteamLaunch AppId=<appid>". It exists for the whole life
-        of the game (including the shader pre-cache / launch window, before the
-        game window appears) and exits when the game stops -- for native,
-        Proton/Wine and Flatpak Steam alike. While it is present we report its
-        PID so beat() keeps polling; once it is gone the set goes empty and
-        on_game_quit() fires correctly.
-
-        The appmanifest "AppRunning" StateFlag is also honoured as a secondary
-        signal where Steam updates it (it is not updated for Flatpak installs),
-        in which case the Steam process PID is tracked instead.
-        """
-        pids = super().filter_game_pids(candidate_pids, game_uuid, game_folder)
-
-        if self.appid:
-            reaper_pids = self._get_reaper_pids()
-            if reaper_pids:
-                pids.update(reaper_pids)
-            elif self._game_is_alive_in_steam():
-                steam_pid = self._get_steam_pid_int()
-                if steam_pid:
-                    pids.add(steam_pid)
-
-        return pids
-
     def force_stop_game(self, game_pids: Iterable[int]) -> None:
         """Stop a running Steam game without harming the Steam client.
 
-        The base implementation SIGTERMs every tracked PID. filter_game_pids()
-        may track Steam's own PID (appmanifest fallback), so a blind SIGTERM
-        could kill the user's whole Steam client. Here we SIGTERM the game's
-        reaper process(es) -- terminating the reaper stops just this game -- and
-        any other tracked PIDs that are not the Steam client itself. We never
-        signal the Steam PID directly.
+        Steam's reaper doesn't pass signals on to the game it started, so stopping
+        it alone would leave the game running: this stops every process under it
+        instead, killing what's left after STOP_TIMEOUT_SECONDS, and the reaper
+        exits with its last child. Steam runs on the host, which the Flatpak
+        sandbox reaches through flatpak-spawn. Blocks until the game is gone.
         """
-        steam_pid = self._get_steam_pid_int()
-        reaper_pids = set(get_steam_game_pids(self.appid)) if self.appid else set()
-
-        target_pids = {pid for pid in game_pids if pid != steam_pid}
-        target_pids.update(reaper_pids)
-
-        if target_pids:
-            kill_processes(signal.SIGTERM, target_pids)
+        super().force_stop_game(game_pids)
+        if not self.appid or not self.runs_through_steam:
+            return
+        processes = host_processes.list_processes()
+        reapers = find_reapers(self.appid, processes)
+        if not reapers:
+            return
+        logger.info("Stopping Steam game %s", self.appid)
+        host_processes.send_signal(signal.SIGTERM, host_processes.get_descendants(reapers, processes))
+        deadline = time.monotonic() + STOP_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            processes = host_processes.list_processes()
+            reapers = find_reapers(self.appid, processes)
+            if not reapers:
+                return
+        logger.warning("Steam game %s didn't quit; killing it", self.appid)
+        host_processes.send_signal(signal.SIGKILL, {*reapers, *host_processes.get_descendants(reapers, processes)})
 
     def keep_game_alive(self, game_pids: Iterable[int], game_thread_running: bool) -> bool:
         """Keep beat() monitoring a Steam game across the out-of-process launch.
@@ -441,10 +351,10 @@ class steam(Runner):
           premature on_game_quit(). Once the reaper has been seen and then
           disappears, the game has genuinely quit and we return False.
         """
-        if not self.appid:
+        if not self.appid or not self.runs_through_steam:
             return False
 
-        reaper_alive = bool(self._get_reaper_pids())
+        reaper_alive = bool(get_steam_game_pids(self.appid))
 
         if game_thread_running or reaper_alive:
             if reaper_alive:
@@ -461,51 +371,6 @@ class steam(Runner):
         if self._launch_monitor_start is None:
             self._launch_monitor_start = time.monotonic()
         return (time.monotonic() - self._launch_monitor_start) < self.launch_grace_seconds
-
-    def _get_steam_pid_int(self) -> Optional[int]:
-        """Return the Steam process PID as an int, or None.
-
-        get_steam_pid() returns a string (from pgrep), but candidate_pids and
-        the tracked PID set are ints, so it must be converted before use."""
-        steam_pid = get_steam_pid()
-        if not steam_pid:
-            return None
-        try:
-            return int(steam_pid)
-        except TypeError, ValueError:
-            return None
-
-    def _game_is_alive_in_steam(self) -> bool:
-        """True if Steam's appmanifest reports the game as running or busy.
-
-        "AppRunning" covers the normal running case. The update/validate states
-        cover the window between the Play click and AppRunning being set (Steam
-        starting, "Update Running", "Validating", first-launch prereqs), during
-        which the game thread may already have exited; treating them as alive
-        keeps beat() from firing on_game_quit() prematurely in that window."""
-        appmanifest = self._get_cached_appmanifest()
-        if not appmanifest:
-            return False
-        return bool(set(appmanifest.states) & STEAM_ALIVE_STATES)
-
-    def _get_cached_appmanifest(self) -> Optional[AppManifest]:
-        """Return the AppManifest for the current appid, re-reading StateFlags
-        each call but resolving (and caching) the file path only once.
-
-        get_appmanifest() walks every steamapps dir and re-parses VDF; doing
-        that every beat (every HEARTBEAT_DELAY seconds) is wasteful, so the
-        resolved path is cached per appid and only the file is re-read."""
-        if not self.appid:
-            return None
-        if self._cached_appmanifest_appid != self.appid:
-            self._cached_appmanifest_path = None
-            self._cached_appmanifest_appid = self.appid
-        if self._cached_appmanifest_path:
-            return AppManifest(self._cached_appmanifest_path)
-        appmanifest = self.get_appmanifest()
-        if appmanifest:
-            self._cached_appmanifest_path = appmanifest.appmanifest_path
-        return appmanifest
 
     def remove_game_data(self, app_id=None, **kwargs):
         if not self.is_installed():

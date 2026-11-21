@@ -14,6 +14,7 @@ from qtris.database import games as games_db
 from qtris.delegates import CommandLineUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.game import Game
+from qtris.services.base import StoreLaunch
 from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
@@ -59,6 +60,30 @@ def test_add_game_saves_launch_options_without_owning_files(executable: Path, fa
         asyncio.run(run())
     finally:
         registration.unregister()
+        for game_id in game_ids:
+            games_db.delete_game(game_id)
+
+
+def test_a_stores_launch_parameters_join_the_command(executable: Path, tmp_path: Path) -> None:
+    game_ids: list[str] = []
+
+    async def run() -> None:
+        game = await local_games.register_linux_game(str(executable), "Store Game", "--own")
+        game_ids.append(game.id)
+        store_launch = StoreLaunch(
+            args=["-AUTH_PASSWORD=one-time"], env={"FUEL_DIR": "/sdk"}, working_dir=str(tmp_path)
+        )
+        gameplay = Game(game.id).get_gameplay_info(CommandLineUIDelegate(None), store_launch)
+        assert gameplay["working_dir"] == str(tmp_path)
+        assert gameplay["env"]["FUEL_DIR"] == "/sdk"
+        result = subprocess.run(
+            gameplay["command"], cwd=executable.parent, check=True, capture_output=True, text=True, timeout=5
+        )
+        assert result.stdout.splitlines() == [str(executable.parent), "--own", "-AUTH_PASSWORD=one-time"]
+
+    try:
+        asyncio.run(run())
+    finally:
         for game_id in game_ids:
             games_db.delete_game(game_id)
 

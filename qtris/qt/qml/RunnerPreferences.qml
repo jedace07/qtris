@@ -25,7 +25,9 @@ ColumnLayout {
             onClicked: page.controller.open()
         }
 
-        Item { Layout.fillWidth: true }
+        Item {
+            Layout.fillWidth: true
+        }
 
         Button {
             text: qsTr("Check for Releases")
@@ -54,6 +56,15 @@ ColumnLayout {
                 onClicked: page.controller.select_family(index)
             }
         }
+    }
+
+    Label {
+        Layout.fillWidth: true
+        visible: !page.controller.proton
+        text: qsTr("Runners that are turned off aren't listed in the sidebar or offered for new games. Turning on an emulator installs it from Flathub.")
+        wrapMode: Text.WordWrap
+        font.pointSize: Theme.smallSize
+        color: Theme.textMuted
     }
 
     Label {
@@ -91,7 +102,9 @@ ColumnLayout {
                 title: modelData.label
                 subtitle: modelData.description
 
+                // Runners only say when one that's on is missing; Proton builds always say
                 Rectangle {
+                    visible: !entry.modelData.canToggle || (entry.modelData.enabled && !entry.modelData.installed)
                     implicitWidth: stateLabel.implicitWidth + 16
                     implicitHeight: stateLabel.implicitHeight + 6
                     radius: height / 2
@@ -158,6 +171,15 @@ ColumnLayout {
                     ToolTip.visible: hovered
                     ToolTip.text: qsTr("Remove…")
                     onClicked: page.controller.remove(entry.modelData.key)
+                }
+
+                Switch {
+                    objectName: "runnerSwitch_" + entry.modelData.key
+                    visible: entry.modelData.canToggle
+                    enabled: !page.controller.busy
+                    checked: entry.modelData.enabled
+                    Accessible.name: qsTr("Use %1").arg(entry.modelData.label)
+                    onToggled: page.controller.set_enabled(entry.modelData.key, checked)
                 }
             }
 

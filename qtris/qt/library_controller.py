@@ -96,6 +96,7 @@ class LibraryController(QObject):
         self._layout = saved_layout if saved_layout in _LAYOUTS and settings.SHOW_MEDIA else "list"
         self._empty_text = ""
         self._status = ""
+        self._showing_runner_progress = False
         self._running_ids: set[str] = set()
         self._launch_requests: set[str] = set()
         self._tasks: set[asyncio.Task[Any]] = set()
@@ -531,7 +532,14 @@ class LibraryController(QObject):
     async def _launch(self, game_id: str, choose_again: bool) -> None:
         try:
             await self.runtime_updates_controller.wait_for_update()
-            if not await self._runner_manager.prepare_for_launch(game_id, self._runner_launch_progress):
+            try:
+                ready = await self._runner_manager.prepare_for_launch(game_id, self._runner_launch_progress)
+            finally:
+                # The runner's install progress means nothing once it's done
+                if self._showing_runner_progress:
+                    self._showing_runner_progress = False
+                    self._set_status("")
+            if not ready:
                 return
             if await games.launch_game(game_id, QtLaunchUIDelegate(self._prompts, choose_again=choose_again)):
                 self._running_ids.add(game_id)
@@ -542,6 +550,8 @@ class LibraryController(QObject):
     def _runner_launch_progress(self, message: str, fraction: float | None) -> None:
         if fraction is not None:
             message = _("%(message)s (%(percent)d%%)") % {"message": message, "percent": fraction * 100}
+        self._status_timer.stop()
+        self._showing_runner_progress = True
         self._set_status(message)
 
     @Slot()

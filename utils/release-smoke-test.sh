@@ -10,8 +10,8 @@
 #
 #   fresh     brand new profile: first start, empty library, adding a game,
 #             launching it, exporting it
-#   existing  a profile that already has a library, an old-style game config and
-#             an old migration_version, i.e. what a user upgrading sees
+#   existing  a profile that already has a library and settings, i.e. what a
+#             user upgrading sees
 #
 # The game used for the launch checks is a small shell script, so no download,
 # no Wine prefix and no GPU are involved.
@@ -140,9 +140,7 @@ QTRIS_ENTRY="$(dirname "$PY")/qtris"
 
 EXPECTED_VERSION=$("$PY" -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' \
     "$REPO_ROOT/pyproject.toml")
-EXPECTED_MIGRATION_VERSION=$(sed -n 's/^MIGRATION_VERSION = \([0-9]\{1,\}\).*/\1/p' \
-    "$REPO_ROOT/qtris/migrations/__init__.py")
-if [ -z "$EXPECTED_VERSION" ] || [ -z "$EXPECTED_MIGRATION_VERSION" ]; then
+if [ -z "$EXPECTED_VERSION" ]; then
     echo "error: could not read the version from the source tree" >&2
     exit 2
 fi
@@ -340,51 +338,16 @@ add_game(**game_data)
 PY
 }
 
-# Start at migration 18 to test the old emulator option and the removal of
-# Lutris.net account data while skipping migrations that require the network
-LEGACY_FIXTURE_MIGRATION=18
-seed_legacy_profile() {
+seed_existing_profile() {
     mkdir -p "$P_DATA/games" "$P_CACHE"
-    touch "$P_CACHE/auth-token" "$P_CACHE/user.json"
     cat > "$P_CONF" <<EOF
 [qtris]
-migration_version = $LEGACY_FIXTURE_MIGRATION
 pga_cache_path = $P_ROOT/pga-cache
 hide_media = False
-library_sync_enabled = True
 EOF
 
-    "$PY" - "$REPO_ROOT" "$P_DATA" "$P_GAMES" <<'PY'
-import os
-import sys
-
-repo, data_dir, games_root = sys.argv[1:4]
-sys.path.insert(0, repo)
-
-from qtris.database import schema
-from qtris.database.games import add_game
-from qtris.util.yaml import write_yaml_to_file
-
-schema.syncdb()
-
-legacy_dir = os.path.join(games_root, "legacy-emulator")
-os.makedirs(legacy_dir, exist_ok=True)
-write_yaml_to_file(
-    {"game": {"model": "a500", "main_file": os.path.join(legacy_dir, "rom.bin")}},
-    os.path.join(data_dir, "games", "legacy-emulator-1.yml"),
-)
-add_game(
-    name="Legacy Emulator Game",
-    slug="legacy-emulator",
-    runner="fsuae",
-    directory=legacy_dir,
-    installed=1,
-    configpath="legacy-emulator-1",
-)
-PY
-
-    # A normal game, added before the upgrade, that must keep launching after it
-    # (seeded without a platform so the backfill path is exercised too).
+    # A game added before the upgrade, that must keep launching after it (seeded
+    # without a platform so the backfill path is exercised too)
     seed_linux_game "smoke-existing-game" "Smoke Existing Game"
 }
 
@@ -409,7 +372,7 @@ check_profile_layout() { # <scenario>
 check_db_tables() { # <scenario>
     local tables missing=() table
     tables=$(db_query "select name from sqlite_master where type='table'")
-    for table in games service_games sources categories games_categories saved_searches; do
+    for table in games service_games categories games_categories saved_searches; do
         printf '%s\n' "$tables" | grep -qx "$table" || missing+=("$table")
     done
     if [ ${#missing[@]} -eq 0 ]; then
@@ -473,8 +436,6 @@ scenario_fresh() {
     expect_eq "F4 db: integrity_check" "ok" "$(db_query 'pragma integrity_check')"
     check_db_tables "$scenario"
     out=$(cat "$P_CONF" 2>/dev/null || true)
-    expect_contains "F5 settings: migration_version = $EXPECTED_MIGRATION_VERSION" \
-        "$out" "migration_version = $EXPECTED_MIGRATION_VERSION"
     expect_contains "F5 settings: default services enabled" "$out" "[services]"
 
     # F6 - runners. Every JSON runner in the checkout has to appear by name, so a
@@ -575,57 +536,24 @@ scenario_fresh() {
 scenario_existing() {
     section "Existing install (upgrade)"
     profile_reset existing
-    local scenario=existing out migrated_yml
-    local legacy_yml="$P_DATA/games/legacy-emulator-1.yml"
+    local scenario=existing out
 
-    seed_legacy_profile
+    seed_existing_profile
 
-    # E1/E2 - first start of the new version on an old profile
+    # E1/E2 - first start of the new version on an existing profile
     qtris_run "$P_LOGS/upgrade-list" -l -j
     out=$(cat "$P_LOGS/upgrade-list" 2>/dev/null || true)
     expect_eq "E1 upgrade: first start exits 0" 0 "$RC"
-    expect_contains "E2 library: emulator game still listed" "$out" '"slug": "legacy-emulator"'
     expect_contains "E2 library: pre-existing game still listed" "$out" '"slug": "smoke-existing-game"'
-    expect_eq "E2 library: exactly two games" "2" "$(game_count "$P_LOGS/upgrade-list")"
+    expect_eq "E2 library: exactly one game" "1" "$(game_count "$P_LOGS/upgrade-list")"
 
-    # E3/E4 - migrations ran, user settings untouched
-    out=$(cat "$P_CONF" 2>/dev/null || true)
-    expect_contains "E3 settings: migration_version bumped to $EXPECTED_MIGRATION_VERSION" \
-        "$out" "migration_version = $EXPECTED_MIGRATION_VERSION"
+    # E4 - user settings untouched
     expect_contains "E4 settings: custom pga_cache_path preserved" \
-        "$out" "pga_cache_path = $P_ROOT/pga-cache"
-    expect_not_contains "E4 settings: legacy Lutris.net sync setting removed" "$out" "library_sync_enabled"
-    if [ ! -e "$P_CACHE/auth-token" ] && [ ! -e "$P_CACHE/user.json" ]; then
-        ok "E4 settings: legacy Lutris.net credentials removed"
-    else
-        fail "E4 settings: legacy Lutris.net credentials removed" "account files remain in $P_CACHE"
-    fi
-
-    # E5 - the game of a standalone emulator moved to its RetroArch core
-    out=$(cat "$legacy_yml" 2>/dev/null || true)
-    expect_contains "E5 migration: FS-UAE game uses the PUAE core" "$out" "core: puae"
-    expect_not_contains "E5 migration: FS-UAE's 'model' key removed" "$out" "model:"
-    expect_eq "E5 migration: FS-UAE game runs on libretro" "libretro" \
-        "$(db_query "select runner from games where slug='legacy-emulator'")"
+        "$(cat "$P_CONF" 2>/dev/null || true)" "pga_cache_path = $P_ROOT/pga-cache"
 
     # E6 - platform backfilled for games that had none
-    expect_eq "E6 migration: linux game platform backfilled" "Linux" \
+    expect_eq "E6 startup: linux game platform backfilled" "Linux" \
         "$(db_query "select platform from games where slug='smoke-existing-game'")"
-    if [ -n "$(db_query "select coalesce(platform, '') from games where slug='legacy-emulator'")" ]; then
-        ok "E6 migration: emulator game platform backfilled"
-    else
-        fail "E6 migration: emulator game platform backfilled" "platform is still empty"
-    fi
-
-    # E7 - migrations must not run twice: the file is left alone on the second start
-    migrated_yml=$(cksum "$legacy_yml" | cut -d' ' -f1)
-    qtris_run "$P_LOGS/upgrade-list-2" -l -j
-    expect_eq "E7 upgrade: second start exits 0" 0 "$RC"
-    expect_eq "E7 upgrade: migrated config not rewritten on restart" \
-        "$migrated_yml" "$(cksum "$legacy_yml" | cut -d' ' -f1)"
-    expect_contains "E7 upgrade: migration_version stays current" \
-        "$(cat "$P_CONF" 2>/dev/null || true)" \
-        "migration_version = $EXPECTED_MIGRATION_VERSION"
 
     # E8 - a game added before the upgrade still launches
     launch_and_check "$scenario" "smoke-existing-game" "upgrade"
@@ -689,7 +617,7 @@ scenario_cloned_profile() {
 
     # A copied qtris.conf may redirect the database or the directories to the real ones
     # (qtris/settings.py and qtris/cache.py), which would make the sandboxed client
-    # open, and migrate, the user's library. Drop those keys from the copy.
+    # open the user's library. Drop those keys from the copy.
     if [ -n "$source_conf" ]; then
         "$PY" - "$source_conf" "$P_CONF" <<'PY'
 import configparser
@@ -730,8 +658,6 @@ PY
         skip "clone: game count unchanged after upgrade" "the copied database could not be counted"
     fi
     expect_eq "clone: integrity_check" "ok" "$(db_query 'pragma integrity_check')"
-    expect_contains "clone: migration_version current" \
-        "$(cat "$P_CONF" 2>/dev/null || true)" "migration_version = $EXPECTED_MIGRATION_VERSION"
     expect_eq "clone: the source database was not modified" \
         "$source_db_sum" "$(cksum "$EXISTING_PROFILE/pga.db" | cut -d' ' -f1)"
     check_logs_clean "clone"

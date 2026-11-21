@@ -96,6 +96,8 @@ def test_runtime_components_come_from_individual_upstreams() -> None:
     for name, expected in (
         ("umu", "Open-Wine-Components/umu-launcher"),
         ("gogdl", "Heroic-Games-Launcher/heroic-gogdl"),
+        ("legendary", "Heroic-Games-Launcher/legendary"),
+        ("nile", "imLinguin/nile"),
         ("winetricks", "Winetricks/winetricks"),
     ):
         source = components[name]

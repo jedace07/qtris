@@ -85,7 +85,11 @@ async def begin(service_id: str) -> BrowserLogin:
         raise QtrisError(_("A sign-in for this store is already open."))
 
     service = service_class()
-    url = "https://itch.io/user/settings/api-keys" if input_kind == "api_key" else str(service.login_url)
+    if input_kind == "api_key":
+        url = "https://itch.io/user/settings/api-keys"
+    else:
+        # Amazon's address comes from Nile, which registers a new device for it
+        url = await asyncio.to_thread(lambda: str(service.login_url))
     request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind)
     _pending[request.id] = _PendingLogin(request, service, service_id)
     return request
@@ -136,7 +140,7 @@ def _finish(pending: _PendingLogin, value: str, cookie_file: str) -> None:
         elif pending.request.input_kind == "gog":
             _import_cookies(service, Path(cookie_file), _COOKIE_DOMAINS[pending.service_id], gog_redirect=value)
         elif isinstance(service, EpicGamesStoreService):
-            service.start_session(authorization_code=value)
+            service.sign_in(value)
         elif isinstance(service, ItchIoService):
             if not service.validate_api_key(value):
                 raise QtrisError(_("itch.io did not accept that API key."))

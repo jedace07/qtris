@@ -4,7 +4,6 @@ import locale
 import multiprocessing
 import sys
 
-from qtris.util.lutris_profile import adopt_lutris_profile
 from qtris.util.textdomain import bind_text_domain
 
 
@@ -16,8 +15,6 @@ def main() -> int:
     except locale.Error as error:
         sys.stderr.write(f"Unsupported locale setting: {error}\n")
 
-    # Before anything creates Qtris's own folders
-    adopt_lutris_profile()
     bind_text_domain()
 
     from qtris.cli.application import CommandLineApplication

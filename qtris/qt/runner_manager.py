@@ -44,6 +44,8 @@ class RunnerManagerController(QObject):
                         "key": build.version,
                         "label": build.label or build.version,
                         "description": "",
+                        "canToggle": False,
+                        "enabled": True,
                         "installed": build.installed,
                         "canInstall": not build.installed,
                         "canUpdate": False,
@@ -59,12 +61,14 @@ class RunnerManagerController(QObject):
                 "key": entry.name,
                 "label": entry.label,
                 "description": entry.description,
+                "canToggle": True,
+                "enabled": entry.enabled,
                 "installed": entry.installed,
-                "canInstall": entry.can_install,
+                "canInstall": entry.enabled and entry.can_install,
                 "canUpdate": False,
                 "canRemove": entry.can_remove,
-                "canConfigure": True,
-                "manageProton": entry.name == "wine",
+                "canConfigure": entry.enabled,
+                "manageProton": entry.enabled and entry.name == "wine",
             }
             for entry in self._runners
         ]
@@ -83,6 +87,8 @@ class RunnerManagerController(QObject):
             "key": latest.version,
             "label": latest.label,
             "description": description,
+            "canToggle": False,
+            "enabled": True,
             "installed": installed,
             "canInstall": not installed,
             "canUpdate": can_update,
@@ -150,6 +156,13 @@ class RunnerManagerController(QObject):
             self._family = index
             self.show_proton()
 
+    @Slot(str, bool)
+    def set_enabled(self, key: str, enabled: bool) -> None:
+        entry = next((item for item in self._runners if item.name == key), None)
+        if self._task is None and not self._proton and entry and entry.enabled != enabled:
+            message = _("Installing %s…") % entry.label if enabled and entry.can_install else ""
+            self._start(self._set_enabled(key, enabled), message)
+
     @Slot(str)
     def install(self, key: str) -> None:
         entry = next((item for item in self._entries() if item["key"] == key and item["canInstall"]), None)
@@ -202,6 +215,13 @@ class RunnerManagerController(QObject):
         interaction = runners.RunnerInstallInteraction(self._set_progress, self._ask, self._choose_file)
         try:
             await runners.install_runner(name, version, interaction=interaction)
+        finally:
+            await self._refresh_after_change()
+
+    async def _set_enabled(self, key: str, enabled: bool) -> None:
+        interaction = runners.RunnerInstallInteraction(self._set_progress, self._ask, self._choose_file)
+        try:
+            await runners.set_runner_enabled(key, enabled, interaction=interaction)
         finally:
             await self._refresh_after_change()
 

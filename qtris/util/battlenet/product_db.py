@@ -1,11 +1,11 @@
 """Custom protobuf decoder for Battle.net product.db
 
 Replaces the google-protobuf dependency with a lightweight decoder
-using the same pattern as qtris.util.amazon.protobuf_decoder.
+using qtris.util.protobuf_decoder.
 Only the fields actually used by BlizzardProductDbParser are defined.
 """
 
-from qtris.util.amazon.protobuf_decoder import (
+from qtris.util.protobuf_decoder import (
     Message,
     PrimativeType,
     type_bool,

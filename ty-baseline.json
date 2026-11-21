@@ -66,104 +66,8 @@
     "qtris/installer/commands.py": [
       {
         "rule": "missing-attribute",
-        "startColumn": 19,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 28,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 30,
-        "endColumn": 46,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 23,
-        "endColumn": 38,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 29,
-        "endColumn": 45,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 26,
-        "endColumn": 42,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
         "startColumn": 24,
         "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 24,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 12,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 20,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 12,
-        "endColumn": 28,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 12,
-        "endColumn": 31,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 31,
-        "endColumn": 60,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 16,
-        "endColumn": 35,
         "lineCount": 1
       },
       {
@@ -241,29 +145,11 @@
       {
         "rule": "missing-attribute",
         "startColumn": 12,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 12,
         "endColumn": 31,
         "lineCount": 1
       },
       {
         "rule": "missing-attribute",
-        "startColumn": 28,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 24,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
         "startColumn": 20,
         "endColumn": 35,
         "lineCount": 1
@@ -276,146 +162,14 @@
       },
       {
         "rule": "missing-attribute",
-        "startColumn": 32,
-        "endColumn": 48,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 47,
-        "endColumn": 63,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 59,
-        "endColumn": 75,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 58,
-        "endColumn": 74,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 36,
-        "endColumn": 52,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 52,
-        "endColumn": 68,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
         "startColumn": 20,
         "endColumn": 35,
         "lineCount": 1
       },
       {
         "rule": "missing-attribute",
-        "startColumn": 38,
-        "endColumn": 54,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 39,
-        "endColumn": 55,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 39,
-        "endColumn": 55,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 73,
-        "endColumn": 89,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
         "startColumn": 20,
         "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 39,
-        "endColumn": 55,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 39,
-        "endColumn": 55,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 72,
-        "endColumn": 88,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 46,
-        "endColumn": 62,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 32,
-        "endColumn": 47,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 26,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 32,
-        "endColumn": 48,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 23,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 12,
-        "endColumn": 40,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 8,
-        "endColumn": 36,
         "lineCount": 1
       },
       {
@@ -441,12 +195,6 @@
     ],
     "qtris/installer/interpreter.py": [
       {
-        "rule": "invalid-argument-type",
-        "startColumn": 33,
-        "endColumn": 49,
-        "lineCount": 1
-      },
-      {
         "rule": "not-callable",
         "startColumn": 16,
         "endColumn": 37,
@@ -462,12 +210,6 @@
         "rule": "not-callable",
         "startColumn": 16,
         "endColumn": 34,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 35,
-        "endColumn": 51,
         "lineCount": 1
       }
     ],
@@ -493,143 +235,15 @@
     ],
     "qtris/runners/commands/wine.py": [
       {
-        "rule": "invalid-argument-type",
-        "startColumn": 8,
-        "endColumn": 21,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 8,
-        "endColumn": 21,
-        "lineCount": 1
-      },
-      {
         "rule": "unknown-argument",
         "startColumn": 39,
         "endColumn": 52,
         "lineCount": 1
       },
       {
-        "rule": "unknown-argument",
-        "startColumn": 54,
-        "endColumn": 68,
-        "lineCount": 1
-      },
-      {
         "rule": "invalid-argument-type",
         "startColumn": 8,
         "endColumn": 21,
-        "lineCount": 1
-      }
-    ],
-    "qtris/runners/pico8.py": [
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 15,
-        "endColumn": 27,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 69,
-        "endColumn": 75,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 16,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 30,
-        "endColumn": 50,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 30,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 45,
-        "endColumn": 62,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 73,
-        "endColumn": 94,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 19,
-        "endColumn": 62,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 33,
-        "endColumn": 77,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 34,
-        "endColumn": 67,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 16,
-        "endColumn": 57,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 63,
-        "endColumn": 107,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 23,
-        "endColumn": 67,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 30,
-        "endColumn": 63,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 53,
-        "endColumn": 85,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 16,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 30,
-        "endColumn": 98,
-        "lineCount": 1
-      },
-      {
-        "rule": "unsupported-operator",
-        "startColumn": 27,
-        "endColumn": 62,
         "lineCount": 1
       }
     ],
@@ -667,21 +281,7 @@
         "lineCount": 1
       }
     ],
-    "qtris/runners/web.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 39,
-        "endColumn": 60,
-        "lineCount": 1
-      }
-    ],
     "qtris/runners/wine.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 56,
-        "endColumn": 63,
-        "lineCount": 1
-      },
       {
         "rule": "invalid-argument-type",
         "startColumn": 12,
@@ -690,22 +290,8 @@
       },
       {
         "rule": "invalid-argument-type",
-        "startColumn": 12,
-        "endColumn": 23,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
         "startColumn": 50,
         "endColumn": 84,
-        "lineCount": 1
-      }
-    ],
-    "qtris/runtime.py": [
-      {
-        "rule": "redundant-condition",
-        "startColumn": 11,
-        "endColumn": 27,
         "lineCount": 1
       }
     ],
@@ -723,99 +309,7 @@
         "lineCount": 1
       }
     ],
-    "qtris/services/amazon.py": [
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 33,
-        "endColumn": 53,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 14,
-        "endColumn": 26,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 14,
-        "endColumn": 26,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 11,
-        "endColumn": 39,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 13,
-        "endColumn": 41,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 20,
-        "endColumn": 56,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 18,
-        "endColumn": 30,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 18,
-        "endColumn": 30,
-        "lineCount": 1
-      },
-      {
-        "rule": "lost-keyword-for-regular-parameter",
-        "startColumn": 8,
-        "endColumn": 64,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 23,
-        "endColumn": 35,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 23,
-        "endColumn": 35,
-        "lineCount": 1
-      }
-    ],
     "qtris/services/base.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 100,
-        "endColumn": 107,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 68,
-        "endColumn": 83,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 58,
-        "endColumn": 65,
-        "lineCount": 1
-      },
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 96,
-        "endColumn": 114,
-        "lineCount": 1
-      },
       {
         "rule": "invalid-argument-type",
         "startColumn": 49,
@@ -1003,24 +497,6 @@
         "startColumn": 21,
         "endColumn": 59,
         "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 23,
-        "endColumn": 36,
-        "lineCount": 1
-      },
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 33,
-        "endColumn": 46,
-        "lineCount": 1
-      },
-      {
-        "rule": "incompatible-method-override",
-        "startColumn": 8,
-        "endColumn": 104,
-        "lineCount": 1
       }
     ],
     "qtris/services/gamejolt.py": [
@@ -1199,14 +675,6 @@
         "lineCount": 1
       }
     ],
-    "qtris/util/amazon/protobuf_decoder.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 30,
-        "endColumn": 45,
-        "lineCount": 1
-      }
-    ],
     "qtris/util/battlenet/definitions.py": [
       {
         "rule": "possibly-missing-submodule",
@@ -1234,26 +702,6 @@
         "rule": "missing-union-attribute",
         "startColumn": 15,
         "endColumn": 45,
-        "lineCount": 1
-      }
-    ],
-    "qtris/util/fileio.py": [
-      {
-        "rule": "missing-attribute",
-        "startColumn": 23,
-        "endColumn": 37,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 35,
-        "endColumn": 49,
-        "lineCount": 1
-      },
-      {
-        "rule": "missing-attribute",
-        "startColumn": 43,
-        "endColumn": 55,
         "lineCount": 1
       }
     ],
@@ -1395,17 +843,11 @@
         "lineCount": 1
       }
     ],
-    "qtris/util/steam/shortcut.py": [
+    "qtris/util/protobuf_decoder.py": [
       {
         "rule": "invalid-argument-type",
-        "startColumn": 8,
-        "endColumn": 95,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 8,
-        "endColumn": 95,
+        "startColumn": 30,
+        "endColumn": 45,
         "lineCount": 1
       }
     ],
@@ -1525,12 +967,6 @@
         "startColumn": 19,
         "endColumn": 36,
         "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 22,
-        "endColumn": 39,
-        "lineCount": 1
       }
     ],
     "qtris/util/wine/extract_icon.py": [
@@ -1590,14 +1026,6 @@
         "rule": "no-matching-overload",
         "startColumn": 48,
         "endColumn": 107,
-        "lineCount": 1
-      }
-    ],
-    "qtris/util/xdgshortcuts.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 31,
-        "endColumn": 118,
         "lineCount": 1
       }
     ],
@@ -1815,6 +1243,20 @@
         "lineCount": 1
       }
     ],
+    "tests/_test_pga.py": [
+      {
+        "rule": "not-subscriptable",
+        "startColumn": 25,
+        "endColumn": 42,
+        "lineCount": 1
+      },
+      {
+        "rule": "not-subscriptable",
+        "startColumn": 25,
+        "endColumn": 42,
+        "lineCount": 1
+      }
+    ],
     "tests/_test_qtris_wrapper.py": [
       {
         "rule": "not-iterable",
@@ -1850,20 +1292,6 @@
         "rule": "missing-union-attribute",
         "startColumn": 12,
         "endColumn": 37,
-        "lineCount": 1
-      }
-    ],
-    "tests/_test_pga.py": [
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 25,
-        "endColumn": 42,
-        "lineCount": 1
-      },
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 25,
-        "endColumn": 42,
         "lineCount": 1
       }
     ],
@@ -2118,38 +1546,6 @@
         "rule": "invalid-argument-type",
         "startColumn": 43,
         "endColumn": 58,
-        "lineCount": 1
-      }
-    ],
-    "tests/util/_test_textdomain.py": [
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 39,
-        "endColumn": 97,
-        "lineCount": 1
-      },
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 18,
-        "endColumn": 113,
-        "lineCount": 1
-      },
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 18,
-        "endColumn": 113,
-        "lineCount": 1
-      },
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 39,
-        "endColumn": 97,
-        "lineCount": 1
-      },
-      {
-        "rule": "no-matching-overload",
-        "startColumn": 40,
-        "endColumn": 102,
         "lineCount": 1
       }
     ]

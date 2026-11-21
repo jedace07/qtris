@@ -70,7 +70,7 @@ def can_install_game(installed: bool, service: str | None, appid: str | None) ->
 
 
 def can_update_game(installed: bool, service: str | None, appid: str | None) -> bool:
-    return installed and bool(appid and service in {"gog", "itchio"})
+    return installed and bool(appid and service in {"gog", "itchio", "egs", "amazon"})
 
 
 def can_install_dlc(installed: bool, service: str | None, appid: str | None) -> bool:

@@ -272,7 +272,7 @@ Dialog {
                 Page {
                     SettingsGroup {
                         title: qsTr("Components")
-                        description: qsTr("Qtris downloads umu, gogdl, Winetricks and the other tools that games are installed and run with.")
+                        description: qsTr("Qtris downloads umu, Winetricks, the store clients (gogdl, legendary and Nile) and the other tools that games are installed and run with.")
 
                         SettingsRow {
                             title: qsTr("Update components automatically")

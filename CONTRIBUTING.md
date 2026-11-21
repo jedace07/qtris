@@ -186,7 +186,6 @@ Project structure
         |          +-[locale] Gettext translations
         |          +-[qt] Qt Quick frontend (controllers and QML)
         |          +-[installer] Install script interpreter
-        |          +-[migrations] Migration scripts for user side changes
         |          +-[runners] Runner code, detailing launch options and settings
         |          +-[services] External services (Steam, GOG, ...)
         |          +-[util] Generic utilities
