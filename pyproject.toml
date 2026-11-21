@@ -74,6 +74,12 @@ dev = [
     { include-group = "typing" },
     { include-group = "test" },
 ]
+# Build backends the Flatpak needs for dependencies it compiles from source, which
+# the SDK lacks; locked here so packaging/flatpak/python-dependencies.json can pin them
+flatpak-build = [
+    "meson-python>=0.18.0",
+    "patchelf>=0.17.2",
+]
 
 [tool.uv]
 required-version = ">=0.13.9"

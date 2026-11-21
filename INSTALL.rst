@@ -11,18 +11,15 @@ The Flatpak bundles everything Qtris needs, including the 32-bit libraries,
 tools and Wine base that games rely on, on the freedesktop runtime. Its
 manifest lives in ``packaging/flatpak``.
 
-The simplest build is the one CI runs: the Flathub CI image that
-`Flatpak's GitHub action <https://github.com/flatpak/flatpak-github-actions>`_
-builds in, so nothing but ``podman`` (or ``docker``) is needed on the host, and
-nothing gets installed there::
+Build it with the ``org.flatpak.Builder`` app from Flathub, the same
+``flatpak-builder`` that Flathub and CI use (distribution packages can be too
+old)::
 
     git clone --recurse-submodules https://github.com/jedace07/qtris
     cd qtris
-    podman run --rm --privileged --security-opt label=disable \
-        -v qtris-flatpak:/var/lib/flatpak -v "$PWD:/src" -w /src \
-        ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08 \
-        packaging/flatpak/container-build.sh packaging/flatpak/io.github.jedace07.Qtris.yml qtris.flatpak
-    flatpak install --user qtris.flatpak
+    flatpak install --user flathub org.flatpak.Builder
+    flatpak run org.flatpak.Builder --user --install --install-deps-from=flathub --force-clean \
+        --state-dir=build-flatpak/state build-flatpak/build packaging/flatpak/io.github.jedace07.Qtris.yml
     flatpak run io.github.jedace07.Qtris
 
 The manifest includes modules from Flathub's ``shared-modules`` git submodule.
@@ -30,15 +27,14 @@ In a checkout cloned without ``--recurse-submodules``, run
 ``git submodule update --init`` first, or the build fails to load
 ``shared-modules/glew/glew.json``.
 
-The ``qtris-flatpak`` volume keeps the downloaded runtimes between builds
-(``podman volume rm qtris-flatpak`` frees the space). It has to be a volume:
-flatpak can't update the runtimes the image ships inside the image itself.
+To make a single-file bundle instead of installing, replace ``--install`` with
+``--repo=build-flatpak/repo``, then run
+``flatpak build-bundle build-flatpak/repo qtris.flatpak io.github.jedace07.Qtris``.
 
-To build on the host instead, use the ``org.flatpak.Builder`` app from Flathub
-(older distribution packages of ``flatpak-builder`` can misplace libraries)::
-
-    flatpak run org.flatpak.Builder --user --install --install-deps-from=flathub --force-clean \
-        --state-dir=build-flatpak/state build-flatpak/build packaging/flatpak/io.github.jedace07.Qtris.yml
+The build needs no network access beyond downloading its sources. The Python
+dependencies come from ``packaging/flatpak/python-dependencies.json``, which
+pins what ``uv.lock`` does; after changing ``uv.lock``, regenerate it with
+``uv run --no-project packaging/flatpak/update-python-dependencies.py``.
 
 Every CI build of ``main`` publishes a bundle, and every release has one
 attached. The first build compiles bundled tools such as Mono. Later builds

@@ -3,9 +3,10 @@
 # Derived from Lutris's Flathub manifest (github.com/flathub/net.lutris.Lutris); the
 # runtime, extensions and bundled tools are kept in step with it. What differs:
 #   * Qtris is built from this source tree rather than a pinned commit
-#   * Its Python dependencies are installed by uv from uv.lock (the same pins the
-#     test suite runs against) instead of hand-maintained pip modules. That step
-#     needs network access at build time, which Flathub's builders don't allow
+#   * Its Python dependencies come from python-dependencies.json, generated from
+#     uv.lock (the same pins the test suite runs against) by
+#     update-python-dependencies.py, instead of hand-maintained pip modules. Re-run
+#     it after changing uv.lock; the build itself needs no network access
 #   * Read-write access to drives mounted under /mnt
 #
 # See INSTALL.rst for build and install commands
@@ -710,7 +711,10 @@ modules:
         url: https://files.pythonhosted.org/packages/fc/b8/ff33610932e0ee81ae7f1269c890f697d56ff74b9f5b2ee5d9b7fa2c5355/python_xlib-0.33-py2.py3-none-any.whl
         sha256: c3534038d42e0df2f1392a1b30a15a4ff5fdc2b86cfa94f072bf11b10a164398
 
-  # Build the wheel and install it with the locked dependencies
+  # The Python dependencies, pinned to uv.lock by update-python-dependencies.py
+  - python-dependencies.json
+
+  # Builds the Qtris wheel; uv's own build backend needs no download
   - name: uv
     buildsystem: simple
     build-commands:
@@ -724,17 +728,13 @@ modules:
   - name: qtris
     buildsystem: simple
     build-options:
-      build-args:
-        - --share=network
       env:
         # The runtime's Python, not one uv downloads (pyproject.toml asks for those)
         UV_PYTHON_PREFERENCE: only-system
         UV_PYTHON_DOWNLOADS: never
         UV_NO_CACHE: "1"
+        UV_OFFLINE: "1"
     build-commands:
-      # PyGObject and pycairo build from source against the SDK's GLib and cairo
-      - uv export --frozen --no-dev --no-emit-project --format requirements.txt --output-file requirements.txt
-      - uv pip install --python /usr/bin/python3 --prefix ${FLATPAK_DEST} -r requirements.txt
       - |
         for catalog in qtris/locale/*.po; do
           language=$(basename "$catalog" .po)
