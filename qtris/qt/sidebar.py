@@ -21,7 +21,6 @@ _VIEW_ICONS = {
     ("dynamic_category", "running"): "running",
     ("category", "favorite"): "favorite",
     ("dynamic_category", ".uncategorized"): "uncategorized",
-    ("dynamic_category", "missing"): "missing",
     ("category", ".hidden"): "hidden",
 }
 _KIND_ICONS = {
@@ -62,7 +61,6 @@ class SidebarModel(QAbstractListModel):
                     SidebarEntry(_("Running"), {"dynamic_category": "running"}),
                     SidebarEntry(_("Favorites"), {"category": "favorite"}),
                     SidebarEntry(_("Uncategorized"), {"dynamic_category": ".uncategorized"}),
-                    SidebarEntry(_("Missing"), {"dynamic_category": "missing"}),
                     SidebarEntry(_("Hidden"), {"category": ".hidden"}),
                 ],
             ),

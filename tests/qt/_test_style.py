@@ -53,7 +53,6 @@ def sidebar_views() -> list[dict[str, str]]:
         {"dynamic_category": "running"},
         {"category": "favorite"},
         {"dynamic_category": ".uncategorized"},
-        {"dynamic_category": "missing"},
         {"category": ".hidden"},
         {"category": "Arcade"},
         {"saved_search": "Unplayed"},

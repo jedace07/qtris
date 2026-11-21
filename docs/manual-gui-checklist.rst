@@ -113,8 +113,8 @@ Item 1 - First start
 
 **Pass:** the window opens within a few seconds. The header bar has a search entry
 ("Search games"), an "Add Game" button, a view toggle and the main menu. The
-sidebar shows **Library** (Games, Recent, Favorites, Uncategorized, Hidden,
-Missing, Running) followed by **Categories**, **Sources**, **Runners** and
+sidebar shows **Library** (Games, Recent, Running, Favorites, Uncategorized,
+Hidden) followed by **Categories**, **Sources**, **Runners** and
 **Platforms**. The library is empty. Qtris starts fetching its runtime/DXVK
 components, which is normal on a first run. No error dialog.
 

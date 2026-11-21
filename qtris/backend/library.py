@@ -19,13 +19,12 @@ from qtris.search import GameSearch
 from qtris.search_predicate import NotPredicate
 from qtris.services import SERVICES
 from qtris.services.base import BaseService, OnlineService
-from qtris.util.path_cache import MISSING_GAMES
 from qtris.util.strings import get_natural_sort_key
 
 # The dynamic categories query_games() knows, and those whose games are listed in
 # the view's sort order (the recent games are always the latest first)
-DYNAMIC_CATEGORIES = ("recent", "missing", "running", ".uncategorized")
-SORTABLE_DYNAMIC_CATEGORIES = ("missing", "running", ".uncategorized")
+DYNAMIC_CATEGORIES = ("recent", "running", ".uncategorized")
+SORTABLE_DYNAMIC_CATEGORIES = ("running", ".uncategorized")
 
 # Fields of a library game that are copied into the row of the service game it was
 # installed from
@@ -201,9 +200,7 @@ def _get_dynamic_category_games(query: LibraryQuery, only_game_ids: set[str] | N
     if query.dynamic_category == "recent":
         db_games = _filter_games(query, only(games_db.get_games(filters={"installed": "1"})))
         return sorted(db_games, key=lambda game: max(game["installed_at"] or 0, game["lastplayed"] or 0), reverse=True)
-    if query.dynamic_category == "missing":
-        db_games = games_db.get_games_by_ids(MISSING_GAMES.missing_game_ids)
-    elif query.dynamic_category == "running":
+    if query.dynamic_category == "running":
         db_games = games_db.get_games_by_ids(query.running_game_ids)
     else:
         db_games = categories_db.get_uncategorized_games()
