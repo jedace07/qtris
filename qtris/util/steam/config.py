@@ -1,5 +1,6 @@
 """Handle Steam configuration"""
 
+import functools
 import os
 from collections import OrderedDict
 from typing import Any, Iterable
@@ -236,6 +237,33 @@ def read_library_folders(steam_data_dir: str | None) -> dict[str, Any] | None:
 def get_steam_config() -> dict[str, Any] | None:
     """Return the "Steam" part of Steam's config.vdf as a dict."""
     return read_config(get_steam_dir())
+
+
+def get_compat_tools() -> dict[str, str]:
+    """Return the compatibility tools, such as Proton builds, chosen in Steam for games
+    by app ID. App ID "0" holds the tool for games without a Linux build."""
+    steam_dir = get_steam_dir()
+    if not steam_dir:
+        return {}
+    try:
+        mtime_ns = os.stat(os.path.join(steam_dir, "config/config.vdf")).st_mtime_ns
+    except OSError:
+        return {}
+    return dict(_read_compat_tools(steam_dir, mtime_ns))
+
+
+@functools.lru_cache(maxsize=1)
+def _read_compat_tools(steam_dir: str, _mtime_ns: int) -> dict[str, str]:
+    """Read the compatibility tools from Steam's config, which is read again once it
+    changes, since the modification time is part of the cache key."""
+    mapping = (read_config(steam_dir) or {}).get("CompatToolMapping")
+    if not isinstance(mapping, dict):
+        return {}
+    return {
+        str(appid): str(tool.get("name") or "")
+        for appid, tool in mapping.items()
+        if isinstance(tool, dict) and tool.get("name")
+    }
 
 
 def get_library_config() -> dict[str, Any] | None:

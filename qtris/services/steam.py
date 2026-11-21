@@ -14,6 +14,7 @@ from qtris.database.games import add_game, get_games, update_existing
 from qtris.database.services import ServiceGameCollection
 from qtris.game import Game
 from qtris.installer.installer_file import InstallerFile
+from qtris.runners.steam import get_steam_game_platform
 from qtris.services.base import BaseService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
@@ -159,6 +160,7 @@ class SteamService(BaseService):
                     installed=1,
                     installed_at=int(time.time()),
                     configpath=configpath,
+                    platform=get_steam_game_platform(appid) or existing_game["platform"],
                 )
                 return existing_game["slug"]
             slug = self.get_installed_slug(service_game)
@@ -169,7 +171,7 @@ class SteamService(BaseService):
                 installed=1,
                 installer_slug=qtris_game_id,
                 configpath=configpath,
-                platform="Linux",
+                platform=get_steam_game_platform(appid),
                 service=self.id,
                 service_id=appid,
             )
@@ -234,6 +236,7 @@ class SteamService(BaseService):
                     logger.error("Failed to uninstall game %s: %s", appid, ex)
 
         logger.debug("%s Steam games removed", stats["removed"])
+        update_steam_platforms()
 
         db_appids = defaultdict(list)
         db_games = get_games(filters={"service": "steam"})
@@ -291,3 +294,17 @@ class SteamService(BaseService):
             game.save()
             return
         super().install(db_game, ui_delegate, update)
+
+
+def update_steam_platforms() -> None:
+    """Set the platform of the installed Steam games again, since it follows the
+    compatibility tool chosen in Steam, which can change at any time."""
+    for db_game in get_games(filters={"runner": "steam", "installed": 1}):
+        game = Game(db_game["id"])
+        if not game.has_runner:
+            continue
+        platform = game.runner.get_platform()
+        if platform and platform != db_game["platform"]:
+            logger.info("Platform for %s changed from %s to %s", game.name, db_game["platform"], platform)
+            game.platform = platform
+            game.save_platform()

@@ -14,8 +14,9 @@ from qtris.runners import NonInstallableRunnerError
 from qtris.runners.runner import Runner
 from qtris.util import host_processes, linux, system
 from qtris.util.log import logger
+from qtris.util.steam.appinfo import get_app_oslist
 from qtris.util.steam.appmanifest import get_appmanifest_from_appid, get_path_from_appmanifest
-from qtris.util.steam.config import get_default_acf, get_steam_dir, get_steamapps_dirs
+from qtris.util.steam.config import get_compat_tools, get_default_acf, get_steam_dir, get_steamapps_dirs
 from qtris.util.steam.vdfutils import to_vdf
 from qtris.util.strings import split_arguments
 
@@ -43,10 +44,28 @@ def get_steam_game_pids(appid: str) -> set[int]:
     return host_processes.find_by_environment([f"SteamAppId={appid}", f"SteamGameId={appid}"])
 
 
+def get_steam_game_platform(appid: str) -> str:
+    """Return the platform of the build Steam runs of a game: Windows when Steam runs it
+    through Proton, because the user chose a Proton build for it or it has no Linux
+    build, and Linux when it runs natively. Empty if Steam doesn't know the game."""
+    if not appid:
+        return ""
+    # Native games can be set to run in the Steam Linux Runtime too, which they do natively
+    tool = get_compat_tools().get(str(appid), "")
+    if tool and not tool.casefold().startswith("steamlinuxruntime"):
+        return _("Windows")
+    oslist = get_app_oslist(appid)
+    if "linux" in oslist:
+        return _("Linux")
+    if "windows" in oslist:
+        return _("Windows")
+    return ""
+
+
 class steam(Runner):
     description = _("Runs Steam for Linux games")
     human_name = _("Steam")
-    platform_dict = Runner.to_platform_dict([_("Linux")])
+    platform_dict = Runner.to_platform_dict([_("Linux"), _("Windows")])
     system_executable = "steam"
     flatpak_id = "com.valvesoftware.Steam"
     game_options = [
@@ -153,6 +172,9 @@ class steam(Runner):
     @property
     def appid(self):
         return self.game_config.get("appid") or ""
+
+    def get_platform(self) -> str:
+        return get_steam_game_platform(self.appid)
 
     @property
     def game_path(self):

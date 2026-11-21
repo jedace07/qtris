@@ -335,7 +335,9 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             name=self.game_name,
             runner=self.runner,
             slug=self.game_slug,
-            platform=import_runner(self.runner)().get_platform(),
+            platform=import_runner(self.runner)(
+                QtrisConfig(runner_slug=self.runner, game_config_id=configpath)
+            ).get_platform(),
             directory=self.interpreter.target_path,
             installed=1,
             installer_slug=self.slug,

@@ -54,6 +54,13 @@ class TestImportInstalledSteamGames(TestCase):
         patcher = patch("qtris.artwork.sync_artwork")
         self.sync_media = patcher.start()
         self.addCleanup(patcher.stop)
+        # What Steam says about the game: it has only a Windows build
+        patcher = patch("qtris.runners.steam.get_app_oslist", return_value=("windows",))
+        self.get_app_oslist = patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = patch("qtris.runners.steam.get_compat_tools", return_value={})
+        self.get_compat_tools = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def set_installed_in_steam(self, installed):
         manifest = self.steamapps / ("appmanifest_%s.acf" % APPID)
@@ -136,3 +143,27 @@ class TestImportInstalledSteamGames(TestCase):
         self.assertIsNotNone(uninstalled)
         self.assertEqual(uninstalled["installed"], 0)
         self.assertEqual(games.get_game_by_field(installed_id, "id")["installed"], 1)
+
+    def test_games_that_run_through_proton_are_windows_games(self):
+        self.set_installed_in_steam(True)
+        SteamService().add_installed_games()
+        self.assertEqual(self.get_imported_games()[0]["platform"], "Windows")
+
+    def test_platform_follows_the_compatibility_tool_chosen_in_steam(self):
+        self.get_app_oslist.return_value = ("windows", "linux")
+        self.set_installed_in_steam(True)
+        service = SteamService()
+        service.add_installed_games()
+        self.assertEqual(self.get_imported_games()[0]["platform"], "Linux")
+
+        self.get_compat_tools.return_value = {APPID: "proton_experimental"}
+        service.add_installed_games()
+        self.assertEqual(self.get_imported_games()[0]["platform"], "Windows")
+
+    def test_platform_is_kept_when_steam_does_not_know_the_game(self):
+        self.set_installed_in_steam(True)
+        service = SteamService()
+        service.add_installed_games()
+        self.get_app_oslist.return_value = ()
+        service.add_installed_games()
+        self.assertEqual(self.get_imported_games()[0]["platform"], "Windows")

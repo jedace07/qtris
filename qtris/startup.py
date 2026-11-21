@@ -12,6 +12,7 @@ from qtris.database.schema import syncdb
 from qtris.game import Game
 from qtris.runners.json import load_json_runners
 from qtris.services import DEFAULT_SERVICES
+from qtris.services.steam import update_steam_platforms
 from qtris.util.graphics import vkquery
 from qtris.util.graphics.gpu import preload_gpus
 from qtris.util.graphics.vkquery import REQUIRED_VULKAN_API_VERSION
@@ -140,6 +141,7 @@ def run_all_checks(async_ops: bool = True) -> None:
         check_libs()
     check_vulkan()
     fill_missing_platforms()
+    update_steam_platforms()
     build_path_cache()
 
 

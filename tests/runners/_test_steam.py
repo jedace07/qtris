@@ -186,3 +186,40 @@ class HostProcessesTest(TestCase):
             self.assertEqual(command[-2:], ["-e", "SteamAppId=440"])
             host_processes.send_signal(signal.SIGTERM, [102, 101])
         self.assertEqual(run.call_args.args[0], ["flatpak-spawn", "--host", "kill", "-s", "TERM", "--", "101", "102"])
+
+
+class SteamGamePlatformTest(TestCase):
+    """A Steam game's platform is that of the build Steam runs: Windows through Proton."""
+
+    def get_platform(self, oslist=(), compat_tools=None):
+        with (
+            patch.object(steam, "get_app_oslist", return_value=tuple(oslist)),
+            patch.object(steam, "get_compat_tools", return_value=compat_tools or {}),
+        ):
+            return steam.get_steam_game_platform("440")
+
+    def test_native_games_are_linux(self):
+        self.assertEqual(self.get_platform(["windows", "macos", "linux"]), "Linux")
+
+    def test_games_without_a_linux_build_are_windows(self):
+        self.assertEqual(self.get_platform(["windows"]), "Windows")
+        # The default tool for those games doesn't affect native ones
+        self.assertEqual(self.get_platform(["windows", "linux"], {"0": "proton_experimental"}), "Linux")
+
+    def test_native_games_forced_through_proton_are_windows(self):
+        self.assertEqual(self.get_platform(["windows", "linux"], {"440": "Proton-GE Latest"}), "Windows")
+
+    def test_native_games_forced_into_the_steam_linux_runtime_stay_linux(self):
+        self.assertEqual(self.get_platform(["windows", "linux"], {"440": "steamlinuxruntime"}), "Linux")
+
+    def test_games_steam_does_not_know_have_no_platform(self):
+        self.assertEqual(self.get_platform(), "")
+        self.assertEqual(steam.get_steam_game_platform(""), "")
+
+    def test_the_runner_reports_its_games_platform(self):
+        with (
+            make_runner(appid="1422450") as runner,
+            patch.object(steam, "get_steam_game_platform", return_value="Windows") as get_platform,
+        ):
+            self.assertEqual(runner.get_platform(), "Windows")
+        get_platform.assert_called_once_with("1422450")

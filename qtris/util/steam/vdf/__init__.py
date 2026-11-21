@@ -14,7 +14,7 @@ import re
 import struct
 from binascii import crc32
 from io import StringIO as unicodeIO
-from typing import IO, Any, Iterator
+from typing import IO, Any, Iterator, Sequence
 
 string_type = str
 int_type = int
@@ -295,7 +295,11 @@ BIN_END_ALT = b"\x0b"
 
 
 def binary_loads(
-    s: bytes, mapper: type[dict[str, Any]] = dict, merge_duplicate_keys: bool = True, alt_format: bool = False
+    s: bytes,
+    mapper: type[dict[str, Any]] = dict,
+    merge_duplicate_keys: bool = True,
+    alt_format: bool = False,
+    key_table: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """
     Deserialize ``s`` (``bytes`` containing a VDF in "binary form")
@@ -308,6 +312,9 @@ def binary_loads(
     ``merge_duplicate_keys`` when ``True`` will merge multiple KeyValue lists with the
     same key into one instead of overwriting. You can se this to ``False`` if you are
     using ``VDFDict`` and need to preserve the duplicates.
+
+    ``key_table``, when given, holds the keys, and each key in ``s`` is an int32 index
+    into it rather than a string, as in Steam's appinfo.vdf from version 29.
     """
     if not isinstance(s, bytes):
         raise TypeError("Expected s to be bytes, got %s" % type(s))
@@ -351,7 +358,11 @@ def binary_loads(
                 continue
             break
 
-        key, idx = read_string(s, idx)
+        if key_table is None:
+            key, idx = read_string(s, idx)
+        else:
+            key = key_table[int(int32.unpack_from(s, idx)[0])]
+            idx += int32.size
 
         if t == BIN_NONE:
             if merge_duplicate_keys and key in stack[-1]:
