@@ -1,5 +1,7 @@
 """The Qtris Qt Quick style draws every control, with icons that exist."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
 
@@ -57,8 +59,11 @@ def sidebar_views() -> list[dict[str, str]]:
         {"category": "Arcade"},
         {"saved_search": "Unplayed"},
         {"service": "gog"},
+        {"runner": "linux"},
         {"runner": "wine"},
+        {"runner": "steam"},
         {"platform": "Linux"},
+        {"platform": "Windows"},
     ]
 
 
@@ -72,8 +77,13 @@ def sidebar_views() -> list[dict[str, str]]:
         ({"category": "missing"}, "category"),
         ({"saved_search": "Unplayed"}, "saved-search"),
         ({"service": "gog"}, "store"),
-        ({"runner": "wine"}, "runner"),
-        ({"platform": "Linux"}, "platform"),
+        ({"runner": "linux"}, "linux"),
+        ({"runner": "wine"}, "wine"),
+        ({"runner": "steam"}, "steam"),
+        ({"runner": "web"}, "runner"),
+        ({"platform": "Linux"}, "linux"),
+        ({"platform": "Windows"}, "windows"),
+        ({"platform": "Web"}, "platform"),
     ],
 )
 def test_sidebar_views_have_icons(view: dict[str, str], icon: str) -> None:

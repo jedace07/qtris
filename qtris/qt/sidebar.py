@@ -1,5 +1,7 @@
 """Group library views into a model for the Qt Quick sidebar."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from gettext import gettext as _
 
@@ -14,7 +16,7 @@ _SECTION_ROLE = _LABEL_ROLE + 1
 _RUNNER_ROLE = _LABEL_ROLE + 2
 _ICON_ROLE = _LABEL_ROLE + 3
 
-# The icons of the library's own views; the others take their section's icon
+# Views with their own icon take precedence over the section defaults
 _VIEW_ICONS = {
     ("category", "all"): "games",
     ("dynamic_category", "recent"): "recent",
@@ -22,6 +24,9 @@ _VIEW_ICONS = {
     ("category", "favorite"): "favorite",
     ("dynamic_category", ".uncategorized"): "uncategorized",
     ("category", ".hidden"): "hidden",
+    ("runner", "linux"): "linux",
+    ("runner", "wine"): "wine",
+    ("runner", "steam"): "steam",
 }
 _KIND_ICONS = {
     "category": "category",
@@ -35,6 +40,11 @@ _KIND_ICONS = {
 def get_view_icon(view: dict[str, str]) -> str:
     """Name the icon, from the style's icon set, that shows a view in the sidebar."""
     for kind, value in view.items():
+        if kind == "platform":
+            if value in ("Linux", _("Linux")):
+                return "linux"
+            if value in ("Windows", _("Windows")):
+                return "windows"
         if icon := _VIEW_ICONS.get((kind, value)) or _KIND_ICONS.get(kind):
             return icon
     return "games"
