@@ -1,4 +1,8 @@
-"""Discover and launch Valve's Steam Linux Runtime containers for native games."""
+"""Discover and launch Valve's Steam Linux Runtime containers for native games.
+
+The runtimes come from Steam's libraries, or from the ones umu downloads for Proton
+games into Qtris's own folder.
+"""
 
 import os
 from gettext import gettext as _
@@ -7,6 +11,7 @@ from platform import machine
 
 from qtris.exceptions import GameConfigError
 from qtris.util.steam.config import get_steamapps_dirs, search_in_steam_dirs
+from qtris.util.wine import proton
 
 NO_STEAM_RUNTIME = "none"
 
@@ -36,9 +41,8 @@ def get_runtime_command(runtime: str, env: dict[str, str]) -> list[str]:
         raise GameConfigError(_("Unknown Steam Linux Runtime: %s") % runtime)
 
     libraries = [Path(directory) / "common" for directory in get_steamapps_dirs()]
-    data_home_var = "HOST_XDG_DATA_HOME" if os.environ.get("container") == "flatpak" else "XDG_DATA_HOME"
-    data_home = os.environ.get(data_home_var)
-    umu = (Path(data_home) if data_home else Path.home() / ".local" / "share") / "umu"
+    # umu keeps the runtimes it downloads for Proton games in Qtris's own folder
+    umu = Path(proton.get_umu_folders_path()) / "umu"
 
     def find(runtime_id: str, launcher_name: str = "run") -> Path:
         label, app_id, dirname = _RUNTIMES[runtime_id]

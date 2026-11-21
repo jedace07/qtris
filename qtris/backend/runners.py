@@ -24,7 +24,7 @@ from qtris.util.log import logger
 from qtris.util.strings import human_size
 from qtris.util.wine import proton, proton_releases, rolling_proton
 from qtris.util.wine.wine import GE_PROTON_LATEST as GE_PROTON_LATEST
-from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions, get_wine_version_label
+from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions
 
 # The Proton forks Qtris downloads releases of, by name
 PROTON_FAMILIES: tuple[str, ...] = proton_releases.get_family_names()
@@ -56,8 +56,6 @@ class LatestProton:
     label: str
     # The release it holds, or "" if it isn't installed
     release: str
-    # umu keeps GE-Proton Latest up to date by itself; Qtris updates the others
-    managed_by_umu: bool
     release_label: str = ""
 
 
@@ -197,10 +195,6 @@ async def get_latest_proton(family: str) -> LatestProton | None:
 
 
 def _latest_proton(family: str) -> LatestProton | None:
-    if family == proton_releases.GE_PROTON.name:
-        release = proton.get_ge_proton_latest_release() or ""
-        label = get_wine_version_label(GE_PROTON_LATEST)
-        return LatestProton(GE_PROTON_LATEST, label, release, True, proton_releases.get_release_label(release))
     for rolling in proton_releases.ROLLING:
         if rolling.family.name == family:
             release = rolling_proton.get_installed_release(rolling) or ""
@@ -208,7 +202,7 @@ def _latest_proton(family: str) -> LatestProton | None:
             if not release and rolling_proton.is_installed(rolling):
                 # Installed without its metadata; the next update replaces it
                 release = release_label = _("an unknown release")
-            return LatestProton(rolling.version, rolling.label, release, False, release_label)
+            return LatestProton(rolling.version, rolling.label, release, release_label)
     return None
 
 

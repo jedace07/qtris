@@ -38,6 +38,8 @@ RUNNERS_CONFIG_DIR = os.path.join(CONFIG_DIR, "runners")
 WINE_DIR: str = os.path.join(RUNNER_DIR, "wine")
 # Where Qtris installs the Proton builds it downloads, apart from Steam's own
 PROTON_DIR: str = os.path.join(RUNNER_DIR, "proton")
+# Where umu keeps the Steam Linux Runtime and its other folders, instead of the host's data folder
+UMU_DATA_DIR: str = os.path.join(RUNTIME_DIR, "umu-data")
 
 SHADER_CACHE_DIR = os.path.join(CACHE_DIR, "shaders")
 INSTALLER_CACHE_DIR = os.path.join(CACHE_DIR, "installer")

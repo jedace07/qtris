@@ -794,9 +794,9 @@ def test_qml_manages_ge_proton_from_preferences(
 
     async def get_latest_proton(family: str) -> runners.LatestProton:
         if family == "GE-Proton":
-            return runners.LatestProton("ge-proton", "GE-Proton Latest", "GE-Proton11-12", True, "GE-Proton11-12")
+            return runners.LatestProton("ge-proton", "GE-Proton Latest", "GE-Proton11-12", "GE-Proton11-12")
         label = "Proton-CachyOS " + cachyos_release.removeprefix("proton-cachyos-").removesuffix("-slr")
-        return runners.LatestProton("proton-cachyos-latest", "Proton-CachyOS Latest", cachyos_release, False, label)
+        return runners.LatestProton("proton-cachyos-latest", "Proton-CachyOS Latest", cachyos_release, label)
 
     async def install_runner(name: str, tag: str, *, interaction: runners.RunnerInstallInteraction) -> None:
         nonlocal installed, cachyos_release
@@ -848,6 +848,7 @@ def test_qml_manages_ge_proton_from_preferences(
             await click(f"runnerInstall_{version}")
             latest = window.controller._runner_manager.property("entries")[0]
             assert latest["label"] == "GE-Proton Latest" and "GE-Proton11-12" in latest["description"]
+            assert latest["canRemove"] and not latest["canInstall"]
             await click(f"runnerRemove_{version}")
             prompt = window.window.findChild(QObject, "qtrisInput")
             assert prompt is not None

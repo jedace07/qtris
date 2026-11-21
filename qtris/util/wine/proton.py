@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from qtris.game import Game
 
 DEFAULT_GAMEID = "umu-default"
-# umu's name for the newest GE-Proton release, which it keeps in a single folder and
-# replaces in place when a newer release comes out
+# umu's name for the newest GE-Proton release, which it downloads by itself when told
+# to run without a Proton build
 UMU_GE_LATEST = "GE-Latest"
 
 
@@ -282,7 +282,7 @@ def _iter_proton_locations() -> Generator[str, None, None]:
 
 
 def _get_data_home() -> str:
-    """Return the data folder umu uses: the host's when running as a Flatpak."""
+    """Return the data folder Steam uses: the host's when running as a Flatpak."""
     data_home_var = "HOST_XDG_DATA_HOME" if LINUX_SYSTEM.is_flatpak() else "XDG_DATA_HOME"
     return os.environ.get(data_home_var) or os.path.expanduser("~/.local/share")
 
@@ -297,61 +297,36 @@ def get_rolling_path(rolling: "proton_releases.RollingProton") -> str:
     return os.path.join(get_proton_dir(), rolling.folder)
 
 
+def get_default_proton_path() -> str:
+    """Return the PROTONPATH umu runs with when no Proton build is named: GE-Proton
+    Latest, or umu's own copy of it if Qtris hasn't installed it yet."""
+    ge_proton_latest = proton_releases.get_rolling(proton_releases.GE_PROTON_LATEST)
+    if ge_proton_latest:
+        path = get_rolling_path(ge_proton_latest)
+        if os.path.isfile(os.path.join(path, "proton")):
+            return path
+    return UMU_GE_LATEST
+
+
 def get_steam_compat_dir() -> str:
     """Return the compatibilitytools.d folder where Steam and umu keep Proton builds.
     Qtris used to install the releases it downloads here, and still lists and removes
-    them. Like umu, this follows the host's data folder when running as a Flatpak."""
+    them. This is the host's data folder when running as a Flatpak."""
     return os.path.join(_get_data_home(), "Steam", "compatibilitytools.d")
 
 
-def get_ge_proton_latest_path() -> str:
-    """Return the folder where umu keeps GE-Proton Latest."""
-    return os.path.join(_get_data_home(), "umu", "compatibilitytools", UMU_GE_LATEST)
+def get_umu_folders_path() -> str:
+    """Return where umu keeps its folders: the Steam Linux Runtime, its locks and any
+    Proton it downloads by itself.
 
-
-def get_ge_proton_latest_release() -> str | None:
-    """Return the GE-Proton release umu last downloaded as GE-Proton Latest, or None
-    if no game has used it yet. Proton's 'version' file reads '<build id> <release>'."""
-    try:
-        with open(os.path.join(get_ge_proton_latest_path(), "version"), encoding="utf-8") as version_file:
-            fields = version_file.read().split()
-    except OSError:
-        return None
-    return fields[-1] if fields else None
-
-
-def get_ge_proton_latest_files_dir() -> str | None:
-    """Return the directory holding GE-Proton Latest's Wine files, or None if umu
-    hasn't downloaded it yet."""
-    files_path = os.path.join(get_ge_proton_latest_path(), "files")
-    return files_path if os.path.exists(os.path.join(files_path, "bin/wine")) else None
-
-
-def get_umu_folders_path(env: dict[str, str]) -> str:
-    """Return where Umu should keep its own folders, or "" to leave it to Umu.
-
-    Umu decides where to download its runtime and Proton builds from
-    XDG_DATA_HOME (HOST_XDG_DATA_HOME under Flatpak), falling back to
-    $HOME/.local/share. Players override those per game to keep save files out
-    of their home directory, which also sends Umu's downloads there: the runtime
-    is fetched again for every game, into directories the game was never meant
-    to own. UMU_FOLDERS_PATH moves Umu's folders back without touching what the
-    game itself sees.
+    umu would otherwise use XDG_DATA_HOME, or HOST_XDG_DATA_HOME under Flatpak, which
+    puts them in the host's data folder, outside Qtris's sandbox. Players also
+    override XDG_DATA_HOME or HOME per game to keep save files out of their home
+    folder, which would send umu's downloads there too, for every game.
+    UMU_FOLDERS_PATH keeps them in Qtris's own folder without touching what the game
+    itself sees.
     """
-    # Umu keys this off "container=flatpak", which the sandbox sets alongside
-    # the /.flatpak-info that LINUX_SYSTEM looks for.
-    data_home_var = "HOST_XDG_DATA_HOME" if LINUX_SYSTEM.is_flatpak() else "XDG_DATA_HOME"
-    overridden = any(var in env and env[var] != os.environ.get(var) for var in (data_home_var, "HOME"))
-    if not overridden:
-        return ""
-
-    qtris_data_home = os.environ.get(data_home_var)
-    if not qtris_data_home:
-        qtris_home = os.environ.get("HOME")
-        if not qtris_home:
-            return ""
-        qtris_data_home = os.path.join(qtris_home, ".local", "share")
-    return qtris_data_home
+    return settings.UMU_DATA_DIR
 
 
 def update_proton_env(wine_path: str, env: dict[str, str], game_id: str = DEFAULT_GAMEID, umu_log: str = "") -> None:
@@ -364,7 +339,7 @@ def update_proton_env(wine_path: str, env: dict[str, str], game_id: str = DEFAUL
 
     if "PROTONPATH" not in env:
         if is_umu_path(wine_path):
-            env["PROTONPATH"] = UMU_GE_LATEST
+            env["PROTONPATH"] = get_default_proton_path()
         else:
             env["PROTONPATH"] = get_proton_path_by_path(wine_path)
 
@@ -388,9 +363,7 @@ def update_proton_env(wine_path: str, env: dict[str, str], game_id: str = DEFAUL
             env["PROTON_VERB"] = "waitforexitandrun"  # does full initialization with proton-fixes
 
     if "UMU_FOLDERS_PATH" not in env:
-        umu_folders_path = get_umu_folders_path(env)
-        if umu_folders_path:
-            env["UMU_FOLDERS_PATH"] = umu_folders_path
+        env["UMU_FOLDERS_PATH"] = get_umu_folders_path()
 
     locale = env.get("LC_ALL")
     host_locale = env.get("HOST_LC_ALL")

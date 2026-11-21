@@ -374,17 +374,21 @@ Steam's ``compatibilitytools.d``. Builds Qtris installed there before are still
 listed and can be removed; other Proton locations are listed without a remove
 action.
 
-Each tab starts with a rolling build. GE-Proton Latest runs with umu's
-``PROTONPATH=GE-Latest``, which umu keeps in its own folder and updates when a
-game starts. Proton-CachyOS Latest (``qtris.util.wine.rolling_proton``) works
-like ProtonPlus's and Heroic's Latest builds: one ``Proton-CachyOS Latest``
+Each tab starts with a rolling build (``qtris.util.wine.rolling_proton``),
+GE-Proton Latest or Proton-CachyOS Latest, which work like ProtonPlus's and
+Heroic's Latest builds: one ``GE-Proton Latest`` or ``Proton-CachyOS Latest``
 folder that Qtris replaces with each new release. An update verifies and
 unpacks the release next to the folder, carries over ``user_settings.py``,
 records the release in ``.qtris-rolling.json`` and swaps the folder in, keeping
 the previous build until the new one is in place; a build a running game uses
 is left alone. Updates run with the other components (Preferences → Updates,
 following the automatic update setting) and from the tab's Update button, and a
-game set to it installs it before launch.
+game set to one installs it before launch. GE-Proton Latest is the default.
+
+umu keeps the Steam Linux Runtime it downloads for Proton (and its locks) in
+``settings.UMU_DATA_DIR``, ``runtime/umu-data`` in Qtris's data folder, through
+``UMU_FOLDERS_PATH``, rather than the host's ``~/.local/share/umu``. The native
+Linux runner's Steam Linux Runtime option finds those runtimes there too.
 
 The Wine runner runs Proton only: its version picker offers GE-Proton Latest,
 Proton-CachyOS Latest, GE-Proton and Proton-CachyOS releases by release name,

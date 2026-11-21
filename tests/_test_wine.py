@@ -14,6 +14,9 @@ from qtris.util.wine.dll_manager import DLLManager
 
 setup_test_environment()
 
+GE_LATEST_PATH = "/proton/GE-Proton Latest"
+GE_LATEST_WINE = GE_LATEST_PATH + "/files/bin/wine"
+
 
 class TestDllOverrides(TestCase):
     def test_env_format(self):
@@ -42,7 +45,7 @@ class TestProtonGraphics(TestCase):
         runner = wine.wine()
         with (
             patch.object(wine.LINUX_SYSTEM, "is_vulkan_supported", return_value=vulkan),
-            patch.object(runner, "get_executable", return_value="/umu/umu-run"),
+            patch.object(runner, "get_executable", return_value=GE_LATEST_WINE),
             patch.object(runner, "read_version_from_config", return_value=wine.GE_PROTON_LATEST),
         ):
             return runner.get_env()
@@ -55,8 +58,12 @@ class TestProtonGraphics(TestCase):
         option_names = {option["option"] for option in wine.wine().runner_options}
         self.assertFalse(option_names & {"dxvk", "dxvk_version", "vkd3d", "vkd3d_version", "dxvk_nvapi", "d3d_extras"})
 
-    def test_ge_proton_latest_is_kept_up_to_date_by_umu(self):
-        self.assertEqual(self.get_env(vulkan=True)["PROTONPATH"], "GE-Latest")
+    def test_ge_proton_latest_runs_from_qtris_folder(self):
+        env = self.get_env(vulkan=True)
+        self.assertEqual(env["WINE"], GE_LATEST_WINE)
+        self.assertNotIn("PROTONPATH", env)
+        wine.proton.update_proton_env(env["WINE"], env)
+        self.assertEqual(env["PROTONPATH"], GE_LATEST_PATH)
 
 
 class TestProtonOnly(TestCase):
@@ -90,17 +97,36 @@ class TestProtonOnly(TestCase):
             with patch.object(runner, "install_rolling_proton") as install_rolling_proton:
                 runner.install(delegate)
         install_rolling_proton.assert_called_once()
-        with patch.object(runner, "read_version_from_config", return_value=wine.GE_PROTON_LATEST):
-            self.assertTrue(runner.is_installed())
+        self.assertEqual(install_rolling_proton.call_args.args[1].version, "proton-cachyos-latest")
 
-    def test_umu_gets_ge_latest(self):
-        env = {}
-        wine.proton.update_proton_env("/umu/umu-run", env)
-        self.assertEqual(env["PROTONPATH"], "GE-Latest")
+    @patch.object(wine.proton, "get_proton_versions", return_value={})
+    def test_ge_proton_latest_is_installed_like_the_other_rolling_builds(self, _versions):
+        runner = wine.wine()
+        # A version that isn't Proton runs with GE-Proton Latest, so that's what gets installed
+        for version in (wine.GE_PROTON_LATEST, "wine-ge-8-26-x86_64"):
+            with self.subTest(version=version), patch.object(runner, "read_version_from_config", return_value=version):
+                self.assertFalse(runner.is_installed())
+                with patch.object(runner, "install_rolling_proton") as install_rolling_proton:
+                    runner.install(InstallUIDelegate())
+                self.assertEqual(install_rolling_proton.call_args.args[1].version, wine.GE_PROTON_LATEST)
+
+    def test_umu_without_a_proton_build_gets_ge_proton_latest(self):
+        with tempfile.TemporaryDirectory() as proton_dir:
+            with patch.object(wine.proton, "get_proton_dir", return_value=proton_dir):
+                env = {}
+                wine.proton.update_proton_env("/umu/umu-run", env)
+                # umu downloads its own copy when Qtris hasn't installed GE-Proton Latest
+                self.assertEqual(env["PROTONPATH"], "GE-Latest")
+                latest = os.path.join(proton_dir, "GE-Proton Latest")
+                os.makedirs(latest)
+                open(os.path.join(latest, "proton"), "w", encoding="utf-8").close()
+                env = {}
+                wine.proton.update_proton_env("/umu/umu-run", env)
+                self.assertEqual(env["PROTONPATH"], latest)
 
 
 class TestInstallerRunnerVersion(TestCase):
-    """Use the umu default when an installer does not name a Wine build."""
+    """Use GE-Proton Latest when an installer does not name a Wine build."""
 
     def get_installer(self, script):
         return SimpleNamespace(runner="wine", script=script, requires=None)
@@ -112,10 +138,12 @@ class TestInstallerRunnerVersion(TestCase):
         self.assertEqual(version, wine.get_default_wine_version())
 
     @patch.object(wine.wine, "get_runner_version_and_config", side_effect=wine.UnspecifiedVersionError("unset"))
-    def test_unspecified_version_needs_no_runner_install(self, _get_config):
+    def test_unspecified_version_needs_ge_proton_latest(self, _get_config):
         runner = wine.wine()
         interpreter = SimpleNamespace(installer=self.get_installer({}))
-        self.assertTrue(runner.is_installed_for(interpreter))
+        for versions, installed in (({}, False), ({wine.GE_PROTON_LATEST: GE_LATEST_PATH}, True)):
+            with patch.object(wine.proton, "get_proton_versions", return_value=versions):
+                self.assertEqual(runner.is_installed_for(interpreter), installed)
 
     def test_script_wine_build_uses_default(self):
         runner = wine.wine()
@@ -132,8 +160,8 @@ class TestInstallerRunnerVersion(TestCase):
 
 
 class TestPinnedGeProton(TestCase):
-    """A pinned GE-Proton release must come from GitHub into compatibilitytools.d:
-    umu only downloads the latest GE-Proton, and the Lutris.net API doesn't serve them."""
+    """A pinned GE-Proton release comes from GitHub into Qtris's Proton folder, since
+    the Lutris.net API doesn't serve them."""
 
     def get_interpreter(self, version):
         return SimpleNamespace(
@@ -256,8 +284,8 @@ class TestPinnedGeProton(TestCase):
 
 
 class TestMissingWineVersion(TestCase):
-    """A missing Wine version falls back to GE-Proton through umu, which would upgrade
-    a plain Wine prefix to Proton for good."""
+    """A missing Wine version falls back to GE-Proton Latest, which would upgrade a
+    plain Wine prefix to Proton for good."""
 
     def setUp(self):
         self.game_config = {}
@@ -265,12 +293,8 @@ class TestMissingWineVersion(TestCase):
         for patcher in (
             patch("qtris.config.read_yaml_from_file", side_effect=self.read_yaml),
             patch.dict(os.environ, {"WINEPREFIX": ""}),
-            patch.object(wine.proton, "get_umu_path", return_value="/umu/umu-run"),
-            patch.object(
-                wine.system,
-                "path_exists",
-                side_effect=lambda path, *args, **kwargs: path == "/umu/umu-run" or os.path.exists(path),
-            ),
+            patch.object(wine.proton, "get_proton_versions", return_value={wine.GE_PROTON_LATEST: GE_LATEST_PATH}),
+            patch.object(wine.proton, "get_proton_wine_path", return_value=GE_LATEST_WINE),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -321,18 +345,18 @@ class TestMissingWineVersion(TestCase):
         for marker in ("tracked_files", "version"):
             with self.subTest(marker=marker):
                 self.make_prefix(marker)
-                self.assertEqual(self.get_runner().get_executable(), "/umu/umu-run")
+                self.assertEqual(self.get_runner().get_executable(), GE_LATEST_WINE)
 
     def test_game_set_to_ge_proton_falls_back(self):
         self.game_version = wine.GE_PROTON_LATEST
         self.make_prefix()
-        self.assertEqual(self.get_runner().get_executable(), "/umu/umu-run")
+        self.assertEqual(self.get_runner().get_executable(), GE_LATEST_WINE)
 
     def test_new_prefix_falls_back_to_the_default(self):
         parent = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, parent)
         self.game_config = {"prefix": os.path.join(parent, "prefix")}
-        self.assertEqual(self.get_runner().get_executable(), "/umu/umu-run")
+        self.assertEqual(self.get_runner().get_executable(), GE_LATEST_WINE)
 
     def test_installed_proton_version_is_used(self):
         self.game_version = "GE-Proton11-7"

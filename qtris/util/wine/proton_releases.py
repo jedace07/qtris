@@ -105,10 +105,12 @@ class RollingProton:
     folder: str
 
 
-# The configured version that means Proton-CachyOS Latest
+# The configured versions that mean GE-Proton Latest, the default, and Proton-CachyOS Latest
+GE_PROTON_LATEST = "ge-proton"
 PROTON_CACHYOS_LATEST = "proton-cachyos-latest"
 
 ROLLING: tuple[RollingProton, ...] = (
+    RollingProton(GE_PROTON_LATEST, "GE-Proton Latest", GE_PROTON, "GE-Proton Latest"),
     RollingProton(PROTON_CACHYOS_LATEST, "Proton-CachyOS Latest", PROTON_CACHYOS, "Proton-CachyOS Latest"),
 )
 

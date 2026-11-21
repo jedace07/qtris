@@ -114,24 +114,52 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
         proton.get_proton_versions.cache_clear()
 
 
-def make_cachyos_build(served: Path, release: str, script: str) -> tuple[str, str]:
+def make_build(served: Path, release: str, script: str, compression: str) -> tuple[str, str]:
     build_name = release + "-x86_64"
     source = served.parent / f"{release}-proton"
     source.write_text(script, encoding="utf-8")
-    archive = served / f"{build_name}.tar.xz"
-    with tarfile.open(archive, "w:xz") as tar:
+    archive = served / f"{build_name}.tar.{compression}"
+    with tarfile.open(archive, "w:gz") if compression == "gz" else tarfile.open(archive, "w:xz") as tar:
         tar.add(source, arcname=f"{build_name}/proton")
     checksum = served / f"{build_name}.sha512sum"
     checksum.write_text(f"{hashlib.sha512(archive.read_bytes()).hexdigest()}  {archive.name}\n", encoding="utf-8")
     return archive.name, checksum.name
 
 
-def test_runner_manager_installs_updates_and_removes_proton_cachyos_latest(
-    server: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("family", "label", "old", "new", "old_label", "compression"),
+    [
+        (
+            "GE-Proton",
+            "GE-Proton Latest",
+            "GE-Proton11-11",
+            "GE-Proton11-12",
+            "GE-Proton11-11",
+            "gz",
+        ),
+        (
+            "Proton-CachyOS",
+            "Proton-CachyOS Latest",
+            "proton-cachyos-11.0-20261014-slr",
+            "proton-cachyos-11.0-20261015-slr",
+            "Proton-CachyOS 11.0-20261014",
+            "xz",
+        ),
+    ],
+)
+def test_runner_manager_installs_updates_and_removes_a_rolling_build(
+    server: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    family: str,
+    label: str,
+    old: str,
+    new: str,
+    old_label: str,
+    compression: str,
 ) -> None:
     served = tmp_path / "served"
-    old, new = "proton-cachyos-11.0-20261014-slr", "proton-cachyos-11.0-20261015-slr"
-    files = {release: make_cachyos_build(served, release, f"#!/bin/sh\n# {release}\n") for release in (old, new)}
+    files = {release: make_build(served, release, f"#!/bin/sh\n# {release}\n", compression) for release in (old, new)}
     newest = [old]
     proton_dir = tmp_path / "proton"
     monkeypatch.setattr(proton.LINUX_SYSTEM, "arch", "x86_64")
@@ -155,28 +183,29 @@ def test_runner_manager_installs_updates_and_removes_proton_cachyos_latest(
         pytest.fail(f"Unexpected runner prompt: {args!r}")
 
     interaction = runners.RunnerInstallInteraction(lambda text, fraction: None, no_questions, no_questions)
-    latest_dir = proton_dir / "Proton-CachyOS Latest"
-    version = proton_releases.PROTON_CACHYOS_LATEST
+    latest_dir = proton_dir / label
+    rolling = next(rolling for rolling in proton_releases.ROLLING if rolling.family.name == family)
+    version = rolling.version
 
     async def run() -> None:
-        latest = await runners.get_latest_proton("Proton-CachyOS")
-        assert latest == runners.LatestProton(version, "Proton-CachyOS Latest", "", False, "")
+        latest = await runners.get_latest_proton(family)
+        assert latest == runners.LatestProton(version, label, "", "")
         assert not await runners.is_runner_installed("wine", version)
 
         await asyncio.wait_for(runners.install_runner("wine", version, interaction=interaction), timeout=10)
         assert old in (latest_dir / "proton").read_text(encoding="utf-8")
         (latest_dir / "user_settings.py").write_text("user_settings = {}\n", encoding="utf-8")
         assert await runners.is_runner_installed("wine", version)
-        installed = await runners.get_latest_proton("Proton-CachyOS")
+        installed = await runners.get_latest_proton(family)
         assert installed is not None and installed.release == old
-        assert installed.release_label == "Proton-CachyOS 11.0-20261014"
-        assert version not in await runners.list_proton_builds("Proton-CachyOS")
+        assert installed.release_label == old_label
+        assert version not in await runners.list_proton_builds(family)
 
         newest[0] = new
         await asyncio.wait_for(runners.install_runner("wine", version, interaction=interaction), timeout=10)
         assert new in (latest_dir / "proton").read_text(encoding="utf-8")
         assert (latest_dir / "user_settings.py").is_file()
-        assert sorted(path.name for path in proton_dir.iterdir()) == ["Proton-CachyOS Latest"]
+        assert sorted(path.name for path in proton_dir.iterdir()) == [label]
 
         await runners.uninstall_runner("wine", version)
         assert not latest_dir.exists()

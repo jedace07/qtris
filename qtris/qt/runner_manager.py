@@ -72,14 +72,8 @@ class RunnerManagerController(QObject):
     def _latest_entry(self, latest: runners.LatestProton) -> dict[str, str | bool]:
         installed = bool(latest.release)
         newest = next(iter(self._releases.get(self._family_name, ())), "")
-        can_update = not latest.managed_by_umu and installed and bool(newest) and newest != latest.release
-        if latest.managed_by_umu:
-            description = (
-                _("Currently %s. umu updates it when a game starts.") % latest.release_label
-                if installed
-                else _("umu downloads it the first time a game uses it.")
-            )
-        elif can_update:
+        can_update = installed and bool(newest) and newest != latest.release
+        if can_update:
             description = _("Currently %s. A newer release is out.") % latest.release_label
         elif installed:
             description = _("Currently %s. Qtris updates it with its other components.") % latest.release_label
@@ -90,9 +84,9 @@ class RunnerManagerController(QObject):
             "label": latest.label,
             "description": description,
             "installed": installed,
-            "canInstall": not latest.managed_by_umu and not installed,
+            "canInstall": not installed,
             "canUpdate": can_update,
-            "canRemove": not latest.managed_by_umu and installed,
+            "canRemove": installed,
             "canConfigure": False,
             "manageProton": False,
         }
@@ -117,8 +111,8 @@ class RunnerManagerController(QObject):
     def protonNote(self) -> str:  # noqa: N802
         if self._family_name == runners.PROTON_FAMILIES[0]:
             return _(
-                "GE-Proton Latest follows the newest GE-Proton release, and umu keeps it up to date. "
-                "Install a specific release to pin games to it."
+                "GE-Proton Latest follows the newest GE-Proton release, and is the default; Qtris updates it "
+                "with its other components. Install a specific release to pin games to it."
             )
         return _(
             "Proton-CachyOS is tuned for performance, and Qtris installs the build optimized for x86-64-v3 "

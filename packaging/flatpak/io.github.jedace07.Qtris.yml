@@ -67,9 +67,8 @@ finish-args:
   # Needed for appimages
   - --env=APPIMAGE_EXTRACT_AND_RUN=1
   # --- umu ---
-  # Install the umu runtime at $HOST_XDG_DATA_HOME
-  # See: https://github.com/Open-Wine-Components/umu-launcher/pull/229
-  - --filesystem=xdg-data/umu:create
+  # Qtris sets UMU_FOLDERS_PATH, so umu keeps the Steam Linux Runtime in the app's own
+  # data folder instead of the host's (xdg-data/umu)
   # Pressure Vessel
   # See: https://github.com/flathub/com.valvesoftware.Steam/commit/0538256facdb0837c33232bc65a9195a8a5bc750
   - --env=XDG_DATA_DIRS=/app/share:/usr/lib/extensions/vulkan/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share:/usr/lib/pressure-vessel/overrides/share

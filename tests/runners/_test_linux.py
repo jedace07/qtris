@@ -16,10 +16,8 @@ def steamapps(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(runtime, "get_steamapps_dirs", lambda: [str(steamapps)])
     monkeypatch.setattr(runtime, "search_in_steam_dirs", lambda _path: None)
     monkeypatch.setattr(runtime, "machine", lambda: "x86_64")
-    monkeypatch.delenv("container", raising=False)
-    monkeypatch.delenv("HOST_XDG_DATA_HOME", raising=False)
     monkeypatch.delenv("STEAM_COMPAT_CLIENT_INSTALL_PATH", raising=False)
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(runtime.proton.settings, "UMU_DATA_DIR", str(tmp_path / "umu-data"))
     return steamapps
 
 
@@ -67,7 +65,7 @@ def test_scout_uses_soldier_and_mounts_scout_tool(steamapps: Path, monkeypatch: 
 def test_runtime_can_use_umu_installation(steamapps: Path, tmp_path: Path) -> None:
     with pytest.raises(GameConfigError, match=r"steam://install/4183110"):
         runtime.get_runtime_command("steamrt4", {})
-    launcher = make_launcher(tmp_path / "data" / "umu" / "steamrt4" / "run")
+    launcher = make_launcher(tmp_path / "umu-data" / "umu" / "steamrt4" / "run")
     assert runtime.get_runtime_command("steamrt4", {}) == [str(launcher), "--"]
 
 

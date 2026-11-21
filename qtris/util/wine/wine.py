@@ -14,9 +14,9 @@ from qtris.util.wine import proton, proton_releases
 
 # Proton only runs 64-bit prefixes
 WINE_DEFAULT_ARCH: str = "win64"
-# The configured version that means GE-Proton Latest, which umu keeps up to date
-GE_PROTON_LATEST: str = "ge-proton"
-# The configured version that means Proton-CachyOS Latest, which Qtris keeps up to date
+# The configured versions that mean GE-Proton Latest, the default, and Proton-CachyOS
+# Latest, rolling builds Qtris keeps up to date
+GE_PROTON_LATEST: str = proton_releases.GE_PROTON_LATEST
 PROTON_CACHYOS_LATEST: str = proton_releases.PROTON_CACHYOS_LATEST
 
 
@@ -85,29 +85,29 @@ def is_winewayland_available(runner_version: str) -> bool:
         return any(os.path.exists(os.path.join(files_dir, winewayland_path)) for winewayland_path in winewayland_paths)
 
     # If there's no file dir to check, we assume Wayland is available; this
-    # happens for GE-Proton Latest before umu first downloads it
+    # happens for a rolling build before it is installed
     return True
 
 
 @cache_single
 def get_installed_wine_versions() -> list[str]:
-    """Return the Wine versions that can be chosen, in presentation order: GE-Proton
-    Latest and the other rolling builds, which are installed when a game needs them,
-    then the installed Proton builds."""
+    """Return the Wine versions that can be chosen, in presentation order: the rolling
+    builds, GE-Proton Latest first, which are installed when a game needs them, then the
+    installed Proton builds."""
     rolling = [rolling.version for rolling in proton_releases.ROLLING]
-    return [GE_PROTON_LATEST, *rolling, *proton.list_proton_versions()]
+    return [*rolling, *proton.list_proton_versions()]
 
 
 def get_wine_version_label(version: str) -> str:
     """Return how a Wine version is shown to the user."""
-    return _("GE-Proton Latest") if version == GE_PROTON_LATEST else proton_releases.get_release_label(version)
+    return proton_releases.get_release_label(version)
 
 
 def get_proton_version_or_default(version: str | None) -> str:
     """Return the Proton build a configured Wine version names, using the release name
     for GE-Proton and Proton-CachyOS builds. Anything that isn't Proton, such as system Wine, an old Wine build
     or a custom executable, gives the default, GE-Proton Latest."""
-    if not version or version == GE_PROTON_LATEST:
+    if not version:
         return GE_PROTON_LATEST
     if proton_releases.get_rolling(version):
         return version
@@ -129,21 +129,16 @@ def clear_wine_version_cache() -> None:
 def get_runner_files_dir_for_version(version: str) -> str | None:
     """Return the root of a Proton build's Wine files, the directory holding 'bin', or
     None if the version names no installed Proton build."""
-    if version == GE_PROTON_LATEST:
-        return proton.get_ge_proton_latest_files_dir()
     if proton.is_proton_version(version):
         return proton.get_proton_wine_files_dir(version)
     return None
 
 
 def get_wine_path_for_version(version: str) -> str:
-    """Return the program that runs a Wine version: umu for GE-Proton Latest, and the
-    wine executable of any other Proton build."""
+    """Return the wine executable of an installed Proton build, which umu runs."""
     if not version:
         raise UnspecifiedVersionError(_("The Wine version must be specified."))
 
-    if version == GE_PROTON_LATEST:
-        return proton.get_umu_path()
     if proton.is_proton_version(version):
         return proton.get_proton_wine_path(version)
     if rolling := proton_releases.get_rolling(version):

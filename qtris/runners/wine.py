@@ -64,12 +64,11 @@ if TYPE_CHECKING:
 
 
 def is_umu_managed_version(version: str | None) -> bool:
-    """True if this Wine 'version' is actually launched through umu: the 'ge-proton'
-    sentinel, a rolling build or any Proton build. These are Proton, which Qtris
-    installs itself or umu fetches, rather than a Wine runner build."""
+    """True if this Wine 'version' is actually launched through umu: a rolling build
+    such as GE-Proton Latest, a Proton release or any installed Proton build, rather
+    than a Wine runner build."""
     return (
-        version == GE_PROTON_LATEST
-        or proton.is_proton_version(version)
+        proton.is_proton_version(version)
         or proton_releases.is_proton_release(version)
         or proton_releases.get_rolling(version) is not None
     )
@@ -518,16 +517,14 @@ class wine(Runner):
         return exe
 
     def get_executable(self, version: str = "", fallback: bool = True) -> str:
-        """Return the program that runs Wine: umu for GE-Proton Latest, and the wine
-        executable of any other Proton build. A version that names no installed Proton
-        build, such as an old Wine build, falls back to GE-Proton Latest unless
-        'fallback' is off."""
+        """Return the wine executable of the Proton build that runs games, which umu
+        runs. A version that names no Proton build, such as an old Wine build, falls
+        back to GE-Proton Latest unless 'fallback' is off."""
         if not version:
             version = self.read_version_from_config()
-        if not fallback or version == GE_PROTON_LATEST or proton.is_proton_version(version):
+        if not fallback or proton.is_proton_version(version) or proton_releases.get_rolling(version):
             return get_wine_path_for_version(version)
 
-        wine_path = proton.get_umu_path()
         # Proton upgrades a Wine prefix in place, and that can't be undone.
         if proton.is_wine_only_prefix(self.prefix_path):
             raise MissingExecutableError(
@@ -537,7 +534,7 @@ class wine(Runner):
                 )
                 % version
             )
-        return wine_path
+        return get_wine_path_for_version(GE_PROTON_LATEST)
 
     def get_command(self) -> list[str]:
         command = super().get_command()
@@ -552,15 +549,15 @@ class wine(Runner):
 
     def is_installed(self, flatpak_allowed: bool = True, version: str | None = None, fallback: bool = True) -> bool:
         """Check if a Proton version is installed. Without a version, this checks the
-        configured one; GE-Proton Latest always counts, since umu downloads it when a
-        game needs it."""
+        configured one."""
         try:
             if version:
                 # We don't care where Wine is, but only if it was found at all.
                 self.get_executable(version, fallback)
                 return True
 
-            return not is_missing_proton_release(self.read_version_from_config())
+            # A version that names no Proton build runs with GE-Proton Latest
+            return not is_missing_proton_release(get_proton_version_or_default(self.read_version_from_config()))
         except MisconfigurationError:
             return False
 
@@ -569,8 +566,8 @@ class wine(Runner):
             version = self.get_installer_runner_version(interpreter.installer, use_default=True)
         except MisconfigurationError:
             return False
-        # GE-Proton Latest is fetched by umu at launch, and installed Proton builds are
-        # ready; only a pinned GE-Proton release that isn't installed yet needs installing.
+        # Installed Proton builds are ready; a rolling build or a pinned release that
+        # isn't installed yet needs installing.
         return is_umu_managed_version(version) and not is_missing_proton_release(version)
 
     def install(
@@ -579,7 +576,7 @@ class wine(Runner):
         version: str | None = None,
         callback: Callable[[], None] | None = None,
     ) -> None:
-        version = version or self.read_version_from_config()
+        version = version or get_proton_version_or_default(self.read_version_from_config())
         if rolling := proton_releases.get_rolling(version):
             self.install_rolling_proton(install_ui_delegate, rolling, callback=callback)
             return
@@ -673,7 +670,7 @@ class wine(Runner):
                 pass  # fall back to the API in this case
 
         if not version and use_default:
-            # Fall back to Qtris' own default (GE-Proton through umu), not the API's
+            # Fall back to Qtris' own default (GE-Proton Latest), not the API's
             # latest Wine build: the API has no notion of a default version, so asking it
             # would download whichever build was uploaded last, and nothing would use it.
             version = get_default_wine_version()
@@ -985,8 +982,6 @@ class wine(Runner):
         wine_exe = self.get_executable()
 
         wine_config_version = self.read_version_from_config()
-        if wine_config_version == GE_PROTON_LATEST:
-            env["PROTONPATH"] = proton.UMU_GE_LATEST
         env["WINE"] = wine_exe
 
         files_dir = get_runner_files_dir_for_version(wine_config_version)
