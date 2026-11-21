@@ -8,18 +8,17 @@ body:
       value: |
         ### Important notice
         **This repository is not a place for requesting support with a game, runner or an installer.**
-        *DO NOT REPORT BUGS FOR OLD LUTRIS VERSIONS. MAKE SURE YOU UP TO DATE AND ARE USING THE LATEST VERSION AVAILABLE.
+        *DO NOT REPORT BUGS FOR OLD QTRIS VERSIONS. MAKE SURE YOU UP TO DATE AND ARE USING THE LATEST VERSION AVAILABLE.
         *BUGS REPORTS SUBMITTED ON OLD VERSIONS WILL BE CLOSED WITHOUT FURTHER CONSIDERATION.
-        *If you have issues installing a game or launching it*, make sure you follow our essential guides on [graphics driver installation](https://github.com/lutris/docs/blob/master/InstallingDrivers.md) and [dependencies for the wine runner](https://github.com/lutris/docs/blob/master/WineDependencies.md).
-        *If you followed the guides and the issues persist*, try asking for help in our official [Lutris Discord Server](https://discord.com/invite/Pnt5CuY).
-        *If you think there is a legitimate issue with our Lutris Wine builds*, open an issue in our [Lutris Wine repository](https://github.com/lutris/wine) instead.
-        *If you think Lutris is missing an important feature*, try opening a *Feature Request* instead.
+        *If you have issues installing a game or launching it*, make sure your graphics drivers, including their 32-bit Vulkan libraries, are installed and up to date.
+        *If a game fails in an emulator or in Wine or Proton*, check that it works there outside of Qtris before reporting it here.
+        *If you think Qtris is missing an important feature*, try opening a *Feature Request* instead.
   - type: textarea
     id: description
     attributes:
       label: "Bug description"
       description: "A clear and detailed description of what the bug is."
-      placeholder: "Tell us about your problem with Lutris in a clear and  detailed way"
+      placeholder: "Tell us about your problem with Qtris in a clear and  detailed way"
     validations:
       required: true
   - type: textarea
@@ -41,15 +40,15 @@ body:
     attributes:
       label: "Expected behavior"
       description: "A clear and detailed description of what you think should happen."
-      placeholder: "Tell us what you expected Lutris to do"
+      placeholder: "Tell us what you expected Qtris to do"
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
       label: Log output
-      description: "Close Lutris, launch it in the terminal using the command `lutris -d`, reproduce your issue, then paste all of the output from the terminal here. Do not shortnen/prune the output."
-      placeholder: "Full output from the `lutris -d` command after reproducing the issue"
+      description: "Close Qtris, launch it in the terminal using the command `qtris -d`, reproduce your issue, then paste all of the output from the terminal here. Do not shortnen/prune the output."
+      placeholder: "Full output from the `qtris -d` command after reproducing the issue"
       render: shell
     validations:
       required: true
@@ -57,7 +56,7 @@ body:
     id: sysinfo
     attributes:
       label: "System Information"
-      description: "An auto-generated summary about system configuration from the Lutris settings."
+      description: "An auto-generated summary about system configuration from the Qtris settings."
       placeholder: "Paste it in this text form"
       render: shell
     validations:
@@ -66,7 +65,7 @@ body:
     id: systemsummarygif
     attributes:
       value: |
-        ***You can obtain a quick system summary from within Lutris like this:***
+        ***You can obtain a quick system summary from within Qtris like this:***
 
         ![Peek 2021-11-12 05-09-2](https://user-images.githubusercontent.com/10602045/142093883-fb1169f2-28ab-4382-8e54-d7de9c96243e.gif)
   - type: textarea

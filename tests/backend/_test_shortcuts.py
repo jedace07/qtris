@@ -7,18 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.api import parse_installer_url
-from lutris.backend import games, shortcuts
-from lutris.backend.launch_configurations import BackendLaunchUIDelegate, LaunchChoice
-from lutris.backend.models import GameInfo
-from lutris.database import games as games_db
-from lutris.delegates import CommandLineUIDelegate, LaunchUIDelegate
-from lutris.exceptions import LutrisError
-from lutris.game import Game
-from lutris.util import xdgshortcuts
-from lutris.util.steam import shortcut as steam_shortcut
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.api import parse_installer_url
+from qtris.backend import games, shortcuts
+from qtris.backend.launch_configurations import BackendLaunchUIDelegate, LaunchChoice
+from qtris.backend.models import GameInfo
+from qtris.database import games as games_db
+from qtris.delegates import CommandLineUIDelegate, LaunchUIDelegate
+from qtris.exceptions import QtrisError
+from qtris.game import Game
+from qtris.util import xdgshortcuts
+from qtris.util.steam import shortcut as steam_shortcut
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -62,12 +62,12 @@ def test_application_shortcut_without_desktop_folder(
         state = await shortcuts.get_shortcuts(shortcut_game)
         assert state.configuration_names == ("", "Safe / Windowed")
         assert [(target.kind, target.exists) for target in state.targets] == [("menu", False)]
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await shortcuts.set_shortcut(shortcut_game, "menu", True, "unknown")
         state = await shortcuts.set_shortcut(shortcut_game, "menu", True, "Safe / Windowed")
         assert state.targets[0].exists
         launcher = Path(xdgshortcuts.get_menu_launcher_path("shortcut-game", shortcut_game))
-        assert f"lutris:rungameid/{shortcut_game}/Safe%%20%%2F%%20Windowed" in launcher.read_text(encoding="utf-8")
+        assert f"qtris:rungameid/{shortcut_game}/Safe%%20%%2F%%20Windowed" in launcher.read_text(encoding="utf-8")
         state = await shortcuts.set_shortcut(shortcut_game, "menu", False)
         assert not state.targets[0].exists
         assert not launcher.exists()
@@ -112,7 +112,7 @@ def test_standalone_shortcut_runs_selected_configuration(
         regular, standalone = steam_shortcut.get_shortcuts().values()
         assert regular["appid"] != standalone["appid"]
         script = Path(standalone["Exe"].strip('"'))
-        assert script == steam_config / "lutris-shortcuts" / f"lutris-{shortcut_game}.sh"
+        assert script == steam_config / "qtris-shortcuts" / f"qtris-{shortcut_game}.sh"
         result = subprocess.run(
             [script], cwd=standalone["StartDir"].strip('"'), check=True, capture_output=True, text=True, timeout=10
         )
@@ -148,10 +148,10 @@ def test_failed_standalone_export_preserves_existing_entries(
         await shortcuts.set_shortcut(shortcut_game, "steam", True)
         vdf_path = steam_config / "shortcuts.vdf"
         original = vdf_path.read_bytes()
-        with pytest.raises(LutrisError, match="Could not update"):
+        with pytest.raises(QtrisError, match="Could not update"):
             await shortcuts.set_shortcut(shortcut_game, "steam_big_picture", True, "Safe / Windowed")
         assert vdf_path.read_bytes() == original
-        assert not list((steam_config / "lutris-shortcuts").iterdir())
+        assert not list((steam_config / "qtris-shortcuts").iterdir())
 
     asyncio.run(run())
 
@@ -161,7 +161,7 @@ def test_flatpak_only_offers_removal_of_legacy_standalone_shortcut(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(shortcuts.LINUX_SYSTEM, "is_flatpak", lambda: True)
-    script = tmp_path / ".local/share/applications/lutris-shortcut-game.sh"
+    script = tmp_path / ".local/share/applications/qtris-shortcut-game.sh"
     script.parent.mkdir(parents=True)
     script.touch()
     steam_shortcut.create_shortcut(Game(shortcut_game), standalone=True)
@@ -174,10 +174,10 @@ def test_flatpak_only_offers_removal_of_legacy_standalone_shortcut(
         }
         state = await shortcuts.set_shortcut(shortcut_game, "steam_big_picture", False)
         assert all(target.kind != "steam_big_picture" for target in state.targets)
-        assert not (steam_config / "lutris-shortcuts").exists()
+        assert not (steam_config / "qtris-shortcuts").exists()
         assert not steam_shortcut.get_shortcuts()
         assert script.is_file()
-        with pytest.raises(LutrisError, match="destination is unavailable"):
+        with pytest.raises(QtrisError, match="destination is unavailable"):
             await shortcuts.set_shortcut(shortcut_game, "steam_big_picture", True)
 
     asyncio.run(run())
@@ -195,7 +195,7 @@ def test_launch_uri_forwards_named_configuration(shortcut_game: str, monkeypatch
         return True
 
     monkeypatch.setattr(games, "launch_game", launch)
-    asyncio.run(games.launch_from_uri(f"lutris:rungameid/{shortcut_game}/Safe%20%2F%20Windowed"))
+    asyncio.run(games.launch_from_uri(f"qtris:rungameid/{shortcut_game}/Safe%20%2F%20Windowed"))
     assert args == ["--windowed"]
 
 

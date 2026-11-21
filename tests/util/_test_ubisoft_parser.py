@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from lutris.util.ubisoft.parser import UbisoftParser
+from qtris.util.ubisoft.parser import UbisoftParser
 
 
 class TestUbisoftParser(TestCase):

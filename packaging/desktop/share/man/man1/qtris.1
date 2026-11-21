@@ -1,0 +1,55 @@
+.\" Generated with help2man.
+.TH QTRIS "1"
+.SH NAME
+qtris \- video game preservation platform
+.SH DESCRIPTION
+.SS "Usage:"
+.IP
+qtris [OPTION] URI
+.PP
+Run a game directly by adding the parameter qtris:rungame/game\-identifier.
+.br
+If several games share the same identifier you can use the numerical ID (displayed when running qtris \fB\-\-list\-games\fR) and add qtris:rungameid/numerical\-id.
+.br
+To install a synced store game, add qtris:install/source:app\-id.
+.SS "Help Options:"
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help options
+.TP
+\fB\-\-help\-all\fR
+Show all help options
+.TP
+\fB\-\-help\-gapplication\fR
+Show GApplication options
+.SS "Application Options:"
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Print the version of Qtris and exit
+.TP
+\fB\-d\fR, \fB\-\-debug\fR
+Show debug messages
+.TP
+\fB\-b\fR, \fB\-\-output\-script\fR
+Generate a bash script to run a game without the client
+.TP
+\fB\-e\fR, \fB\-\-exec\fR
+Execute a program with the qtris runtime
+.TP
+\fB\-l\fR, \fB\-\-list\-games\fR
+List all games in database
+.TP
+\fB\-o\fR, \fB\-\-installed\fR
+Only list installed games
+.TP
+\fB\-s\fR, \fB\-\-list\-steam\-games\fR
+List available Steam games
+.TP
+\fB\-\-list\-steam\-folders\fR
+List all known Steam library folders
+.TP
+\fB\-j\fR, \fB\-\-json\fR
+Display the list of games in JSON format
+.TP
+\fB\-\-submit\-issue\fR
+Open the local issue report exporter

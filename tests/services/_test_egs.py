@@ -4,11 +4,11 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris import settings
-from lutris.config import LutrisConfig, write_game_config
-from lutris.database import games, schema
-from lutris.services.egs import EGSGame, EpicGamesStoreService
-from lutris.util.egs.egs_launcher import EGSLauncher
+from qtris import settings
+from qtris.config import QtrisConfig, write_game_config
+from qtris.database import games, schema
+from qtris.services.egs import EGSGame, EpicGamesStoreService
+from qtris.util.egs.egs_launcher import EGSLauncher
 
 
 class TestImportInstalledEGSGames(TestCase):
@@ -47,7 +47,7 @@ class TestImportInstalledEGSGames(TestCase):
             manifest = {"AppName": app_name, "MainGameAppName": parent}
             (self.manifests_path / (app_name + ".item")).write_text(json.dumps(manifest), encoding="utf-8")
 
-        with patch("lutris.artwork.sync_artwork") as sync_media:
+        with patch("qtris.artwork.sync_artwork") as sync_media:
             service = EpicGamesStoreService()
             service.add_installed_games()
             self.assertCountEqual(sync_media.call_args.args[0], ["base-game", "matching-game"])
@@ -62,7 +62,7 @@ class TestImportInstalledEGSGames(TestCase):
                 self.assertEqual(game["installed"], 1)
                 self.assertEqual(game["runner"], "wine")
                 self.assertTrue((self.directory / "games" / (game["configpath"] + ".yml")).is_file())
-                config = LutrisConfig(game_config_id=game["configpath"]).game_level
+                config = QtrisConfig(game_config_id=game["configpath"]).game_level
                 self.assertEqual(config["game"]["exe"], "EpicGamesLauncher.exe")
                 self.assertIn(
                     f"namespace%3A{game['service_id']}-item%3A{game['service_id']}?action=launch",

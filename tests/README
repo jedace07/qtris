@@ -1,7 +1,7 @@
 Manual test suite
 -----------------
 
-These steps must be followed and succeed for each new release of Lutris.
+These steps must be followed and succeed for each new release of Qtris.
 It is advised to run these tests on a clean system (a 2nd computer or a dual
 boot should be helpful here).
 
@@ -23,12 +23,12 @@ Write down the following:
     - CPU model
     - Model of GPU + amount of video RAM
 
-1. Wipe/backup any trace of Lutris and runners.
+1. Wipe/backup any trace of Qtris and runners.
 
-* Move lutris settings.
+* Move qtris settings.
 
-mv ~/.cache/lutris ~/.cache/lutris.bak
-mv ~/.local/share/lutris ~/.local/share/lutris.bak
+mv ~/.cache/qtris ~/.cache/qtris.bak
+mv ~/.local/share/qtris ~/.local/share/qtris.bak
 
 * Remove any runner globally installed.
 
@@ -38,12 +38,12 @@ Uninstall any distribution packages of Wine and Steam.
 
 mkdir ~/games-testing
 
-2. Get and install lutris
+2. Get and install qtris
 
 * Fetch the code
 
-git clone https://github.com/lutris/lutris
-cd lutris
+git clone https://github.com/jedace07/qtris
+cd qtris
 
 option 1: install the Flatpak (closest to what users run)
 
@@ -51,20 +51,20 @@ Build and install it as described in INSTALL.rst.
 
 option 2: run from the source tree (see INSTALL.rst)
 
-uv run --no-dev lutris
+uv run --no-dev qtris
 
-Scenario 1: Launching Lutris
-- You can find a lutris icon in your menu/launcher (Unity dash, GS launcher,
+Scenario 1: Launching Qtris
+- You can find a qtris icon in your menu/launcher (Unity dash, GS launcher,
   XFCE main menu, ...) in the games category
 - When clicking the interface loads with no complains
-- After the UI has been opened, there should be ~/.cache/lutris
-  and ~/.local/share/lutris directories
+- After the UI has been opened, there should be ~/.cache/qtris
+  and ~/.local/share/qtris directories
 
 Scenario 2: Installing teeworlds from the website (64bit only ATM)
 - Using Chrome or Chromium open http://lutris.net/games/teeworlds/
 - Click the install button
-- The lutris installer dialog should open and the install process can begin
+- The qtris installer dialog should open and the install process can begin
 - Follow the install process and click "Play"
 - The game should launch
-- Close the game and open lutris
+- Close the game and open qtris
 - Teeworlds should have an icon

@@ -20,8 +20,8 @@ GTK_NAMESPACES = {
     "WebKit2",
 }
 NATIVE_QT_IMPORTS = {
-    "lutris/qt/application.py": {"PySide6.QtWidgets.QApplication"},
-    "lutris/qt/tray.py": {"PySide6.QtWidgets.QMenu", "PySide6.QtWidgets.QSystemTrayIcon"},
+    "qtris/qt/application.py": {"PySide6.QtWidgets.QApplication"},
+    "qtris/qt/tray.py": {"PySide6.QtWidgets.QMenu", "PySide6.QtWidgets.QSystemTrayIcon"},
 }
 QUICK_MODULES = {"PySide6.QtCore", "PySide6.QtGui", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickControls2"}
 GIO_DEFAULT = "Gio.Application.get_default()"
@@ -58,32 +58,32 @@ def find_ui_dependencies(source: str) -> set[str]:
 
 def test_toolkit_and_frontend_boundaries():
     violations: dict[str, set[str]] = {}
-    for path in (ROOT / "lutris").rglob("*.py"):
+    for path in (ROOT / "qtris").rglob("*.py"):
         relative = path.relative_to(ROOT)
         name = relative.as_posix()
         frontend = relative.parts[1]
         source = path.read_text(encoding="utf-8")
         forbidden = find_ui_dependencies(source)
         modules = find_imported_modules(source, ".".join(relative.parts[:-1]))
-        forbidden |= {module for module in modules if module == "lutris.gui" or module.startswith("lutris.gui.")}
+        forbidden |= {module for module in modules if module == "qtris.gui" or module.startswith("qtris.gui.")}
         if frontend == "qt":
             forbidden = {module for module in forbidden if ".".join(module.split(".")[:2]) not in QUICK_MODULES}
             forbidden -= NATIVE_QT_IMPORTS.get(name, set()) | {GIO_DEFAULT}
         elif frontend not in FRONTEND_DIRS:
             forbidden |= {
-                module for module in modules if module.split(".")[:2] in (["lutris", part] for part in FRONTEND_DIRS)
+                module for module in modules if module.split(".")[:2] in (["qtris", part] for part in FRONTEND_DIRS)
             }
-            if name == "lutris/launcher.py":
-                forbidden -= {"lutris.cli.application", "lutris.qt.application"}
+            if name == "qtris/launcher.py":
+                forbidden -= {"qtris.cli.application", "qtris.qt.application"}
         if forbidden:
             violations[name] = forbidden
     assert not violations, f"GUI dependencies belong in Qt Quick: {violations}"
 
 
 def test_only_qt_quick_assets_are_shipped():
-    assert not (ROOT / "lutris/gui").exists()
-    assert not (ROOT / "lutris/data/ui").exists()
-    for path in (ROOT / "lutris/qt/qml").rglob("*.qml"):
+    assert not (ROOT / "qtris/gui").exists()
+    assert not (ROOT / "qtris/data/ui").exists()
+    for path in (ROOT / "qtris/qt/qml").rglob("*.qml"):
         assert not any(
             line.lstrip().startswith(("import QtWebEngine", "import QtWebView"))
             for line in path.read_text(encoding="utf-8").splitlines()

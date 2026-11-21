@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-from lutris.util.egs.egs_launcher import EGSLauncher
+from qtris.util.egs.egs_launcher import EGSLauncher
 
 
 class TestEGSLauncher(TestCase):

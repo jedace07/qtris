@@ -1,12 +1,12 @@
-"""The Lutris Qt Quick style draws every control, with icons that exist."""
+"""The Qtris Qt Quick style draws every control, with icons that exist."""
 
 import re
 from pathlib import Path
 
 import pytest
 
-from lutris.qt import sidebar
-from lutris.qt.main_window import QML_DIR, STYLE
+from qtris.qt import sidebar
+from qtris.qt.main_window import QML_DIR, STYLE
 
 ICONS = QML_DIR / STYLE / "icons"
 # Literal icon names, in Theme.icon("…") calls, Icon symbols and the icon fields of page lists

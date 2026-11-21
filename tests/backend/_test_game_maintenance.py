@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lutris import settings
-from lutris.backend import game_maintenance, games
-from lutris.database import games as games_db
-from lutris.database import sql
-from lutris.exceptions import LutrisError
-from lutris.game import Game
-from lutris.util import path_cache, system
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.backend import game_maintenance, games
+from qtris.database import games as games_db
+from qtris.database import sql
+from qtris.exceptions import QtrisError
+from qtris.game import Game
+from qtris.util import path_cache, system
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -112,7 +112,7 @@ def test_move_rejects_an_existing_target_and_running_game(installation: tuple[st
     parent = tmp_path / "Destination"
     parent.mkdir()
     (parent / source.name).mkdir()
-    with pytest.raises(LutrisError, match="already contains"):
+    with pytest.raises(QtrisError, match="already contains"):
         asyncio.run(game_maintenance.move_game(game_id, str(source), str(parent)))
     other_folder = tmp_path / "Other Game"
     other_folder.mkdir()
@@ -120,13 +120,13 @@ def test_move_rejects_an_existing_target_and_running_game(installation: tuple[st
         games_db.add_game(name="Other Game", slug="other-maintenance", installed=1, directory=str(other_folder))
     )
     try:
-        with pytest.raises(LutrisError, match="destination overlaps"):
+        with pytest.raises(QtrisError, match="destination overlaps"):
             asyncio.run(game_maintenance.move_game(game_id, str(source), str(other_folder)))
     finally:
         games_db.delete_game(other_game)
     games._running_games[game_id] = Game(game_id)
     try:
-        with pytest.raises(LutrisError, match="Stop the game"):
+        with pytest.raises(QtrisError, match="Stop the game"):
             asyncio.run(game_maintenance.move_game(game_id, str(source), str(parent)))
     finally:
         del games._running_games[game_id]
@@ -146,7 +146,7 @@ def test_trash_rechecks_shared_folders_and_changed_paths(
     monkeypatch.setattr(system, "remove_folder", unexpected_trash)
     other = str(games_db.add_game(name="Shared", slug="shared-maintenance", installed=1, directory=str(source / "mod")))
     try:
-        with pytest.raises(LutrisError, match="overlaps another installed game"):
+        with pytest.raises(QtrisError, match="overlaps another installed game"):
             asyncio.run(game_maintenance.uninstall_game(game_id, info, trash_files=True))
     finally:
         games_db.delete_game(other)
@@ -154,7 +154,7 @@ def test_trash_rechecks_shared_folders_and_changed_paths(
     alias = tmp_path / "Game Alias"
     alias.symlink_to(source, target_is_directory=True)
     sql.db_update(settings.DB_PATH, "games", {"directory": str(alias)}, {"id": game_id})
-    with pytest.raises(LutrisError, match="installation changed"):
+    with pytest.raises(QtrisError, match="installation changed"):
         asyncio.run(game_maintenance.uninstall_game(game_id, info, trash_files=True))
     info = asyncio.run(game_maintenance.get_maintenance_info(game_id))
     assert "protected" in info.files_unavailable_reason

@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lutris.delegates import InstallUIDelegate
-from lutris.runners import RunnerInstallationError
-from lutris.runners.eden import eden
-from lutris.runners.json import load_json_runners
-from lutris.util import flatpak
+from qtris.delegates import InstallUIDelegate
+from qtris.runners import RunnerInstallationError
+from qtris.runners.eden import eden
+from qtris.runners.json import load_json_runners
+from qtris.util import flatpak
 
 
 @pytest.fixture

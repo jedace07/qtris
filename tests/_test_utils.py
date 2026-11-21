@@ -5,9 +5,9 @@ import zipfile
 from collections import OrderedDict
 from unittest import TestCase
 
-from lutris.util import fileio, strings, system
-from lutris.util.steam import vdfutils
-from lutris.util.wine import wine
+from qtris.util import fileio, strings, system
+from qtris.util.steam import vdfutils
+from qtris.util.wine import wine
 
 
 class TestFileUtils(TestCase):

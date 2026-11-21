@@ -1,10 +1,10 @@
-"""lutris.util.jobs schedules onto whichever main loop is installed, not GLib's directly."""
+"""qtris.util.jobs schedules onto whichever main loop is installed, not GLib's directly."""
 
 import pytest
 
-from lutris.util import mainloop
-from lutris.util.jobs import run_until_complete, schedule_at_idle, schedule_repeating_at_idle
-from lutris.util.notifications import NotificationSource
+from qtris.util import mainloop
+from qtris.util.jobs import run_until_complete, schedule_at_idle, schedule_repeating_at_idle
+from qtris.util.notifications import NotificationSource
 
 
 def test_default_main_loop_is_glib(monkeypatch):

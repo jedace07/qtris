@@ -1,4 +1,4 @@
-Contributing to Lutris
+Contributing to Qtris
 ======================
 
 Note regarding AI and human contributions
@@ -14,21 +14,10 @@ Finding features to work on
 ---------------------------
 
 If you are looking for issues to work on, have a look at the
-[milestones](https://github.com/lutris/lutris/milestones) and see which one is
-the closest to release then look at the tickets targeted at this release.
+[open issues](https://github.com/jedace07/qtris/issues). Please make sure that
+you're able to reproduce an issue before attempting to fix it.
 
-Don't forget that Lutris is not only a desktop client, there are also a lot of
-issues to work on [on the website](https://github.com/lutris/website/issues)
-and also in the [build scripts repository](https://github.com/lutris/buildbot)
-where you can submit bash scripts for various open source games and engines we
-do not already have.
-
-Another area where users can help is [confirming some
-issues](https://github.com/lutris/lutris/issues?q=is%3Aissue+is%3Aopen+label%3A%22can%27t+reproduce%22+)
-that can't be reproduced on the developers setup. Please make sure that you're able to
-reproduce an issue before attempting to fix it.
-
-Note that Lutris is not a playground or a toy project. One cannot submit new
+Note that Qtris is not a playground or a toy project. One cannot submit new
 features that aren't on the roadmap and submit a pull request for them without
 agreeing on a design first with the development team. Please get in touch with
 the developers before writing any code, so that you don't waste your efforts on
@@ -37,7 +26,7 @@ the relevant information in a ticket or on the pull request. New features must
 at all times have a valid use case based on an actual game, be very specific
 about why you are implementing a feature otherwise it will get rejected.
 Avoid adding options in the GUI or introducing new installer directives for
-things that can be automated. Lutris focuses heavily on automation and on doing
+things that can be automated. Qtris focuses heavily on automation and on doing
 the right thing by default. Only introduce new options when absolutely
 necessary.
 
@@ -50,29 +39,29 @@ another language. Once again, make sure to discuss any change with a core develo
 before writing a large amount of code. Keeping your pull requests as small as a possible
 is the best way to have them reviewed and merged quickly.
 
-Running Lutris from Git
+Running Qtris from Git
 -----------------------
 
-Lutris is developed in a virtualenv managed by [uv](https://docs.astral.sh/uv/),
+Qtris is developed in a virtualenv managed by [uv](https://docs.astral.sh/uv/),
 which installs every Python dependency, PyGObject included, at the versions
 pinned in `uv.lock`. Install uv, then:
 
-    git clone https://github.com/jedace07/lutris
-    cd lutris
-    uv run lutris -d
+    git clone https://github.com/jedace07/qtris
+    cd qtris
+    uv run qtris -d
 
 uv downloads and uses its own build of Python 3.14 (`.python-version`), never
-the system's. Lutris is locked to 3.14 because that's what the Flatpak's GNOME
+the system's. Qtris is locked to 3.14 because that's what the Flatpak's GNOME
 runtime ships, so you develop on what users run. Any `uv run <command>` runs
 in the project environment and brings it up to date first; you can also
-`source .venv/bin/activate` and run `lutris -d` directly. To enable the
+`source .venv/bin/activate` and run `qtris -d` directly. To enable the
 optional pre-commit hook, run `git config core.hooksPath .hooks`.
 
 PyGObject, pycairo, dbus-python and evdev are built from source the first
 time. PySide6 Essentials includes Qt Quick. `INSTALL.rst` lists the system
 packages for Fedora, Debian/Ubuntu and Arch.
 
-`uv run lutris -d` launches Qt Quick using your normal Lutris profile.
+`uv run qtris -d` launches Qt Quick using your normal Qtris profile.
 Run the Qt tests with `uv run pytest tests/qt`; they use the offscreen platform.
 
 See `INSTALL.rst` to build and install the Flatpak from your working tree.
@@ -96,7 +85,7 @@ what they run: `lint` (ruff), `typing` (ty and stubs) and `test` (pytest).
 Versioning and releases
 -----------------------
 
-The version's one canonical place is `version` in `pyproject.toml`. Lutris
+The version's one canonical place is `version` in `pyproject.toml`. Qtris
 reads it from there when running from a checkout and from the package metadata
 when installed. Change it with `uv version`,
 which updates `pyproject.toml` and `uv.lock` together:
@@ -116,11 +105,11 @@ uv version --bump stable
 ```
 
 Flatpak bundles built by CI are named after the version. Prereleases also get
-the commit they were built from (`Lutris-v0.6.0b1+g1a2b3c4-x86_64.flatpak`), or
+the commit they were built from (`Qtris-v0.6.0b1+g1a2b3c4-x86_64.flatpak`), or
 `+local` when built elsewhere, so two builds of the same beta can be told apart.
 
 To release, bump the version, add a `<release>` entry to
-`packaging/desktop/share/metainfo/net.lutris.Lutris.metainfo.xml`, push, then run the **Build
+`packaging/desktop/share/metainfo/io.github.jedace07.Qtris.metainfo.xml`, push, then run the **Build
 Draft Release** workflow from the Actions tab. It builds the Flatpak and drafts
 a `v<version>` release (marked as a prerelease for alphas, betas and release
 candidates) with the bundle attached; review the notes and publish it. See
@@ -138,9 +127,6 @@ developers from going back and fixing your code, please make sure your code
 passes `uv run ruff check .`, `uv run ruff format --check .`, and
 `uv run ty check --baseline ty-baseline.json`. To sort imports and fix
 formatting, run `uv run ruff check --select I --fix .` and `uv run ruff format .`.
-
-You can help fix formatting issues or other code smells by having a look at
-the CodeFactor page: https://www.codefactor.io/repository/github/lutris/lutris
 
 Writing tests
 -------------
@@ -173,14 +159,14 @@ If the PR is related to and existing bug report, you can add `(Closes #nnnn)`
 or `(Fixes #nnnn)` to your PR title or message, where `nnnn` is the ticket
 number you're fixing.
 
-If you contribute to Lutris on a somewhat regular basis, be sure to add
+If you contribute to Qtris on a somewhat regular basis, be sure to add
 yourself to the AUTHORS file!
 
 
 Developer resources
 -------------------
 
-Lutris uses Python 3.14, Gio/GLib and Qt Quick.
+Qtris uses Python 3.14, Gio/GLib and Qt Quick.
 
 * [Python 3 documentation](https://docs.python.org/3/)
 * [PyGObject documentation](https://pygobject.readthedocs.io/en/latest/)
@@ -192,7 +178,7 @@ Project structure
     [root]-+ Config files and READMEs (pyproject.toml, uv.lock)
         |
         +-[docs] User documentation
-        +-[lutris]-+ Source folder
+        +-[qtris]-+ Source folder
         |          |
         |          +-[backend] Plain-data frontend API
         |          +-[cli] Headless command-line frontend
@@ -212,7 +198,7 @@ Project structure
 Build tooling
 -------------
 
-* `pyproject.toml` declares the `lutris` console command and builds the Python
+* `pyproject.toml` declares the `qtris` console command and builds the Python
   package with `uv build`. It also configures ruff, ty, pytest and pyright.
 * ``ty-baseline.json`` lists the type errors ty already reports, so CI only
   fails on new ones. Fix entries rather than adding to it.

@@ -8,15 +8,15 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from lutris import settings
-from lutris.backend import services, store_login
-from lutris.exceptions import LutrisError
-from lutris.services.amazon import AmazonService
-from lutris.services.gog import GOGService
-from lutris.services.humblebundle import HumbleBundleService
-from lutris.services.ubisoft import UbisoftConnectService
-from lutris.util.credentials import save_credentials
-from lutris.util.ubisoft.client import UbisoftConnectClient
+from qtris import settings
+from qtris.backend import services, store_login
+from qtris.exceptions import QtrisError
+from qtris.services.amazon import AmazonService
+from qtris.services.gog import GOGService
+from qtris.services.humblebundle import HumbleBundleService
+from qtris.services.ubisoft import UbisoftConnectService
+from qtris.util.credentials import save_credentials
+from qtris.util.ubisoft.client import UbisoftConnectClient
 
 
 def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
@@ -43,13 +43,13 @@ def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
             "https://embed.gog.com@other.example/on_login_success?code=secret",
             "https://embed.gog.com/on_login_success?code=one&code=two",
         ):
-            with pytest.raises(LutrisError, match="full sign-in redirect URL"):
+            with pytest.raises(QtrisError, match="full sign-in redirect URL"):
                 await store_login.finish(request.id, reply)
         assert not responses
         await store_login.finish(
             request.id, "https://embed.gog.com/on_login_success?origin=client&code=fixture", str(cookie_file)
         )
-        with pytest.raises(LutrisError, match="no longer available"):
+        with pytest.raises(QtrisError, match="no longer available"):
             await store_login.finish(request.id, "https://embed.gog.com/on_login_success?code=fixture")
         assert (await services.get_source_status("gog")).signed_in
 
@@ -129,9 +129,9 @@ def test_ubisoft_combines_storage_values_and_only_saves_verified_sessions(
     async def run() -> None:
         request = await store_login.begin("ubisoft")
         login = {"ticket": "fixture-ticket", "sessionId": "fixture-session"}
-        with pytest.raises(LutrisError, match="login data as JSON"):
+        with pytest.raises(QtrisError, match="login data as JSON"):
             await store_login.finish(request.id, json.dumps(login))
-        with pytest.raises(LutrisError, match="did not accept"):
+        with pytest.raises(QtrisError, match="did not accept"):
             await store_login.finish(request.id, json.dumps(login | {"userId": "other"}))
         assert not token.exists()
         await store_login.finish(

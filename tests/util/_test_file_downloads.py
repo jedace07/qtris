@@ -1,4 +1,4 @@
-"""Tests for lutris.util.file_downloads: downloads that run without any UI.
+"""Tests for qtris.util.file_downloads: downloads that run without any UI.
 
 The network is replaced by FakeDownloader, files are real ones in a temporary
 directory, and the main loop is the hand-driven fake_main_loop fixture.
@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import pytest
 
-from lutris.util.download_cache import CacheState, get_cache_state
-from lutris.util.downloader import BaseDownloader
-from lutris.util.file_downloads import (
+from qtris.util.download_cache import CacheState, get_cache_state
+from qtris.util.downloader import BaseDownloader
+from qtris.util.file_downloads import (
     MAX_CONCURRENT_FILES,
     DownloadState,
     FileCollectionDownload,
@@ -254,7 +254,7 @@ def test_collection_is_cancelled_when_a_downloader_cannot_be_created(tmp_path, f
     file.downloader_class = None
     download = FileCollectionDownload(make_collection([file]))
 
-    with patch("lutris.util.file_downloads.SimpleDownloader", side_effect=RuntimeError("no network")):
+    with patch("qtris.util.file_downloads.SimpleDownloader", side_effect=RuntimeError("no network")):
         download.start()
 
     assert download.state == DownloadState.CANCELLED
@@ -314,7 +314,7 @@ def test_single_download_cancel_is_reported_once(tmp_path, fake_main_loop):
 def test_single_download_that_cannot_start_is_cancelled_with_the_error(tmp_path, fake_main_loop):
     download = SingleFileDownload("https://example.com/game.exe", str(tmp_path / "game.exe"))
 
-    with patch("lutris.util.file_downloads.SimpleDownloader", side_effect=RuntimeError("bad url")):
+    with patch("qtris.util.file_downloads.SimpleDownloader", side_effect=RuntimeError("bad url")):
         download.start()
 
     assert download.state == DownloadState.CANCELLED

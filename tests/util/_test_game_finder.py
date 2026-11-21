@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util.game_finder import find_linux_game_executable, find_windows_game_executable
+from qtris.util.game_finder import find_linux_game_executable, find_windows_game_executable
 
 # Magic strings as libmagic reports them for a typical Unity build.
 WINDOWS_UNITY_BUILD = {
@@ -44,7 +44,7 @@ class GameFinderTestCase(TestCase):
             return file_types[os.path.basename(path)]
 
         walk_result = [(game_dir, [], list(order or file_types))]
-        with patch("lutris.util.magic.from_file", fake_from_file):
+        with patch("qtris.util.magic.from_file", fake_from_file):
             with patch("os.walk", return_value=walk_result):
                 yield game_dir
 

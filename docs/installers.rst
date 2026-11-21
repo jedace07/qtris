@@ -25,7 +25,7 @@ Store integrations and built-in setup flows generate installation plans in
 Python. A plan provides information on acquiring and preparing game files
 and on saving the launch configuration.
 
-At the very least, a Lutris installer should have a ``game`` section. If the
+At the very least, a Qtris installer should have a ``game`` section. If the
 installer needs to download or ask the user for some files, those can be added
 in the `files` section.
 
@@ -36,7 +36,7 @@ installer has finished.
 The configuration for a game is constructed from its installer. The `files` and
 `installer` sections are removed from the script, some variables such as
 $GAMEDIR are substituted and the results is saved in:
-~/.local/share/lutris/games/<game>-<timestamp>.yml.
+~/.local/share/qtris/games/<game>-<timestamp>.yml.
 
 The interpreter reads the plan from the ``script`` field inside a record
 with the following metadata.
@@ -50,7 +50,7 @@ with the following metadata.
 Emulators run through RetroArch, with the ``libretro`` runner and a core, or
 through their Flathub builds. Scripts written for a standalone emulator that a
 libretro core replaced (``dosbox``, ``scummvm``, ``mame``, ``dolphin``,
-``pcsx2``, ``ppsspp`` and the others) still install: Lutris uses the
+``pcsx2``, ``ppsspp`` and the others) still install: Qtris uses the
 ``libretro`` runner with that emulator's core, keeps the ``game`` section, and
 ignores the emulator's own section. Scripts for ``yuzu``, ``ryujinx`` and
 ``frotz`` use ``eden``, ``ryubing`` and ``gargoyle``.
@@ -69,7 +69,7 @@ Available variables are:
 * ``$RESOLUTION``: Full resolution of the user's main display (eg. ``1920x1080``)
 * ``$RESOLUTION_WIDTH``: Resolution width of the user's main display (eg. ``1920``)
 * ``$RESOLUTION_HEIGHT``: Resolution height of the user's main display (eg. ``1080``)
-* ``$WINEBIN``: Absolute path to the Lutris provided Wine binary used to install the game.
+* ``$WINEBIN``: Absolute path to the Qtris provided Wine binary used to install the game.
 
 Additional variables are referenced in a `variables` section in the script. Example::
 
@@ -128,7 +128,7 @@ You can also add complex requirements following the same syntax as the
 Extensions / patches
 --------------------
 
-You can write installers that will not create a new game entry in Lutris.
+You can write installers that will not create a new game entry in Qtris.
 Instead they will modify the configuration on an exsiting game.
 You can use this feature with the ``extends`` directive. It works the same
 way as the ``requires`` directive and will check for a base game to be available.
@@ -158,7 +158,7 @@ GOG. Some IDs are used to launch the game (Steam, ScummVM) while in other
 cases, the ID is only used to find games files on a 3rd party platform and
 download the installer (Humble Bundle, GOG).
 
-Lutris supports the following game identifiers:
+Qtris supports the following game identifiers:
 
 `appid`: For Steam games. Numerical ID found in the URL of the store page.
 Example: The `appid` for https://store.steampowered.com/app/238960/Path_of_Exile/ is `238960`.
@@ -173,7 +173,7 @@ sure to reference the base game and not one of its package or DLC.
 Example: The `gogid` for Darksiders III is 1246703238
 
 `humbleid`: Humble Bundle ID. There currently isn't a way to lookup game IDs
-other than using the order details from the HB API. Lutris will soon provide
+other than using the order details from the HB API. Qtris will soon provide
 easier ways to find this ID.
 
 `main_file`: For games on the libretro ``mame`` core, the `main_file` can refer
@@ -227,7 +227,7 @@ the value can be set to ``win32`` to setup the game in a 32-bit prefix.
 DRM free Steam
 ^^^^^^^^^^^^^^
 
-Lutris has the ability to run Steam games without launching the Steam client.
+Qtris has the ability to run Steam games without launching the Steam client.
 This is only possible with certain games lacking the Steam DRM.
 
 ``run_without_steam``: Activate the DRM free mode and no not launch Steam when
@@ -244,20 +244,20 @@ Libretro
 ^^^^^^^^
 
 ``core``: The libretro core that runs the game, such as ``mgba`` or
-``dosbox_pure``. Lutris installs RetroArch from Flathub and the core from the
+``dosbox_pure``. Qtris installs RetroArch from Flathub and the core from the
 Libretro buildbot when they're missing.
 
 ``main_file``: The file the core loads.
 
 ScummVM games (``scummvm`` core) set ``path``, the location of the game files,
-which should be ``$GAMEDIR`` in installer scripts, and ``game_id``. Lutris
+which should be ``$GAMEDIR`` in installer scripts, and ``game_id``. Qtris
 writes the ``.scummvm`` file the core loads into ``path``.
 
 DOSBox games (``dosbox_pure`` core) can set ``config_file`` next to a
 ``main_file`` that is a ``.conf`` file, as GOG's games do. The core loads a
-single file, so Lutris merges the two, settings first.
+single file, so Qtris merges the two, settings first.
 
-MAME machines (``mame`` core) set ``machine`` and ``device``, which Lutris
+MAME machines (``mame`` core) set ``machine`` and ``device``, which Qtris
 writes into the ``.cmd`` command line the core loads, with ``main_file`` as
 the device's media.
 
@@ -267,10 +267,10 @@ Runner configuration directives
 ===============================
 
 Runners can be customized in a section named after the runner identifier.
-Run ``lutris --list-runners`` to list the runner identifiers in your build.
+Run ``qtris --list-runners`` to list the runner identifiers in your build.
 Please keep the amount of runner customization to a minimum, only
 adding what is needed to make the game run correctly. A lot of runner options
-do not have their place in Lutris installers and are reserved for the user's
+do not have their place in Qtris installers and are reserved for the user's
 preferences.
 
 The following sections will describe runner directives commonly used in
@@ -371,7 +371,7 @@ or install it otherwise.
 
 If the game or file is hosted on moddb.com, it is necessary to understand that
 the platform rotates the actual download links every few hours, making it
-impractical to set these links as source url in installers. Lutris has
+impractical to set these links as source url in installers. Qtris has
 routines to overcome this limitation (with blessing from moddb.com). When
 specifying a file hosted on moddb.com, please use the url of the files details
 page (the one with the red "Download now" button).
@@ -503,7 +503,7 @@ Execute files with the ``execute`` directive. Use the ``file`` parameter to
 reference a ``file id`` or a path, ``args`` to add command arguments,
 ``working_dir`` to set the directory to execute the command in (defaults to the install path).
 The file is made executable if necessary, no need to run
-chmodx before. You can also use ``env`` (environment variables), ``exclude_processes`` (space-separated list of processes to exclude from being monitored when determining if the execute phase finished) and ``include_processes`` (the opposite of ``exclude_processes``, is used to override Lutris' built-in monitoring exclusion list).
+chmodx before. You can also use ``env`` (environment variables), ``exclude_processes`` (space-separated list of processes to exclude from being monitored when determining if the execute phase finished) and ``include_processes`` (the opposite of ``exclude_processes``, is used to override Qtris' built-in monitoring exclusion list).
 
 Example::
 
@@ -607,11 +607,11 @@ with ``wine.wineexec`` as the task's ``name``)
 If the command you will run in the task doesn't exit with a return code of 0,
 you can specify an accepted return code like ``return_code: 1``
 
-Before Lutris 0.5.23, return codes were reported multiplied by 256, so older
-scripts use values like ``return_code: 256`` to accept a return code of 1. Lutris
-still understands these: any non-zero multiple of 256 is divided by 256. Lutris
+Before Qtris 0.5.23, return codes were reported multiplied by 256, so older
+scripts use values like ``return_code: 256`` to accept a return code of 1. Qtris
+still understands these: any non-zero multiple of 256 is divided by 256. Qtris
 0.5.23 and later accept the plain return code, which is what they show when a
-command fails; a script that must also work with older versions of Lutris should
+command fails; a script that must also work with older versions of Qtris should
 keep using the multiplied value. A return code of 0 is always accepted.
 
 Currently, the following tasks are implemented:
@@ -646,7 +646,7 @@ Currently, the following tasks are implemented:
     ``description`` (a message be shown to the user during the execution of the task),
     ``working_dir`` (optional working directory),
     ``exclude_processes`` (optional space-separated list of processes to exclude from being monitored when determining if the execute phase finished),
-    ``include_processes`` (the opposite of ``exclude_processes``, is used to override Lutris' built-in monitoring exclusion list),
+    ``include_processes`` (the opposite of ``exclude_processes``, is used to override Qtris' built-in monitoring exclusion list),
     ``env`` (optional environment variables),
     ``overrides`` (optional DLL overrides).
 
@@ -946,7 +946,7 @@ Downloading GOG games from the depot (gogdl)
 The ``gogdl_setup`` directive downloads a GOG game's files directly from GOG's
 CDN using ``gogdl`` (the depot downloader from the Heroic Games Launcher),
 instead of requiring the user to provide an offline installer. This requires
-the user to be connected to GOG in Lutris.
+the user to be connected to GOG in Qtris.
 
 Parameters:
 

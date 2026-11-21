@@ -7,10 +7,10 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.delegates import InstallUIDelegate
-from lutris.runners import wine
-from lutris.util.test_config import setup_test_environment
-from lutris.util.wine.dll_manager import DLLManager
+from qtris.delegates import InstallUIDelegate
+from qtris.runners import wine
+from qtris.util.test_config import setup_test_environment
+from qtris.util.wine.dll_manager import DLLManager
 
 setup_test_environment()
 
@@ -36,7 +36,7 @@ class TestDllManager(TestCase):
 
 
 class TestProtonGraphics(TestCase):
-    """Proton brings its own DXVK and VKD3D; Lutris only falls back to WineD3D without Vulkan."""
+    """Proton brings its own DXVK and VKD3D; Qtris only falls back to WineD3D without Vulkan."""
 
     def get_env(self, vulkan: bool) -> dict[str, str]:
         runner = wine.wine()
@@ -90,7 +90,7 @@ class TestInstallerRunnerVersion(TestCase):
 
 class TestPinnedGeProton(TestCase):
     """A pinned GE-Proton release must come from GitHub into compatibilitytools.d:
-    umu only downloads the latest GE-Proton, and the Lutris API doesn't serve them."""
+    umu only downloads the latest GE-Proton, and the Lutris.net API doesn't serve them."""
 
     def get_interpreter(self, version):
         return SimpleNamespace(
@@ -189,7 +189,7 @@ class TestMissingWineVersion(TestCase):
         self.game_config = {}
         self.game_version = "wine-test-missing-1"
         for patcher in (
-            patch("lutris.config.read_yaml_from_file", side_effect=self.read_yaml),
+            patch("qtris.config.read_yaml_from_file", side_effect=self.read_yaml),
             patch.dict(os.environ, {"WINEPREFIX": ""}),
             patch.object(wine.proton, "get_umu_path", return_value="/umu/umu-run"),
             patch.object(
@@ -218,7 +218,7 @@ class TestMissingWineVersion(TestCase):
         self.game_config = {"prefix": prefix}
 
     def get_runner(self):
-        return wine.wine(wine.LutrisConfig(runner_slug="wine", game_config_id="game"))
+        return wine.wine(wine.QtrisConfig(runner_slug="wine", game_config_id="game"))
 
     def test_wine_prefix_is_not_switched_to_proton(self):
         self.make_prefix()

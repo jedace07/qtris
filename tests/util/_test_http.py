@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from gi.repository import GLib
 
-from lutris.util import http
+from qtris.util import http
 
 
 class FakeProxyResolver:

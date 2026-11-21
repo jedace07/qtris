@@ -2,10 +2,10 @@ import os
 import unittest
 from sqlite3 import OperationalError
 
-from lutris import settings
-from lutris.database import games as games_db
-from lutris.database import schema, sql
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.database import games as games_db
+from qtris.database import schema, sql
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -19,23 +19,23 @@ class DatabaseTester(unittest.TestCase):
 
 class TestPersonnalGameArchive(DatabaseTester):
     def test_add_game(self):
-        games_db.add_game(name="LutrisTest", runner="Linux")
+        games_db.add_game(name="QtrisTest", runner="Linux")
         game_list = games_db.get_games()
         game_names = [item["name"] for item in game_list]
-        self.assertTrue("LutrisTest" in game_names)
+        self.assertTrue("QtrisTest" in game_names)
 
     def test_delete_game(self):
-        game_id = games_db.add_game(name="LutrisTest", runner="Linux")
+        game_id = games_db.add_game(name="QtrisTest", runner="Linux")
         games_db.delete_game(game_id)
         game_list = games_db.get_games()
         self.assertEqual(len(game_list), 0)
 
     def test_get_game_list(self):
-        self.game_id = games_db.add_game(name="LutrisTest", runner="Linux")
+        self.game_id = games_db.add_game(name="QtrisTest", runner="Linux")
         game_list = games_db.get_games()
         self.assertEqual(game_list[0]["id"], self.game_id)
-        self.assertEqual(game_list[0]["slug"], "lutristest")
-        self.assertEqual(game_list[0]["name"], "LutrisTest")
+        self.assertEqual(game_list[0]["slug"], "qtristest")
+        self.assertEqual(game_list[0]["name"], "QtrisTest")
         self.assertEqual(game_list[0]["runner"], "Linux")
 
     def test_filter(self):

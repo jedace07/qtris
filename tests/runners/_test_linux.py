@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from lutris.exceptions import GameConfigError
-from lutris.runner_interpreter import get_launch_parameters
-from lutris.runners.linux import linux
-from lutris.util.steam import runtime
+from qtris.exceptions import GameConfigError
+from qtris.runner_interpreter import get_launch_parameters
+from qtris.runners.linux import linux
+from qtris.util.steam import runtime
 
 
 @pytest.fixture

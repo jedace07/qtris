@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.migrations import remove_lutris_account
-from lutris.util.settings import SettingsIO
+from qtris import settings
+from qtris.migrations import remove_lutris_account
+from qtris.util.settings import SettingsIO
 
 
 def test_account_files_and_sync_settings_are_removed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -15,9 +15,9 @@ def test_account_files_and_sync_settings_are_removed(tmp_path: Path, monkeypatch
     (cache / "auth-token").write_text("someone:secret", encoding="utf-8")
     (cache / "user.json").write_text("{}", encoding="utf-8")
     (cache / "keep.json").write_text("{}", encoding="utf-8")
-    config_file = tmp_path / "lutris.conf"
+    config_file = tmp_path / "qtris.conf"
     config_file.write_text(
-        "[lutris]\nlibrary_sync_enabled = True\nlast_library_sync_at = 1\nwidth = 800\n", encoding="utf-8"
+        "[qtris]\nlibrary_sync_enabled = True\nlast_library_sync_at = 1\nwidth = 800\n", encoding="utf-8"
     )
     monkeypatch.setattr(settings, "CACHE_DIR", str(cache))
     monkeypatch.setattr(settings, "sio", SettingsIO(str(config_file)))

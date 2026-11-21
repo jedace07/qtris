@@ -1,15 +1,15 @@
-"""The commands that need no GUI, run through lutris.cli.commands."""
+"""The commands that need no GUI, run through qtris.cli.commands."""
 
 import asyncio
 
 import pytest
 from gi.repository import GLib
 
-from lutris.cli.commands import run_text_command
-from lutris.cli.options import is_text_command
-from lutris.cli.output import CommandOutput
-from lutris.delegates import LaunchUIDelegate
-from lutris.util.test_config import setup_test_environment
+from qtris.cli.commands import run_text_command
+from qtris.cli.options import is_text_command
+from qtris.cli.output import CommandOutput
+from qtris.delegates import LaunchUIDelegate
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -80,7 +80,7 @@ def test_import_reads_paths_from_the_invoking_directory(monkeypatch):
     async def import_game(path: str, dest: str) -> None:
         imported.append((path, dest))
 
-    monkeypatch.setattr("lutris.backend.games.import_game", import_game)
+    monkeypatch.setattr("qtris.backend.games.import_game", import_game)
 
     status, _output = run(dest="games", **{"import": "game.tar.xz"})
     assert status == 0
@@ -99,7 +99,7 @@ def test_uninstalling_wine_asks_first(monkeypatch, answer):
     async def uninstall_runner_by_name(_output: CommandOutput, name: str) -> None:
         uninstalled.append(name)
 
-    monkeypatch.setattr("lutris.cli.runners.uninstall_runner_by_name", uninstall_runner_by_name)
+    monkeypatch.setattr("qtris.cli.runners.uninstall_runner_by_name", uninstall_runner_by_name)
     monkeypatch.setattr(FakeOutput, "ask_yes_or_no", lambda _self, _question: answer)
 
     status, _output = run(uninstall_runner="wine")

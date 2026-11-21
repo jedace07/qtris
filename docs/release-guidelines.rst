@@ -15,16 +15,11 @@ Preparation
 - Bump the version with ``uv version --bump patch`` (or ``minor``, ``beta``, ...;
   see "Versioning and releases" in ``CONTRIBUTING.md``) and commit
   ``pyproject.toml`` and ``uv.lock``
-- Add a ``<release>`` entry to ``packaging/desktop/share/metainfo/net.lutris.Lutris.metainfo.xml``
+- Add a ``<release>`` entry to ``packaging/desktop/share/metainfo/io.github.jedace07.Qtris.metainfo.xml``
 
 GitHub Release
 --------------
 - Push, then run the **Build Draft Release** workflow from the Actions tab. It
   builds the Flatpak and drafts a ``vX.Y.Z`` release (tag included) with
-  ``Lutris-vX.Y.Z-x86_64.flatpak`` attached
+  ``Qtris-vX.Y.Z-x86_64.flatpak`` attached
 - Edit the draft's notes (copy in the changelog) and publish it
-
-Website
--------
-- Bump version in lutris website
-- Deploy website to production

@@ -1,7 +1,7 @@
 {
   "version": 0,
   "files": {
-    "lutris/api.py": [
+    "qtris/api.py": [
       {
         "rule": "invalid-explicit-return",
         "startColumn": 11,
@@ -9,7 +9,7 @@
         "lineCount": 8
       }
     ],
-    "lutris/game.py": [
+    "qtris/game.py": [
       {
         "rule": "redundant-cast",
         "startColumn": 15,
@@ -71,7 +71,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/installer/commands.py": [
+    "qtris/installer/commands.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 19,
@@ -439,7 +439,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/installer/installer.py": [
+    "qtris/installer/installer.py": [
       {
         "rule": "not-iterable",
         "startColumn": 109,
@@ -447,7 +447,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/installer/interpreter.py": [
+    "qtris/installer/interpreter.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 33,
@@ -479,7 +479,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/monitored_command.py": [
+    "qtris/monitored_command.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 16,
@@ -499,7 +499,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/commands/wine.py": [
+    "qtris/runners/commands/wine.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 8,
@@ -531,7 +531,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/pico8.py": [
+    "qtris/runners/pico8.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 15,
@@ -641,7 +641,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/runner.py": [
+    "qtris/runners/runner.py": [
       {
         "rule": "redundant-cast",
         "startColumn": 19,
@@ -655,7 +655,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/steam.py": [
+    "qtris/runners/steam.py": [
       {
         "rule": "truthiness-test-of-iterable",
         "startColumn": 11,
@@ -675,7 +675,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/web.py": [
+    "qtris/runners/web.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 39,
@@ -683,7 +683,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runners/wine.py": [
+    "qtris/runners/wine.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 56,
@@ -709,7 +709,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/runtime.py": [
+    "qtris/runtime.py": [
       {
         "rule": "redundant-condition",
         "startColumn": 11,
@@ -717,7 +717,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/search.py": [
+    "qtris/search.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 71,
@@ -731,7 +731,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/amazon.py": [
+    "qtris/services/amazon.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 33,
@@ -799,7 +799,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/base.py": [
+    "qtris/services/base.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 100,
@@ -808,8 +808,8 @@
       },
       {
         "rule": "invalid-argument-type",
-        "startColumn": 69,
-        "endColumn": 84,
+        "startColumn": 68,
+        "endColumn": 83,
         "lineCount": 1
       },
       {
@@ -879,11 +879,11 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/battlenet.py": [
+    "qtris/services/battlenet.py": [
       {
         "rule": "unsupported-operator",
-        "startColumn": 25,
-        "endColumn": 51,
+        "startColumn": 24,
+        "endColumn": 50,
         "lineCount": 1
       },
       {
@@ -917,7 +917,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/dlsite.py": [
+    "qtris/services/dlsite.py": [
       {
         "rule": "possibly-missing-submodule",
         "startColumn": 15,
@@ -925,7 +925,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/ea_app.py": [
+    "qtris/services/ea_app.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 20,
@@ -970,8 +970,8 @@
       },
       {
         "rule": "invalid-argument-type",
-        "startColumn": 33,
-        "endColumn": 53,
+        "startColumn": 32,
+        "endColumn": 52,
         "lineCount": 1
       },
       {
@@ -999,7 +999,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/egs.py": [
+    "qtris/services/egs.py": [
       {
         "rule": "no-matching-overload",
         "startColumn": 24,
@@ -1031,7 +1031,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/gamejolt.py": [
+    "qtris/services/gamejolt.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 25,
@@ -1039,7 +1039,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/gog.py": [
+    "qtris/services/gog.py": [
       {
         "rule": "missing-module-member",
         "startColumn": 17,
@@ -1047,7 +1047,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/gog_cloud.py": [
+    "qtris/services/gog_cloud.py": [
       {
         "rule": "possibly-missing-submodule",
         "startColumn": 15,
@@ -1061,7 +1061,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/itchio.py": [
+    "qtris/services/itchio.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 20,
@@ -1069,7 +1069,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/service_game.py": [
+    "qtris/services/service_game.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 55,
@@ -1083,7 +1083,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/service_media.py": [
+    "qtris/services/service_media.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 53,
@@ -1127,7 +1127,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/steam.py": [
+    "qtris/services/steam.py": [
       {
         "rule": "lost-keyword-for-regular-parameter",
         "startColumn": 8,
@@ -1135,7 +1135,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/ubisoft.py": [
+    "qtris/services/ubisoft.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 33,
@@ -1167,7 +1167,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/services/xdg.py": [
+    "qtris/services/xdg.py": [
       {
         "rule": "lost-keyword-for-regular-parameter",
         "startColumn": 8,
@@ -1175,7 +1175,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/__init__.py": [
+    "qtris/util/__init__.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 8,
@@ -1207,7 +1207,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/amazon/protobuf_decoder.py": [
+    "qtris/util/amazon/protobuf_decoder.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 30,
@@ -1215,7 +1215,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/battlenet/definitions.py": [
+    "qtris/util/battlenet/definitions.py": [
       {
         "rule": "possibly-missing-submodule",
         "startColumn": 16,
@@ -1229,7 +1229,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/cookies.py": [
+    "qtris/util/cookies.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 55,
@@ -1237,7 +1237,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/display.py": [
+    "qtris/util/display.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 15,
@@ -1245,7 +1245,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/fileio.py": [
+    "qtris/util/fileio.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 23,
@@ -1265,7 +1265,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/gog_downloader.py": [
+    "qtris/util/gog_downloader.py": [
       {
         "rule": "redundant-condition",
         "startColumn": 15,
@@ -1273,7 +1273,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/gogdl.py": [
+    "qtris/util/gogdl.py": [
       {
         "rule": "not-iterable",
         "startColumn": 20,
@@ -1287,7 +1287,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/graphics/drivers.py": [
+    "qtris/util/graphics/drivers.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 17,
@@ -1307,7 +1307,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/graphics/gpu.py": [
+    "qtris/util/graphics/gpu.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 31,
@@ -1321,7 +1321,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/graphics/xrandr.py": [
+    "qtris/util/graphics/xrandr.py": [
       {
         "rule": "truthiness-test-of-iterable",
         "startColumn": 11,
@@ -1329,7 +1329,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/http.py": [
+    "qtris/util/http.py": [
       {
         "rule": "invalid-parameter-default",
         "startColumn": 8,
@@ -1337,7 +1337,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/jobs.py": [
+    "qtris/util/jobs.py": [
       {
         "rule": "missing-attribute",
         "startColumn": 8,
@@ -1351,7 +1351,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/joypad.py": [
+    "qtris/util/joypad.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 25,
@@ -1365,7 +1365,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/magic.py": [
+    "qtris/util/magic.py": [
       {
         "rule": "unused-type-ignore-comment",
         "startColumn": 40,
@@ -1403,7 +1403,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/moddb.py": [
+    "qtris/util/moddb.py": [
       {
         "rule": "not-callable",
         "startColumn": 20,
@@ -1411,7 +1411,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/steam/shortcut.py": [
+    "qtris/util/steam/shortcut.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 8,
@@ -1425,7 +1425,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/steam/steamid.py": [
+    "qtris/util/steam/steamid.py": [
       {
         "rule": "incompatible-method-override",
         "startColumn": 8,
@@ -1439,7 +1439,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/strings.py": [
+    "qtris/util/strings.py": [
       {
         "rule": "unused-type-ignore-comment",
         "startColumn": 25,
@@ -1447,7 +1447,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/ubisoft/client.py": [
+    "qtris/util/ubisoft/client.py": [
       {
         "rule": "no-matching-overload",
         "startColumn": 8,
@@ -1455,7 +1455,7 @@
         "lineCount": 3
       }
     ],
-    "lutris/util/ubisoft/parser.py": [
+    "qtris/util/ubisoft/parser.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 38,
@@ -1511,7 +1511,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/wine/dll_manager.py": [
+    "qtris/util/wine/dll_manager.py": [
       {
         "rule": "no-matching-overload",
         "startColumn": 15,
@@ -1549,7 +1549,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/wine/extract_icon.py": [
+    "qtris/util/wine/extract_icon.py": [
       {
         "rule": "missing-union-attribute",
         "startColumn": 19,
@@ -1593,15 +1593,15 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/wine/prefix.py": [
+    "qtris/util/wine/prefix.py": [
       {
         "rule": "invalid-argument-type",
-        "startColumn": 53,
-        "endColumn": 74,
+        "startColumn": 52,
+        "endColumn": 73,
         "lineCount": 1
       }
     ],
-    "lutris/util/wine/registry.py": [
+    "qtris/util/wine/registry.py": [
       {
         "rule": "no-matching-overload",
         "startColumn": 48,
@@ -1609,7 +1609,7 @@
         "lineCount": 1
       }
     ],
-    "lutris/util/xdgshortcuts.py": [
+    "qtris/util/xdgshortcuts.py": [
       {
         "rule": "invalid-argument-type",
         "startColumn": 31,
@@ -1851,7 +1851,7 @@
         "lineCount": 1
       }
     ],
-    "tests/_test_lutris_wrapper.py": [
+    "tests/_test_qtris_wrapper.py": [
       {
         "rule": "not-iterable",
         "startColumn": 24,

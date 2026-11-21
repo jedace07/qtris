@@ -13,17 +13,17 @@ from typing import Any
 
 import pytest
 
-from lutris import settings
-from lutris.backend import events, installations, installers, runners
-from lutris.backend.models import GameInfo, InstallationInfo, InstallerCatalog
-from lutris.database import games as games_db
-from lutris.delegates import InstallUIDelegate
-from lutris.exceptions import LutrisError
-from lutris.installer import interpreter
-from lutris.installer.installer import LutrisInstaller
-from lutris.runners.runner import Runner
-from lutris.util.test_config import setup_test_environment
-from lutris.util.wine import proton
+from qtris import settings
+from qtris.backend import events, installations, installers, runners
+from qtris.backend.models import GameInfo, InstallationInfo, InstallerCatalog
+from qtris.database import games as games_db
+from qtris.delegates import InstallUIDelegate
+from qtris.exceptions import QtrisError
+from qtris.installer import interpreter
+from qtris.installer.installer import QtrisInstaller
+from qtris.runners.runner import Runner
+from qtris.util.test_config import setup_test_environment
+from qtris.util.wine import proton
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -93,7 +93,7 @@ def test_runner_manager_downloads_and_removes_an_architecture_suffixed_proton_bu
         assert progress and progress[0][0] == "Downloading…"
         await runners.uninstall_runner("wine", tag)
         assert (tmp_path / "trash" / "proton").is_file()
-        with pytest.raises(LutrisError, match="outside"):
+        with pytest.raises(QtrisError, match="outside"):
             await runners.uninstall_runner("wine", previous.name)
         assert previous.is_dir()
 
@@ -148,7 +148,7 @@ def game_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "installer-cache"))
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(LutrisInstaller, "_get_discord_id_from_api", lambda self: None)
+    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     new_id = str(games_db.add_game(name="Installations Test", slug=SLUG, runner="linux", installed=0))
     yield new_id
     games_db.delete_game(new_id)
@@ -228,7 +228,7 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
             ("manual", "user", False),
         ]
         assert files[1].hint == "Select the game manual"
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await installations.start_files(info.id)
 
         await installations.set_file_source(info.id, "manual", "user", str(manual))
@@ -239,7 +239,7 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
         assert [(option.id, option.label) for option in menu.menu_options] == [("en", "English"), ("fr", "French")]
         assert menu.menu_preselect == "en"
         assert menu.can_remove_files
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await installations.answer_menu(info.id, "de")
         await installations.answer_menu(info.id, "fr")
 
@@ -247,7 +247,7 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
         assert finished.game_id == game_id
         await tracker.wait_for(lambda _info: bool(tracker.installed))
         await installations.close_installation(info.id)
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await installations.get_installation(info.id)
 
     try:
@@ -282,7 +282,7 @@ def test_cancelling_reverts_without_marking_the_game_installed(
         await tracker.wait_for_stage("menu")
         await installations.cancel_installation(info.id, remove_files=False)
         await tracker.wait_for_stage("cancelled")
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await installations.answer_menu(info.id, "go")
         await installations.close_installation(info.id)
 
@@ -316,9 +316,9 @@ def test_failed_commands_report_the_error(game_id: str, tmp_path: Path, fake_mai
 def test_steam_install_waits_for_manifest_and_keeps_steam_data(
     cancel: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop
 ) -> None:
-    from lutris.installer import steam_installer
-    from lutris.services.steam import SteamService
-    from lutris.util.steam.vdfutils import vdf_write
+    from qtris.installer import steam_installer
+    from qtris.services.steam import SteamService
+    from qtris.util.steam.vdfutils import vdf_write
 
     appid = "298341"
     steamapps = tmp_path / "steamapps"
@@ -332,7 +332,7 @@ def test_steam_install_waits_for_manifest_and_keeps_steam_data(
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(LutrisInstaller, "_get_discord_id_from_api", lambda self: None)
+    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     monkeypatch.setattr(steam_installer, "get_steamapps_dirs", lambda: [str(steamapps)])
     monkeypatch.setattr(steam_installer.steam.steam, "is_installed", lambda self: True)
     service = SteamService()

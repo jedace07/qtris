@@ -1,8 +1,9 @@
 [project]
-name = "lutris"
+name = "qtris"
 version = "0.5.23"
 authors = [
-    {name = "Mathieu Comandon", email = "strider@strycore.com"}
+    {name = "jedace07"},
+    {name = "Mathieu Comandon", email = "strider@strycore.com"},
 ]
 description = "Video game preservation platform"
 readme = "README.rst"
@@ -34,13 +35,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://lutris.net/"
-Repository = "https://github.com/jedace07/lutris"
-Issues = "https://github.com/jedace07/lutris/issues"
-Releases = "https://github.com/jedace07/lutris/releases"
+Homepage = "https://github.com/jedace07/qtris"
+Repository = "https://github.com/jedace07/qtris"
+Issues = "https://github.com/jedace07/qtris/issues"
+Releases = "https://github.com/jedace07/qtris/releases"
 
 [project.scripts]
-lutris = "lutris.launcher:main"
+qtris = "qtris.launcher:main"
 
 [build-system]
 requires = ["uv_build>=0.13.9,<0.14"]
@@ -48,8 +49,8 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
-wheel-exclude = ["lutris/locale/README.md", "lutris/locale/LINGUAS", "lutris/locale/*.pot"]
-source-exclude = ["lutris/locale/*.pot"]
+wheel-exclude = ["qtris/locale/README.md", "qtris/locale/LINGUAS", "qtris/locale/*.pot"]
+source-exclude = ["qtris/locale/*.pot"]
 
 [tool.uv.build-backend.data]
 data = "packaging/desktop"
@@ -124,7 +125,7 @@ unfixable = []
 exclude = ["**/*_pb2.py"]
 
 [tool.ty.rules]
-# Lutris reassigns attributes and variables with different types throughout
+# Qtris reassigns attributes and variables with different types throughout
 # (mypy's `assignment` check was disabled for the same reason)
 invalid-assignment = "ignore"
 

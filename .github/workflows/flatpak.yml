@@ -7,7 +7,7 @@ on:
   workflow_call:
     outputs:
       app_version:
-        description: Lutris version from pyproject.toml
+        description: Qtris version from pyproject.toml
         value: ${{ jobs.prepare.outputs.app_version }}
       artifact_version:
         description: Version label of the bundle's filename
@@ -41,7 +41,7 @@ jobs:
         id: version
         run: |
           app_version="$(uv version --short)"
-          artifact_version="$(uv run --no-project --with packaging python lutris/version.py --artifact-version "$app_version")"
+          artifact_version="$(uv run --no-project --with packaging python qtris/version.py --artifact-version "$app_version")"
           if [ "$app_version" = "$artifact_version" ]; then
             is_prerelease=false
           else
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      BUNDLE: Lutris-v${{ needs.prepare.outputs.artifact_version }}-x86_64.flatpak
+      BUNDLE: Qtris-v${{ needs.prepare.outputs.artifact_version }}-x86_64.flatpak
     steps:
       - name: Free disk space
         # The full build (Mono, ...) needs far more room
@@ -89,7 +89,7 @@ jobs:
         run: >
           docker run --rm --privileged -v "$PWD:/src" -w /src -e OWNER="$(id -u):$(id -g)"
           registry.fedoraproject.org/fedora:45
-          packaging/flatpak/container-build.sh packaging/flatpak/net.lutris.Lutris.yml "$BUNDLE"
+          packaging/flatpak/container-build.sh packaging/flatpak/io.github.jedace07.Qtris.yml "$BUNDLE"
       - name: Save the flatpak-builder cache
         # Also after a failure or timeout, so the next run resumes from the
         # modules that did build
@@ -99,7 +99,7 @@ jobs:
           path: build-flatpak/state
           key: flatpak-builder-fedora-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
       - name: Smoke test
-        # Install the bundle in a clean container and check that Lutris starts in it,
+        # Install the bundle in a clean container and check that Qtris starts in it,
         # so a bundle that builds but doesn't run is never uploaded
         run: >
           docker run --rm --privileged -v "$PWD:/src" -w /src

@@ -3,11 +3,11 @@ from unittest.mock import patch
 
 import requests
 
-from lutris.database.games import add_game, delete_game, get_games, update_existing
-from lutris.installer.errors import ScriptingError
-from lutris.installer.installer import LutrisInstaller
-from lutris.installer.interpreter import RUNNERS_INSTALLED, ScriptInterpreter
-from lutris.util.test_config import setup_test_environment
+from qtris.database.games import add_game, delete_game, get_games, update_existing
+from qtris.installer.errors import ScriptingError
+from qtris.installer.installer import QtrisInstaller
+from qtris.installer.interpreter import RUNNERS_INSTALLED, ScriptInterpreter
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -88,7 +88,7 @@ class TestScriptInterpreter(TestCase):
         mirror_url = "https://www.moddb.com/downloads/mirror/test-file"
         interpreter = self.get_moddb_interpreter(moddb_url)
 
-        with patch("lutris.installer.installer.ModDB.transform_url", return_value=mirror_url):
+        with patch("qtris.installer.installer.ModDB.transform_url", return_value=mirror_url):
             interpreter.installer.prepare_game_files([])
 
         installer_file = interpreter.installer.files[0]
@@ -100,7 +100,7 @@ class TestScriptInterpreter(TestCase):
         interpreter = self.get_moddb_interpreter(moddb_url)
 
         with patch(
-            "lutris.installer.installer.ModDB.transform_url",
+            "qtris.installer.installer.ModDB.transform_url",
             side_effect=requests.HTTPError("403 Client Error"),
         ):
             interpreter.installer.prepare_game_files([])
@@ -118,7 +118,7 @@ class TestScriptInterpreter(TestCase):
         moddb_url = "https://www.moddb.com/downloads/test-file"
         interpreter = self.get_moddb_interpreter(moddb_url)
 
-        with patch("lutris.installer.installer.ModDB.transform_url", side_effect=RuntimeError("Invalid ModDB URL")):
+        with patch("qtris.installer.installer.ModDB.transform_url", side_effect=RuntimeError("Invalid ModDB URL")):
             with self.assertRaises(RuntimeError):
                 interpreter.installer.prepare_game_files([])
 
@@ -126,15 +126,15 @@ class TestScriptInterpreter(TestCase):
         interpreter = ScriptInterpreter(TEST_INSTALLER, None)
         interpreter.target_path = "/tmp"
         with (
-            patch("lutris.installer.commands.MonitoredCommand") as monitored_command,
-            patch("lutris.installer.commands.schedule_repeating_at_idle"),
+            patch("qtris.installer.commands.MonitoredCommand") as monitored_command,
+            patch("qtris.installer.commands.schedule_repeating_at_idle"),
         ):
             self.assertEqual(interpreter.execute("echo hello"), "STOP")
         self.assertEqual(monitored_command.return_value.accepted_return_code, "0")
 
     def test_scripting_errors_keep_faulty_data_out_of_the_markup(self):
         interpreter = ScriptInterpreter(TEST_INSTALLER, None)
-        params = {"src": "/nonexistent/lutris-test-source", "dst": "/tmp"}
+        params = {"src": "/nonexistent/qtris-test-source", "dst": "/tmp"}
         with self.assertRaises(ScriptingError) as context:
             interpreter.merge(params)
         self.assertIsNone(context.exception.message_markup)
@@ -223,7 +223,7 @@ class TestCreatesGameFolder(TestCase):
             "installer": [{"write_file": {"file": "$GAMEDIR/game.sh", "content": "hello"}}],
         }
         interpreter = MockInterpreter(TEST_INSTALLER, None)
-        installer = LutrisInstaller({**TEST_INSTALLER, "script": script}, interpreter, service=None, appid=None)
+        installer = QtrisInstaller({**TEST_INSTALLER, "script": script}, interpreter, service=None, appid=None)
         self.assertFalse(installer.creates_game_folder)
 
 

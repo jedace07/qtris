@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from lutris.util.gogdl import GogdlProgress
+from qtris.util.gogdl import GogdlProgress
 
 
 class TestGogdlOutcome(TestCase):

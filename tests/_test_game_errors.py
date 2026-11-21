@@ -2,8 +2,8 @@
 
 import pytest
 
-from lutris.game import GAME_UNHANDLED_ERROR, Game
-from lutris.game_errors import watch_game_errors
+from qtris.game import GAME_UNHANDLED_ERROR, Game
+from qtris.game_errors import watch_game_errors
 
 
 class FakeGame:

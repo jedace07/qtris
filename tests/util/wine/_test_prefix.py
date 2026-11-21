@@ -4,9 +4,9 @@ import unittest
 from pathlib import PureWindowsPath
 from unittest.mock import PropertyMock, patch
 
-from lutris.runners.wine import wine
-from lutris.util.wine import prefix
-from lutris.util.wine.prefix import WinePrefixManager
+from qtris.runners.wine import wine
+from qtris.util.wine import prefix
+from qtris.util.wine.prefix import WinePrefixManager
 
 # The Shell Folders values wineboot writes for these keys
 SHELL_FOLDERS = {
@@ -38,11 +38,11 @@ class TestDesktopIntegration(unittest.TestCase):
         for name in XDG_DIRS.values():
             os.makedirs(os.path.join(self.home, name))
         self.prefix_path = os.path.join(temp_dir.name, "prefix")
-        self.user_dir = os.path.join(self.prefix_path, "drive_c/users/lutrisuser")
+        self.user_dir = os.path.join(self.prefix_path, "drive_c/users/qtrisuser")
         os.makedirs(os.path.join(self.user_dir, "AppData/Roaming/Microsoft/Windows"))
 
         for patcher in (
-            patch.dict(os.environ, {"USER": "lutrisuser", "HOME": self.home}),
+            patch.dict(os.environ, {"USER": "qtrisuser", "HOME": self.home}),
             patch.object(prefix, "get_xdg_entry", lambda name: os.path.join(self.home, XDG_DIRS[name])),
         ):
             patcher.start()
@@ -54,7 +54,7 @@ class TestDesktopIntegration(unittest.TestCase):
             reg_file.write(r"[Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders] 1700000000" + "\n")
             for key, folder in shell_folders.items():
                 if not folder.drive:
-                    folder = PureWindowsPath("C:/users/lutrisuser") / folder
+                    folder = PureWindowsPath("C:/users/qtrisuser") / folder
                 # user.reg escapes backslashes
                 reg_file.write('"%s"="%s"\n' % (key, str(folder).replace("\\", "\\\\")))
 
@@ -87,7 +87,7 @@ class TestDesktopIntegration(unittest.TestCase):
         self.assertTrue(os.path.isdir(path))
 
     def test_remove_unlinks_templates_in_an_already_sandboxed_prefix(self):
-        # Lutris sandboxed this prefix before it handled Templates, leaving Wine's link
+        # Qtris sandboxed this prefix before it handled Templates, leaving Wine's link
         self.write_user_reg(SHELL_FOLDERS)
         templates_link = os.path.join(self.user_dir, TEMPLATES)
         os.symlink(os.path.join(self.home, "Templates"), templates_link)
@@ -127,7 +127,7 @@ class TestDesktopIntegration(unittest.TestCase):
 
     def test_folder_outside_the_profile_keeps_its_name(self):
         shell_folders = dict(SHELL_FOLDERS)
-        shell_folders["My Pictures"] = PureWindowsPath("Z:/home/lutrisuser/Pictures")
+        shell_folders["My Pictures"] = PureWindowsPath("Z:/home/qtrisuser/Pictures")
         self.write_user_reg(shell_folders)
 
         folders = WinePrefixManager(self.prefix_path).get_desktop_folders()
@@ -172,14 +172,14 @@ class TestDpi(unittest.TestCase):
         self.assertEqual(self.get_dpi({"Dpi": True, "ExplicitDpi": "120"}), 120)
 
     def test_dpi_scaling_on_falls_back_for_auto(self):
-        with patch("lutris.runners.wine.get_default_dpi", return_value=192):
+        with patch("qtris.runners.wine.get_default_dpi", return_value=192):
             self.assertEqual(self.get_dpi({"Dpi": True, "ExplicitDpi": "auto"}), 192)
 
     def test_launch_keeps_the_users_dpi(self):
         self.prefix.set_dpi(self.get_dpi({"Dpi": False}))
         self.assertEqual(self.prefix.get_registry_key(self.key, "LogPixels"), 144)
 
-    def test_turning_dpi_scaling_off_undoes_what_lutris_set(self):
+    def test_turning_dpi_scaling_off_undoes_what_qtris_set(self):
         self.prefix.set_dpi(self.get_dpi({"Dpi": True, "ExplicitDpi": "120"}))
         self.assertEqual(self.prefix.get_registry_key(self.key, "LogPixels"), 120)
         self.prefix.set_dpi(self.get_dpi({"Dpi": False}))

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Qtris
+StartupWMClass=io.github.jedace07.Qtris
+Comment=Video Game Preservation Platform
+Categories=Game;PackageManager;
+Keywords=gaming;games;game;wine;emulator;launcher;library;runner;collections;collection;manager;manage;install;
+Exec=qtris %U
+Icon=io.github.jedace07.Qtris
+Terminal=false
+Type=Application
+StartupNotify=true
+MimeType=x-scheme-handler/qtris;x-scheme-handler/lutris;
+X-GNOME-UsesNotifications=true

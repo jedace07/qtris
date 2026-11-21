@@ -1,4 +1,4 @@
-"""Tests for running GOG cloud syncs with lutris.services.gog_cloud_operation.
+"""Tests for running GOG cloud syncs with qtris.services.gog_cloud_operation.
 
 These tests verify the operation that publishes a GOG cloud sync's progress for
 polling, including cancellation via the stop button, and the order in which
@@ -11,14 +11,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lutris.util.test_config import setup_test_environment
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
-from lutris.backend import cloud_saves
-from lutris.services import gog_cloud_operation
-from lutris.services.gog_cloud import SyncResult
-from lutris.services.gog_cloud_operation import (
+from qtris.backend import cloud_saves
+from qtris.services import gog_cloud_operation
+from qtris.services.gog_cloud import SyncResult
+from qtris.services.gog_cloud_operation import (
     CLOUD_SYNC_ENDED,
     CLOUD_SYNC_STARTED,
     CloudSyncCancelled,
@@ -26,7 +26,7 @@ from lutris.services.gog_cloud_operation import (
     is_cloud_sync_running,
     start_cloud_sync,
 )
-from lutris.util.notifications import NotificationRegistration, NotificationSource
+from qtris.util.notifications import NotificationRegistration, NotificationSource
 
 
 def test_frontend_can_read_and_skip_cloud_transfers(monkeypatch: pytest.MonkeyPatch) -> None:

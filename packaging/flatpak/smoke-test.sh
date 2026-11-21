@@ -1,10 +1,10 @@
 #!/bin/bash
-# Install a built bundle in a throwaway Fedora container and check that Lutris
-# works in it, as a regular user (Lutris refuses to run as root). From the
+# Install a built bundle in a throwaway Fedora container and check that Qtris
+# works in it, as a regular user (Qtris refuses to run as root). From the
 # repository root:
 #
 #   podman run --rm --privileged --security-opt label=disable -v "$PWD:/src" -w /src \
-#       registry.fedoraproject.org/fedora:45 packaging/flatpak/smoke-test.sh lutris.flatpak
+#       registry.fedoraproject.org/fedora:45 packaging/flatpak/smoke-test.sh qtris.flatpak
 set -euo pipefail
 
 bundle=$1
@@ -22,20 +22,20 @@ as_player() {
 }
 
 echo "== Version"
-as_player flatpak run net.lutris.Lutris --version
+as_player flatpak run io.github.jedace07.Qtris --version
 
 echo "== Python and Qt"
-as_player flatpak run --command=python3 net.lutris.Lutris -c '
+as_player flatpak run --command=python3 io.github.jedace07.Qtris -c '
 import sys, PySide6, gi
 from PySide6 import QtQuick, QtQuickControls2
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
-import lutris.qt.main_window
+import qtris.qt.main_window
 print(sys.version.split()[0], PySide6.__version__, gi.__version__)
 '
 
 echo "== Bundled tools"
-as_player flatpak run --command=sh net.lutris.Lutris -c '
+as_player flatpak run --command=sh io.github.jedace07.Qtris -c '
 for tool in wine winetricks glxinfo vulkaninfo xrandr fuser zenity java mono; do
     command -v "$tool" >/dev/null || { echo "missing: $tool"; exit 1; }
 done
@@ -46,14 +46,14 @@ echo "== Window"
 # Offscreen, the window should still be up after the timeout, with nothing failing to load
 log=$(mktemp)
 status=0
-as_player timeout 30 flatpak run --env=QT_QPA_PLATFORM=offscreen net.lutris.Lutris >"$log" 2>&1 || status=$?
+as_player timeout 30 flatpak run --env=QT_QPA_PLATFORM=offscreen io.github.jedace07.Qtris >"$log" 2>&1 || status=$?
 cat "$log"
 if [ "$status" -ne 124 ]; then
-    echo "Lutris exited early, with status $status"
+    echo "Qtris exited early, with status $status"
     exit 1
 fi
 if grep -E "Traceback|QQmlApplicationEngine failed|is not a type|ReferenceError|TypeError" "$log"; then
-    echo "Lutris reported errors while starting"
+    echo "Qtris reported errors while starting"
     exit 1
 fi
-echo "Lutris started and kept running"
+echo "Qtris started and kept running"

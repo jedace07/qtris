@@ -2,9 +2,9 @@ import os
 import tempfile
 from unittest import TestCase
 
-from lutris.installer.installer_file import InstallerFile
-from lutris.installer.installer_file_collection import InstallerFileCollection
-from lutris.util.test_config import setup_test_environment
+from qtris.installer.installer_file import InstallerFile
+from qtris.installer.installer_file_collection import InstallerFileCollection
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 

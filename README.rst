@@ -1,10 +1,8 @@
-******
-Lutris
-******
+*****
+Qtris
+*****
 
-|LiberaPayBadge|_ |PatreonBadge|_
-
-Lutris helps you install and play video games from all eras and from most
+Qtris helps you install and play video games from all eras and from most
 gaming systems. By leveraging and combining existing emulators, engine
 re-implementations and compatibility layers, it gives you a central interface
 to launch all your games.
@@ -13,17 +11,32 @@ The client can connect with existing services like Humble Bundle, GOG and Steam
 to make your game libraries easily available. Connected stores supply the game
 files and installation options.
 
-Running Lutris
-==============
+Qtris began as a fork of `Lutris <https://github.com/lutris/lutris>`_. It has a
+Qt Quick interface, runs its emulators through RetroArch and their Flathub
+builds, and keeps your library entirely on your computer.
 
-Lutris runs either as a Flatpak or straight from the source tree with uv;
+Running Qtris
+=============
+
+Qtris runs either as a Flatpak or straight from the source tree with uv;
 ``INSTALL.rst`` covers both. Once the system libraries are installed, start
-Lutris from the checkout with ``uv run lutris``.
+Qtris from the checkout with ``uv run qtris``.
 
-If you need to run lutris through gdb to troubleshoot segmentation faults, you
+If you need to run Qtris through gdb to troubleshoot segmentation faults, you
 can use the following command:
 
-``uv run gdb -ex r --args .venv/bin/python -m lutris.launcher``
+``uv run gdb -ex r --args .venv/bin/python -m qtris.launcher``
+
+Moving from Lutris
+------------------
+
+On its first start, Qtris moves an existing Lutris profile to its own folders
+(``~/.local/share/lutris`` to ``~/.local/share/qtris``, and the same for
+``~/.config`` and ``~/.cache``), along with the Lutris Flatpak's profile when
+Qtris runs as a Flatpak. It renames ``lutris.conf`` to ``qtris.conf`` and
+updates the folders your games and settings refer to. Lutris itself can't use
+that profile afterwards. Desktop and Steam shortcuts that Lutris made still
+start Lutris, so recreate them from Qtris.
 
 Installing games
 ================
@@ -33,30 +46,33 @@ bottom of the window (or right-click the game → **Install**). For a local
 Windows setup executable, choose **Add → Run Windows Setup**. Use
 **Add → Add Game** to configure a game that is already installed.
 
+Emulators run through the `RetroArch Flatpak
+<https://flathub.org/apps/org.libretro.RetroArch>`_ and its libretro cores, or,
+for emulators with no core, through their own Flathub builds. Qtris installs
+the ones a game needs.
+
 Game library
 ============
 
-Your library is kept locally. This fork doesn't connect to Lutris.net
-accounts, so it never logs in to the website or uploads your library or play
-time. It still downloads public data from Lutris.net for runner builds and
-runtime versions.
+Your library is kept locally. Qtris doesn't connect to Lutris.net accounts, so
+it never logs in to the website or uploads your library or play time. It still
+downloads public data from Lutris.net, such as install scripts and runtime
+versions.
 
 Artwork comes from each game's store (Steam, Epic, GOG...), and from
 `SteamGridDB <https://www.steamgriddb.com>`_ for what stores lack and for games
 from no store. SteamGridDB needs your own API key, from your SteamGridDB
 account; set it in the main menu → Artwork Sources, or in the
-``LUTRIS_STEAMGRIDDB_API_KEY`` environment variable. Upgrading from a
-version that was connected deletes the stored token
-(``~/.cache/lutris/auth-token``).
+``QTRIS_STEAMGRIDDB_API_KEY`` environment variable.
 
 Configuration files
 ===================
 
-* ``~/.local/share/lutris``: The client, runners, and game configuration files
+* ``~/.local/share/qtris``: The client, runners, and game configuration files
 
    There is no need to manually edit these files as everything should be done from the client.
 
-* ``lutris.conf``: Preferences for the client's UI
+* ``qtris.conf``: Preferences for the client's UI
 
 * ``system.yml``: Default game configuration, which applies to every game
 
@@ -66,11 +82,11 @@ Configuration files
 
 * ``pga.db``: An SQLite database tracking the game library, game installation status, various file locations, and some additional metadata
 
-* ``runners/*``: Runners downloaded from `lutris.net <https://lutris.net>`_
+* ``runners/*``: Wine and Proton builds, and other runner files
 
 * ``banners/*.jpg``: Game banners
 
-``~/.local/share/icons/hicolor/128x128/apps/lutris_*.png``: Game icons
+``~/.local/share/icons/hicolor/128x128/apps/qtris_*.png``: Game icons
 
 Game-specific configurations overwrite runner-specific configurations, which in
 turn overwrite the system configuration.
@@ -80,10 +96,10 @@ Command line options
 
 The following command line arguments are available::
 
--v, --version                    Print the version of Lutris and exit
+-v, --version                    Print the version of Qtris and exit
 -d, --debug                      Show debug messages
 -b, --output-script              Generate a bash script to run a game without the client
--e, --exec                       Execute a program, monitored by Lutris
+-e, --exec                       Execute a program, monitored by Qtris
 -l, --list-games                 List all games in database
 -o, --installed                  Only list installed games
 -s, --list-steam-games           List available Steam games
@@ -100,38 +116,25 @@ The following command line arguments are available::
 --import <game.7z>               Import games from exportfile (requires --dest)
 --dest <folder>                  Specifies Export/Import destination folder
 
-Use a ``lutris:`` link to launch an installed game by slug or library ID::
+Use a ``qtris:`` link to launch an installed game by slug or library ID::
 
-    lutris lutris:rungame/quake
-    lutris lutris:rungameid/42
+    qtris qtris:rungame/quake
+    qtris qtris:rungameid/42
 
 To open the installer for a synced store game, use
-``lutris:install/<source>:<app-id>``.
+``qtris:install/<source>:<app-id>``. Qtris also opens the ``lutris:`` links
+of Lutris.net's install buttons.
 
-Support the project
-===================
+Contributing
+============
 
-Lutris is 100% community supported, to ensure a continuous development on the
-project, please consider donating to the project.
-Our main platform for supporting Lutris is Patreon: https://www.patreon.com/lutris
-but there are also other options available at https://lutris.net/donate
+Report bugs and suggest features in the `issue tracker
+<https://github.com/jedace07/qtris/issues>`_. ``CONTRIBUTING.md`` explains how
+to set up a checkout, run the tests and send changes.
 
-Come with us!
-=============
+License
+=======
 
-Want to make Lutris better? Help implement features, fix bugs, test
-pre-releases, or simply chat with the developers?
-
-Clone the repository, edit the code, then start Lutris with ``uv run lutris -d``.
-
-You can always reach us on:
-
-* Discord: https://discordapp.com/invite/Pnt5CuY
-* IRC: ircs://irc.libera.chat:6697/lutris
-* Github: https://github.com/lutris
-* Mastodon: https://fosstodon.org/@lutris
-
-.. |LiberaPayBadge| image:: http://img.shields.io/liberapay/receives/Lutris.svg?logo=liberapay
-.. _LiberaPayBadge: https://liberapay.com/Lutris/
-.. |PatreonBadge| image:: https://img.shields.io/badge/dynamic/json?color=%23ff424d&label=Patreon&query=data.attributes.patron_count&suffix=%20Patreons&url=https%3A%2F%2Fwww.patreon.com%2Fapi%2Fcampaigns%2F556103&style=flat&logo=patreon
-.. _PatreonBadge: https://www.patreon.com/lutris
+Qtris is free software, licensed under the GNU General Public License,
+version 3 or later. It contains code from Lutris, copyright the Lutris team
+and contributors; see ``AUTHORS``.

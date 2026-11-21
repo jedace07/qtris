@@ -3,7 +3,7 @@ import tempfile
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util.steam import config
+from qtris.util.steam import config
 
 LIBRARY_FOLDERS_VDF = """\
 "libraryfolders"

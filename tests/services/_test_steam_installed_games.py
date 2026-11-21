@@ -4,12 +4,12 @@ from textwrap import dedent
 from unittest import TestCase
 from unittest.mock import PropertyMock, patch
 
-from lutris import settings
-from lutris.config import write_game_config
-from lutris.database import categories, games, schema, sql
-from lutris.game import Game
-from lutris.services.steam import SteamGame, SteamService
-from lutris.util.steam.appmanifest import APP_STATE_FLAGS
+from qtris import settings
+from qtris.config import write_game_config
+from qtris.database import categories, games, schema, sql
+from qtris.game import Game
+from qtris.services.steam import SteamGame, SteamService
+from qtris.util.steam.appmanifest import APP_STATE_FLAGS
 
 APPID = "12345"
 FULLY_INSTALLED = 1 << (APP_STATE_FLAGS.index("Fully Installed") - 1)
@@ -46,12 +46,12 @@ class TestImportInstalledSteamGames(TestCase):
                 SteamService, "steamapps_paths", new_callable=PropertyMock, return_value=[str(self.steamapps)]
             ),
             # Don't touch the real desktop and Steam shortcuts when uninstalling
-            patch("lutris.game.remove_steam_shortcut"),
-            patch("lutris.game.xdgshortcuts.remove_launcher"),
+            patch("qtris.game.remove_steam_shortcut"),
+            patch("qtris.game.xdgshortcuts.remove_launcher"),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
-        patcher = patch("lutris.artwork.sync_artwork")
+        patcher = patch("qtris.artwork.sync_artwork")
         self.sync_media = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -95,7 +95,7 @@ class TestImportInstalledSteamGames(TestCase):
         self.assertTrue(game.is_installed)
         self.assertEqual(game.config.game_level["game"]["appid"], APPID)
 
-    def test_reinstall_keeps_what_was_changed_in_lutris(self):
+    def test_reinstall_keeps_what_was_changed_in_qtris(self):
         service = SteamService()
         self.set_installed_in_steam(True)
         service.add_installed_games()

@@ -2,12 +2,12 @@
 
 import pytest
 
-from lutris import game as core
-from lutris.backend import events
-from lutris.backend.models import GameInfo
-from lutris.database import games as games_db
-from lutris.services.service_media import MEDIA_CACHE_INVALIDATED
-from lutris.util.test_config import setup_test_environment
+from qtris import game as core
+from qtris.backend import events
+from qtris.backend.models import GameInfo
+from qtris.database import games as games_db
+from qtris.services.service_media import MEDIA_CACHE_INVALIDATED
+from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()

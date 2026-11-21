@@ -8,8 +8,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from lutris.util.download_progress import DownloadProgress
-from lutris.util.gog_downloader import GOGDownloader
+from qtris.util.download_progress import DownloadProgress
+from qtris.util.gog_downloader import GOGDownloader
 
 
 def response_mock(**attrs):
@@ -227,8 +227,8 @@ class TestGOGDownloaderStallDetection(TestCase):
         headers = dl._build_request_headers()
 
         with patch.object(dl._write_queue, "put"):
-            with patch("lutris.util.downloader.get_time", fake_time):
-                with patch("lutris.util.gog_downloader.time.sleep", MagicMock()):
+            with patch("qtris.util.downloader.get_time", fake_time):
+                with patch("qtris.util.gog_downloader.time.sleep", MagicMock()):
                     dl._download_range("https://example.com/file.bin", headers, 0, 999)
 
         # Verify retry occurred

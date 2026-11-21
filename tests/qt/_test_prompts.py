@@ -6,7 +6,7 @@ import pytest
 from PySide6.QtCore import QEventLoop, QThread, QTimer
 from PySide6.QtGui import QGuiApplication
 
-from lutris.qt.delegates import PromptController
+from qtris.qt.delegates import PromptController
 
 
 @pytest.mark.parametrize("close_window", [False, True])

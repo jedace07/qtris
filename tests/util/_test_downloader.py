@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util.downloader import SimpleDownloader
+from qtris.util.downloader import SimpleDownloader
 
 
 class FakeResponse:
@@ -53,7 +53,7 @@ class TestResponseIsClosed(TestCase):
         downloader = SimpleDownloader("https://example.com/game.bin", self.dest, overwrite=True)
         downloader._prepare_destination()
         downloader.stop_request = stop_request
-        with patch("lutris.util.downloader.requests.get", return_value=response):
+        with patch("qtris.util.downloader.requests.get", return_value=response):
             try:
                 downloader._do_download()
             except OSError:

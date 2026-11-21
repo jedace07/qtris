@@ -9,13 +9,13 @@ from typing import Any
 
 import pytest
 
-from lutris import settings
-from lutris.artwork import fetcher, steamgriddb, stores, sync_artwork
-from lutris.backend import media
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.services.base import LutrisBanner, LutrisCoverart, LutrisIcon
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.artwork import fetcher, steamgriddb, stores, sync_artwork
+from qtris.backend import media
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.services.base import QtrisBanner, QtrisCoverart, QtrisIcon
+from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -60,11 +60,11 @@ class Web:
 @pytest.fixture
 def web(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop) -> Iterator[Web]:
     fake = Web()
-    for media_class, folder in ((LutrisCoverart, "coverart"), (LutrisBanner, "banners"), (LutrisIcon, "icons")):
+    for media_class, folder in ((QtrisCoverart, "coverart"), (QtrisBanner, "banners"), (QtrisIcon, "icons")):
         monkeypatch.setattr(media_class, "dest_path", str(tmp_path / folder))
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.delenv(steamgriddb.API_KEY_ENVIRONMENT, raising=False)
-    monkeypatch.setattr(settings, "read_setting", lambda key, default="", section="lutris": default)
+    monkeypatch.setattr(settings, "read_setting", lambda key, default="", section="qtris": default)
     monkeypatch.setattr(fetcher.requests, "get", fake.get)
 
     class Session:
@@ -116,7 +116,7 @@ def test_steam_games_use_steam_art_and_steamgriddb_icons(
 
     assert (tmp_path / "coverart" / "artwork-portal-2.jpg").read_bytes() == JPEG
     assert (tmp_path / "banners" / "artwork-portal-2.png").read_bytes() == PNG
-    assert (tmp_path / "icons" / "lutris_artwork-portal-2.png").read_bytes() == PNG
+    assert (tmp_path / "icons" / "qtris_artwork-portal-2.png").read_bytes() == PNG
     assert [path for path, _params in web.queries] == ["/games/steam/620", "/icons/game/5"]
 
 
@@ -193,10 +193,10 @@ def test_gog_covers_come_from_gogs_game_database(
 
 def test_keys_are_checked_before_they_are_saved(web: Web, monkeypatch: pytest.MonkeyPatch) -> None:
     written: dict[str, object] = {}
-    monkeypatch.setattr(settings, "write_setting", lambda key, value, section="lutris": written.update({key: value}))
+    monkeypatch.setattr(settings, "write_setting", lambda key, value, section="qtris": written.update({key: value}))
 
     web.steamgriddb_status = 401
-    with pytest.raises(LutrisError, match="rejected"):
+    with pytest.raises(QtrisError, match="rejected"):
         asyncio.run(media.set_steamgriddb_api_key("wrong"))
     assert not written
 

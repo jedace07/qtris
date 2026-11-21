@@ -1,7 +1,7 @@
 import unittest
 
-from lutris.runners.json import _to_platform_dict, load_json_runners
-from lutris.util.test_config import setup_test_environment
+from qtris.runners.json import _to_platform_dict, load_json_runners
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -26,7 +26,7 @@ class TestJsonRunners(unittest.TestCase):
         )
 
     def test_platforms_dict(self):
-        """A dict of platforms maps each Lutris platform name onto the runner's own code for it."""
+        """A dict of platforms maps each Qtris platform name onto the runner's own code for it."""
         self.assertEqual(
             _to_platform_dict("test.json", {"Commodore 64": "c64", "Commodore 128": "c128"}),
             {"Commodore 64": "c64", "Commodore 128": "c128"},

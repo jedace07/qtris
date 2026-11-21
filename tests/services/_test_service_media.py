@@ -6,8 +6,8 @@ from typing import cast
 import pytest
 from PIL import Image
 
-from lutris.services.egs import DieselGameBoxTall
-from lutris.services.service_media import MEDIA_CACHE_INVALIDATED, ServiceMedia, download_media
+from qtris.services.egs import DieselGameBoxTall
+from qtris.services.service_media import MEDIA_CACHE_INVALIDATED, ServiceMedia, download_media
 
 
 class FakeMedia(ServiceMedia):
@@ -56,7 +56,7 @@ def test_nothing_downloaded_leaves_the_cache_alone(tmp_path, fake_main_loop, inv
 def test_egs_box_art_gets_its_logo_overlaid(tmp_path, monkeypatch):
     logo_dir = tmp_path / "logos"
     logo_dir.mkdir()
-    monkeypatch.setattr("lutris.services.egs.EGS_LOGO_PATH", str(logo_dir))
+    monkeypatch.setattr("qtris.services.egs.EGS_LOGO_PATH", str(logo_dir))
     monkeypatch.setattr(DieselGameBoxTall, "dest_path", str(tmp_path / "boxes"))
     media = DieselGameBoxTall()
     Image.new("RGB", (400, 534), "black").save(tmp_path / "boxes" / "game.jpg")

@@ -2,9 +2,9 @@ import os
 import unittest
 from unittest.mock import patch
 
-from lutris.util.wine import proton
+from qtris.util.wine import proton
 
-LUTRIS_ENV = {"HOME": "/home/player", "XDG_DATA_HOME": "/home/player/.local/share"}
+QTRIS_ENV = {"HOME": "/home/player", "XDG_DATA_HOME": "/home/player/.local/share"}
 
 
 @patch.object(proton.LINUX_SYSTEM, "is_flatpak", return_value=False)
@@ -17,20 +17,20 @@ class TestUmuFoldersPath(unittest.TestCase):
     """
 
     def get_path(self, env, environ=None):
-        with patch.dict(os.environ, LUTRIS_ENV if environ is None else environ, clear=True):
+        with patch.dict(os.environ, QTRIS_ENV if environ is None else environ, clear=True):
             return proton.get_umu_folders_path(env)
 
     def test_untouched_environment_is_left_to_umu(self, _is_flatpak):
         self.assertEqual(self.get_path({}), "")
-        self.assertEqual(self.get_path(dict(LUTRIS_ENV)), "")
+        self.assertEqual(self.get_path(dict(QTRIS_ENV)), "")
 
     def test_game_overriding_the_data_home_keeps_umu_in_place(self, _is_flatpak):
-        env = dict(LUTRIS_ENV, XDG_DATA_HOME="/games/witcher/data")
+        env = dict(QTRIS_ENV, XDG_DATA_HOME="/games/witcher/data")
         self.assertEqual(self.get_path(env), "/home/player/.local/share")
 
     def test_game_overriding_home_keeps_umu_in_place(self, _is_flatpak):
         """Umu falls back to Path.home(), so HOME moves the downloads too."""
-        env = dict(LUTRIS_ENV, HOME="/games/witcher")
+        env = dict(QTRIS_ENV, HOME="/games/witcher")
         self.assertEqual(self.get_path(env), "/home/player/.local/share")
 
     def test_falls_back_to_the_default_share_directory(self, _is_flatpak):
@@ -42,20 +42,20 @@ class TestUmuFoldersPath(unittest.TestCase):
         self.assertEqual(self.get_path({"XDG_DATA_HOME": "/games/x"}, environ={}), "")
 
     def test_update_proton_env_sets_it_only_when_needed(self, _is_flatpak):
-        with patch.dict(os.environ, LUTRIS_ENV, clear=True):
-            plain = dict(LUTRIS_ENV)
+        with patch.dict(os.environ, QTRIS_ENV, clear=True):
+            plain = dict(QTRIS_ENV)
             proton.update_proton_env("/wine", plain)
             self.assertNotIn("UMU_FOLDERS_PATH", plain)
 
-            moved = dict(LUTRIS_ENV, XDG_DATA_HOME="/games/witcher/data")
+            moved = dict(QTRIS_ENV, XDG_DATA_HOME="/games/witcher/data")
             proton.update_proton_env("/wine", moved)
             self.assertEqual(moved["UMU_FOLDERS_PATH"], "/home/player/.local/share")
             # the game still sees the directories it asked for
             self.assertEqual(moved["XDG_DATA_HOME"], "/games/witcher/data")
 
     def test_an_explicit_setting_is_never_overwritten(self, _is_flatpak):
-        with patch.dict(os.environ, LUTRIS_ENV, clear=True):
-            env = dict(LUTRIS_ENV, XDG_DATA_HOME="/games/x", UMU_FOLDERS_PATH="/chosen")
+        with patch.dict(os.environ, QTRIS_ENV, clear=True):
+            env = dict(QTRIS_ENV, XDG_DATA_HOME="/games/x", UMU_FOLDERS_PATH="/chosen")
             proton.update_proton_env("/wine", env)
             self.assertEqual(env["UMU_FOLDERS_PATH"], "/chosen")
 

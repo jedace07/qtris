@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from lutris.services.gog import GOGService
+from qtris.services.gog import GOGService
 
 DB_GAME = {
     "service_id": "1627372090",
@@ -17,8 +17,8 @@ DB_GAME = {
 class TestDepotUpdateInstallers(unittest.TestCase):
     def get_installers(self, installed_ids):
         with (
-            patch("lutris.util.gogdl.is_depot_installed", return_value=True),
-            patch("lutris.util.gog.find_installed_product_ids", return_value=installed_ids),
+            patch("qtris.util.gogdl.is_depot_installed", return_value=True),
+            patch("qtris.util.gog.find_installed_product_ids", return_value=installed_ids),
         ):
             return GOGService().get_update_installers(DB_GAME)
 
@@ -60,8 +60,8 @@ class TestPatchUpdateInstallers(unittest.TestCase):
     def setUp(self):
         self.service = GOGService()
         details_patch = patch.object(self.service, "get_game_details", return_value={"downloads": {"patches": PATCHES}})
-        language_patch = patch("lutris.services.gog.i18n.get_lang", return_value="en")
-        depot_patch = patch("lutris.util.gogdl.is_depot_installed", return_value=False)
+        language_patch = patch("qtris.services.gog.i18n.get_lang", return_value="en")
+        depot_patch = patch("qtris.util.gogdl.is_depot_installed", return_value=False)
         for mock_patch in (details_patch, language_patch, depot_patch):
             mock_patch.start()
             self.addCleanup(mock_patch.stop)

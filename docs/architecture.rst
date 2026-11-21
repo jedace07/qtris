@@ -4,9 +4,9 @@ Architecture
 Where this is going
 -------------------
 
-Lutris has a toolkit-independent **core** and two **frontends**: the command
-line (``lutris/cli``) and the Qt Quick desktop application (``lutris/qt``).
-Both drive the core through ``lutris.backend``, an in-process API of plain-data
+Qtris has a toolkit-independent **core** and two **frontends**: the command
+line (``qtris/cli``) and the Qt Quick desktop application (``qtris/qt``).
+Both drive the core through ``qtris.backend``, an in-process API of plain-data
 calls and events. The GTK frontend has been removed. A future stage could put
 the same API behind IPC so the core can run as a separate process.
 
@@ -28,35 +28,35 @@ How the core reaches a frontend
 The core never calls into a frontend directly. These are the ways it gets one
 to do something, and new code should use them:
 
-The main loop: ``lutris.util.mainloop``
+The main loop: ``qtris.util.mainloop``
     All deferred work (``schedule_at_idle``, ``AsyncCall`` callbacks,
     notifications) runs on the installed ``MainLoop``. The default is GLib's,
     which the Qt and CLI frontends both use; a toolkit that didn't would install its own with
     ``set_main_loop()`` before it starts.
 
-Displays: ``lutris.util.display_backend``
+Displays: ``qtris.util.display_backend``
     What only the UI toolkit knows about the screen (whether it's X11, the
     primary monitor's scale, and how to keep the computer awake when no
     screen saver D-Bus interface will) comes from the installed
-    ``DisplayBackend``. ``lutris.util.display`` asks it, and prefers Mutter's
+    ``DisplayBackend``. ``qtris.util.display`` asks it, and prefers Mutter's
     D-Bus interface for Wayland display modes. On X11, the fallback is xrandr.
-    ``lutris.qt.display_backend.QtDisplayBackend`` reads Qt's platform and
+    ``qtris.qt.display_backend.QtDisplayBackend`` reads Qt's platform and
     screen properties and uses available session services to inhibit sleep.
 
-Background work: ``lutris.util.jobs``
+Background work: ``qtris.util.jobs``
     ``AsyncCall`` runs a function on a thread and delivers its result on the
     main loop. ``callback_target`` cancels delivery if its object reports being
     destroyed (anything with ``call_when_destroyed``). Frontends on the
     backend's API use asyncio tasks instead, and cancel them.
 
-Notifications: ``lutris.util.notifications``
+Notifications: ``qtris.util.notifications``
     ``NotificationSource`` is how the core announces that something happened:
     ``GAME_STARTED``, ``GAME_UPDATED``, ``SERVICE_GAMES_LOADED``,
     ``CATEGORIES_UPDATED``, ``RUNNERS_INSTALLED`` (fired with the installer
     interpreter that installed them) and so on. Handlers always run on the main loop,
     never inline. These are what will become the server's event stream.
 
-Delegates: ``lutris.delegates``
+Delegates: ``qtris.delegates``
     When the core needs the user (confirm a launch, pick a launch
     configuration, answer an installer question, provide a file, log in to a
     service), it calls a delegate passed in by the caller. The base
@@ -67,7 +67,7 @@ Delegates: ``lutris.delegates``
     installing and logging in need. The base classes make the non-interactive
     choice. Qt handles launch questions with ``PromptController`` and QML.
     Installer questions use plain-data snapshots and responses from
-    ``lutris.backend.installations``.
+    ``qtris.backend.installations``.
 
     A game keeps the delegate it was launched with until it quits, for the
     questions that come after the launch: syncing GOG cloud saves asks it which
@@ -81,33 +81,33 @@ Delegates: ``lutris.delegates``
 
 Errors
     The core doesn't show errors. A game's operations are wrapped in
-    ``lutris.game_errors.watch_game_errors``, which stops the game and reports
+    ``qtris.game_errors.watch_game_errors``, which stops the game and reports
     the error through the game's ``game_error`` or, when nothing handles that,
     the ``GAME_UNHANDLED_ERROR`` notification. Catching what escapes event-loop
     callbacks is the frontend's job. Qt reports errors from its slots through
-    ``sys.excepthook`` and from its tasks through ``lutris.qt.tasks``.
+    ``sys.excepthook`` and from its tasks through ``qtris.qt.tasks``.
 
 Models instead of widgets
     When the core produces something a frontend displays as it changes, it
     keeps it in a plain object with a notification, and the frontend adapts
     that to its own widgets. For example:
 
-    * ``lutris.util.log_buffer.LogBuffer``: games and installer commands write
+    * ``qtris.util.log_buffer.LogBuffer``: games and installer commands write
       their output to one; Qt reads it through the game and installation APIs.
-    * ``lutris.services.service_media``: services download game artwork
+    * ``qtris.services.service_media``: services download game artwork
       with ``download_media`` and process it with Pillow
-      (``lutris.util.images``), then fire ``MEDIA_CACHE_INVALIDATED``; frontends
+      (``qtris.util.images``), then fire ``MEDIA_CACHE_INVALIDATED``; frontends
       only load and draw the files.
-    * ``lutris.util.file_downloads``: ``SingleFileDownload`` and
+    * ``qtris.util.file_downloads``: ``SingleFileDownload`` and
       ``FileCollectionDownload`` run an installer's downloads (queueing,
       retries, the download cache) and publish their progress as
       ``DownloadStatus`` data, which the backend exposes to Qt in the
       installation snapshot.
 
-    * ``lutris.services.gog_cloud_operation``: ``start_cloud_sync`` runs a GOG
+    * ``qtris.services.gog_cloud_operation``: ``start_cloud_sync`` runs a GOG
       game's cloud save sync before it launches and after it quits, in order,
       and announces each ``CloudSyncOperation`` with ``CLOUD_SYNC_STARTED`` and
-      ``CLOUD_SYNC_ENDED``. ``lutris.backend.cloud_saves`` exposes transfer
+      ``CLOUD_SYNC_ENDED``. ``qtris.backend.cloud_saves`` exposes transfer
       progress and skipping. Closing the window doesn't interrupt a post-exit
       transfer.
 
@@ -118,29 +118,29 @@ Models instead of widgets
 The command line
 ----------------
 
-Every ``lutris`` command starts in ``lutris.cli.application``'s
+Every ``qtris`` command starts in ``qtris.cli.application``'s
 ``CommandLineApplication``, a ``Gio.Application`` with the same id as the Qt
-frontend's, so Lutris still runs once:
+frontend's, so Qtris still runs once:
 
 * A command that needs no GUI (listing games or runners, installing a runner,
-  ``--export``, ``-b``, ``-e`` and so on, ``lutris.cli.options.TEXT_COMMANDS``)
-  is forwarded to the Lutris instance already running, whatever its frontend,
-  and runs there; with none running, it runs in the ``lutris`` process itself,
-  with no GUI toolkit loaded. The commands live in ``lutris.cli.commands``,
+  ``--export``, ``-b``, ``-e`` and so on, ``qtris.cli.options.TEXT_COMMANDS``)
+  is forwarded to the Qtris instance already running, whatever its frontend,
+  and runs there; with none running, it runs in the ``qtris`` process itself,
+  with no GUI toolkit loaded. The commands live in ``qtris.cli.commands``,
   which the Qt frontend calls for the command lines forwarded to it. They
   print, ask and resolve relative paths through ``CommandOutput``, so they reach
-  the terminal that ran ``lutris`` even when another process runs them.
-* Any other command line (no arguments, a ``lutris:`` URI,
+  the terminal that ran ``qtris`` even when another process runs them.
+* Any other command line (no arguments, a ``qtris:`` URI,
   ``--submit-issue``) needs a GUI: ``CommandLineApplication`` exits before
   registering, and the launcher runs the Qt frontend with it instead.
 
-Both frontends define the same options (``lutris.cli.options``), as Gio
+Both frontends define the same options (``qtris.cli.options``), as Gio
 forwards a command line with its options already parsed.
 
 Stage 2: the backend's API
 --------------------------
 
-``lutris.backend`` is the front door. Frontends drive Lutris through it, and
+``qtris.backend`` is the front door. Frontends drive Qtris through it, and
 eventually through nothing else:
 
 * **Every call is a coroutine** (``await games.list_games()``). Over IPC each
@@ -149,12 +149,12 @@ eventually through nothing else:
   loop, and send slow work (the network, large files) to a thread with
   ``asyncio.to_thread``, so awaiting one never blocks the UI.
 * **Calls take and return plain data**: ids, strings, JSON-like dictionaries,
-  and the frozen dataclasses in ``lutris.backend.models`` (``GameInfo``,
+  and the frozen dataclasses in ``qtris.backend.models`` (``GameInfo``,
   ``ServiceGameInfo``, ...), never a live ``Game``, runner or service object.
-* **Errors are** ``LutrisError`` **subclasses** (``lutris.backend.errors``), whose
+* **Errors are** ``QtrisError`` **subclasses** (``qtris.backend.errors``), whose
   message is meant for the user.
 * **Calls that need the user take a delegate**, as the core does.
-* **Events carry plain data too**: ``lutris.backend.events`` re-announces the
+* **Events carry plain data too**: ``qtris.backend.events`` re-announces the
   core's game notifications with a ``GameInfo`` (``GAME_CHANGED``,
   ``GAME_INSTALLED``, ``GAME_LAUNCHING``, ``GAME_STARTED``, ``GAME_STOPPED``)
   or a game's id (``GAME_LAUNCH_STATUS``, ``GAME_FAILED``). A launch is
@@ -168,22 +168,22 @@ and sort, and returns ``LibraryGame`` rows), ``services``, ``steam``,
 ``runners``, ``installers`` (preparing and checking installation plans),
 ``installations`` (running them), ``configuration`` (game, runner and system
 options),
-``processes`` (running a command the way Lutris runs games) and ``saves``.
-``lutris.backend.startup.start_backend()`` starts it; that isn't an API call,
+``processes`` (running a command the way Qtris runs games) and ``saves``.
+``qtris.backend.startup.start_backend()`` starts it; that isn't an API call,
 but what the backend's own process will do in stage 3.
 
-asyncio runs on GLib's main loop: ``lutris.launcher`` calls
-``lutris.util.mainloop.run_asyncio_on_glib()``, after which PyGObject runs
+asyncio runs on GLib's main loop: ``qtris.launcher`` calls
+``qtris.util.mainloop.run_asyncio_on_glib()``, after which PyGObject runs
 asyncio whenever a ``Gio.Application`` runs. Qt dispatches its events through
 GLib too, so ``Gio.Application.run()`` drives Qt, GLib and asyncio.
-``lutris.qt.tasks.start_task()`` uses ``Gio.Application.create_asyncio_task()``
+``qtris.qt.tasks.start_task()`` uses ``Gio.Application.create_asyncio_task()``
 to keep the application running while a call finishes and surface errors.
 Forwarded commands report their status with ``set_exit_status()`` and ``done()``.
 
 ``tests/_test_frontend_api.py`` enforces this: a frontend may import
-``lutris.backend``, its own package and a few support modules (logging,
+``qtris.backend``, its own package and a few support modules (logging,
 strings, settings, notifications, delegates), and nothing else from the core.
-Qt can also import the shared command handling in ``lutris.cli``. The CLI
+Qt can also import the shared command handling in ``qtris.cli``. The CLI
 must not import Qt.
 
 The Qt Quick frontend
@@ -194,10 +194,10 @@ The tests run on Qt's offscreen platform.
 
 The frontend uses Qt Quick Controls and a PySide6 ``QApplication`` so it can
 integrate with the native system tray.
-``lutris/qt/qml`` defines the windows, views and dialogs.
-Every control is drawn by ``LutrisStyle`` (``lutris/qt/qml/LutrisStyle``), a
+``qtris/qt/qml`` defines the windows, views and dialogs.
+Every control is drawn by ``QtrisStyle`` (``qtris/qt/qml/QtrisStyle``), a
 Qt Quick Controls style that ``MainWindow`` selects with ``QQuickStyle`` before
-loading QML, so plain ``import QtQuick.Controls`` gets the Lutris look. Its
+loading QML, so plain ``import QtQuick.Controls`` gets the Qtris look. Its
 ``Theme`` singleton holds the colors, metrics and type sizes for light and dark,
 following the theme preference and, for "System Default", the desktop's color
 scheme. ``Theme.icon()`` names an SVG of the style's icon set, and ``Icon`` draws
@@ -219,14 +219,14 @@ or unhide a game, edit its categories, and open its installation directory.
 It also shows live game logs and manages desktop, application menu, and Steam
 shortcuts. The Steam Big Picture (Standalone) destination exports an executable
 script for the selected launch configuration and adds it to Steam separately
-from the regular shortcut. The script launches without Lutris; recreate the
+from the regular shortcut. The script launches without Qtris; recreate the
 shortcut after changing the launch configuration. Qt can remove legacy
 standalone entries without deleting their old shared scripts. Standalone
 creation is not offered from inside Flatpak because exported commands can refer
 to sandbox-only paths.
 
 When a game has multiple launch configurations, Qt can prompt for one and
-remember the choice. ``lutris:rungame/...`` and ``lutris:rungameid/...``
+remember the choice. ``qtris:rungame/...`` and ``qtris:rungameid/...``
 launch installed library games, including the launch target encoded in a shortcut.
 A shortcut uses the running instance if there is one. Log updates use
 ``GAME_LOG_CHANGED`` and ``games.get_game_log``.
@@ -255,7 +255,7 @@ asks the source for its plans in a worker thread and returns an
 and itch.io offers updates. Library → Run
 Windows Setup uses ``prepare_windows_setup`` to run a local executable with
 Wine/Proton and the selected Windows version and locale. Lutris.net installer links and uploaded
-YAML installers have been removed. ``lutris:install/<source>:<app-id>`` opens
+YAML installers have been removed. ``qtris:install/<source>:<app-id>`` opens
 the same store installer.
 
 Plans stay in the backend until ``close_catalog``. ``select_installer``
@@ -269,7 +269,7 @@ Each stage fires ``INSTALLATION_CHANGED`` with an ``InstallationInfo``
 snapshot. The frontend responds to runner and interpreter questions with
 ``answer_runner``, ``choose_extras``, ``set_file_source``,
 ``start_files``, ``answer_menu`` or ``answer_disc``. File downloads
-run three at a time. For Steam data, Lutris requests the install through
+run three at a time. For Steam data, Qtris requests the install through
 Steam and waits for its appmanifest to report a complete installation.
 Cancelling that wait leaves Steam's own installation in progress.
 ``InstallationPage`` shows progress and command output, and completion
@@ -278,7 +278,7 @@ game from the dialog.
 
 Game Actions → Configure, the main menu's Global Options and a runner's context menu
 in the sidebar open configuration forms. ``configuration.open_game_config``,
-``open_runner_config`` and ``open_system_config`` build a ``LutrisConfig`` at
+``open_runner_config`` and ``open_system_config`` build a ``QtrisConfig`` at
 that level and return a ``ConfigForm``: a ``ConfigPage`` per config section
 (game, runner, system), each with ``ConfigOptionInfo`` rows. The backend
 evaluates the option dicts' callables with
@@ -301,7 +301,7 @@ option type.
 For native Linux games, Runner Options → Steam Linux Runtime takes effect
 for the game or as the Linux runner's default. None uses the system libraries.
 The other choices use Valve's 1.0 (Scout), 2.0 (Soldier), 3.0 (Sniper), or 4.0
-container. Lutris finds the launchers in Steam libraries or in umu's runtime
+container. Qtris finds the launchers in Steam libraries or in umu's runtime
 directory. Scout uses the Steam compatibility tool inside Soldier. If a
 runtime is missing, the launch error gives its Steam install URI. The runner
 applies the choice to primary and alternate launch configurations, including
@@ -318,12 +318,12 @@ bar, and Preferences → Updates checks again on request.
 
 The library opens in a cover grid. The View menu switches to banners or a list
 and remembers the choice. Grid queries ask for ``LibraryArtwork`` with each
-row. The backend resolves files from the Lutris and service caches. The same
+row. The backend resolves files from the Qtris and service caches. The same
 menu downloads missing artwork with ``media.update_artwork``, which Qt also
 runs quietly at startup. The grid reloads its thumbnails when it receives
 ``ARTWORK_CHANGED``.
 
-``lutris.artwork`` fills in each library game's cover, banner and icon (the
+``qtris.artwork`` fills in each library game's cover, banner and icon (the
 ``coverart``, ``banners`` and icon files the library reads by slug). It asks the
 game's store first: Steam's 2:3 library capsule and header, Epic's tall and wide
 box art, GOG's vertical cover from its public game database and its product
@@ -332,7 +332,7 @@ media classes know. SteamGridDB fills in what's left, and serves games that come
 from no store: it's searched by Steam app id or by name, for 2:3 grids (600x900,
 or its near 2:3 sizes) and 920x430-shaped ones, and for icons. SteamGridDB needs
 the user's API key, saved through ``media.set_steamgriddb_api_key`` (which checks
-it first) or given in ``LUTRIS_STEAMGRIDDB_API_KEY``; View → Artwork Sources in
+it first) or given in ``QTRIS_STEAMGRIDDB_API_KEY``; View → Artwork Sources in
 Qt sets it. Only missing files are downloaded, so custom artwork is never
 replaced, and what no source has is remembered for a week in
 ``artwork-misses.json``, kept apart for with and without SteamGridDB, so that adding
@@ -359,7 +359,7 @@ registration from a selected folder or files dropped onto the window, without
 moving or owning the ROM files. It also offers Playtron import and a local JSON
 issue report exporter shared with ``--submit-issue``.
 
-Preferences → Runners uses ``lutris.backend.runners`` to configure, install
+Preferences → Runners uses ``qtris.backend.runners`` to configure, install
 and remove runners. Downloads and runner file prompts pass progress and plain
 text back to Qt while installation runs in a worker thread. Wine's **Manage
 GE-Proton** lists installed builds and recent releases for the host architecture
@@ -374,7 +374,7 @@ Amazon and ZOOM Platform accept their redirect URL. Epic Games accepts
 its authorization code or the JSON from the final page. itch.io uses a
 dedicated API key. GOG uses the redirect URL for its API token and cookies
 for the library endpoint. EA App, Humble Bundle, Steam Families, Game Jolt
-and DLsite use a user-selected Netscape ``cookies.txt`` export. Lutris
+and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
 keeps only cookies from the selected store's domain. ``store_login`` retains the service instance
 until the handoff completes so it can keep transient login data such as
 Amazon's PKCE verifier. The frontend syncs the library on successful
@@ -382,6 +382,6 @@ sign-in. ``services`` also supports manual sync for local sources.
 Ubisoft Connect can reuse saved credentials or accept a manual browser handoff:
 paste ``PRODloginData`` if it contains the session fields, or a JSON array of
 ``PRODloginData``, ``PRODrememberMe`` and ``PRODlastProfile`` (``null`` for
-missing values). Lutris verifies the session before saving it. Treat these
+missing values). Qtris verifies the session before saving it. Treat these
 values like passwords. For sources with a separate game launcher, the preferred
 registered launcher is used for both opening the store and its new install plans.

@@ -7,7 +7,7 @@ import zipfile
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-from lutris.util.extract import extract_archive
+from qtris.util.extract import extract_archive
 
 
 def make_zip(path, files):

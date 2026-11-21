@@ -1,18 +1,18 @@
-"""The library views' games, as lutris.backend.library selects, orders and describes them."""
+"""The library views' games, as qtris.backend.library selects, orders and describes them."""
 
 import asyncio
 from pathlib import Path
 
 import pytest
 
-from lutris.backend import library
-from lutris.backend.library import LibraryQuery, LibrarySort
-from lutris.database import categories as categories_db
-from lutris.database import games as games_db
-from lutris.database.services import ServiceGameCollection
-from lutris.services.base import LutrisBanner, LutrisCoverart, LutrisIcon
-from lutris.services.gog import GogLargeBanner, GogMediumBanner, GogSmallBanner
-from lutris.util.test_config import setup_test_environment
+from qtris.backend import library
+from qtris.backend.library import LibraryQuery, LibrarySort
+from qtris.database import categories as categories_db
+from qtris.database import games as games_db
+from qtris.database.services import ServiceGameCollection
+from qtris.services.base import QtrisBanner, QtrisCoverart, QtrisIcon
+from qtris.services.gog import GogLargeBanner, GogMediumBanner, GogSmallBanner
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -154,9 +154,9 @@ def test_artwork_is_optional_and_uses_the_games_service_slug(
 ) -> None:
     slug = PREFIX + "game-10"
     games_db.update_existing(id=games[slug], service="gog", service_id="10")
-    monkeypatch.setattr(LutrisCoverart, "dest_path", str(tmp_path / "covers"))
-    monkeypatch.setattr(LutrisBanner, "dest_path", str(tmp_path / "banners"))
-    monkeypatch.setattr(LutrisIcon, "dest_path", str(tmp_path / "icons"))
+    monkeypatch.setattr(QtrisCoverart, "dest_path", str(tmp_path / "covers"))
+    monkeypatch.setattr(QtrisBanner, "dest_path", str(tmp_path / "banners"))
+    monkeypatch.setattr(QtrisIcon, "dest_path", str(tmp_path / "icons"))
     for media in (GogLargeBanner, GogMediumBanner, GogSmallBanner):
         monkeypatch.setattr(media, "dest_path", str(tmp_path / media.__name__))
     monkeypatch.setattr(
@@ -164,7 +164,7 @@ def test_artwork_is_optional_and_uses_the_games_service_slug(
         "get_for_service",
         classmethod(lambda _cls, _service: [{"appid": 10, "slug": "gog-slug"}]),
     )
-    empty, cover = (Path(candidate.path) for candidate in LutrisCoverart().get_possible_media_paths(slug))
+    empty, cover = (Path(candidate.path) for candidate in QtrisCoverart().get_possible_media_paths(slug))
     empty.touch()
     cover.write_bytes(b"cover")
     banner = Path(GogLargeBanner().get_possible_media_paths("gog-slug")[0].path)

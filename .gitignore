@@ -10,26 +10,26 @@ tags
 *.pyo
 *.ui~
 PYSMELLTAGS
-lutris.e4p
+qtris.e4p
 .coverage
 pga.db
 tests/coverage/*
 /dist
-/lutris.egg-info
+/qtris.egg-info
 /flake.nix
 /flake.lock
 
 # Flatpak build output
 build-flatpak
 .flatpak-builder
-lutris.flatpak
+qtris.flatpak
 
 # tool caches
 .pytest_cache
 .ruff_cache
 
 # Generated translation template
-lutris/locale/lutris.pot
+qtris/locale/qtris.pot
 
 # virtual environment folders
 venv

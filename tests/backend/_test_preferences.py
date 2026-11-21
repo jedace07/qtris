@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 
-from lutris import settings
-from lutris.backend import preferences
-from lutris.exceptions import LutrisError
-from lutris.util.test_config import setup_test_environment
-from lutris.util.yaml import read_yaml_from_file
+from qtris import settings
+from qtris.backend import preferences
+from qtris.exceptions import QtrisError
+from qtris.util.test_config import setup_test_environment
+from qtris.util.yaml import read_yaml_from_file
 
 setup_test_environment()
 
@@ -32,14 +32,14 @@ def test_issue_report_exports_description_and_system_information(
 def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
     values: dict[tuple[str, str], str] = {}
 
-    def read_setting(key: str, default: str = "", section: str = "lutris") -> str:
+    def read_setting(key: str, default: str = "", section: str = "qtris") -> str:
         return values.get((section, key), default)
 
-    def read_bool_setting(key: str, default: bool = False, section: str = "lutris") -> bool:
+    def read_bool_setting(key: str, default: bool = False, section: str = "qtris") -> bool:
         value = values.get((section, key))
         return default if value is None else value == "True"
 
-    def write_setting(key: str, value: Any, section: str = "lutris") -> None:
+    def write_setting(key: str, value: Any, section: str = "qtris") -> None:
         values[(section, key)] = str(value)
 
     monkeypatch.setattr(settings, "read_setting", read_setting)
@@ -62,13 +62,13 @@ def test_sources_can_be_turned_on_and_hidden_from_the_games_view(saved: dict[tup
 
         await preferences.set_source_in_games_view("gog", False)
         assert not next(source for source in await preferences.list_sources() if source.id == "gog").in_games_view
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await preferences.set_source_enabled("no-such-store", True)
 
     asyncio.run(run())
 
 
-def test_storage_paths_are_saved_where_lutris_reads_them(
+def test_storage_paths_are_saved_where_qtris_reads_them(
     saved: dict[tuple[str, str], str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
@@ -92,7 +92,7 @@ def test_storage_paths_are_saved_where_lutris_reads_them(
 
     asyncio.run(run())
     assert read_yaml_from_file(str(tmp_path / "system.yml"))["system"] == {"bios_path": str(bios)}
-    assert saved[("lutris", "pga_cache_path")] == str(tmp_path / "cache")
+    assert saved[("qtris", "pga_cache_path")] == str(tmp_path / "cache")
     assert scanned == [str(bios)]
 
 

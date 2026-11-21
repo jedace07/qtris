@@ -5,12 +5,12 @@
 #   podman run --rm --privileged --security-opt label=disable -v "$PWD:/src" -w /src \
 #       registry.fedoraproject.org/fedora:45 packaging/flatpak/container-build.sh
 #
-# Arguments: the manifest (net.lutris.Lutris.yml by default), and a bundle file to
+# Arguments: the manifest (io.github.jedace07.Qtris.yml by default), and a bundle file to
 # write once it's built. Output goes under build-flatpak/, which git ignores. Set
 # OWNER (uid:gid) to hand that output back to the host user afterwards.
 set -euo pipefail
 
-manifest=${1:-packaging/flatpak/net.lutris.Lutris.yml}
+manifest=${1:-packaging/flatpak/io.github.jedace07.Qtris.yml}
 bundle=${2:-}
 
 # flatpak-builder applies patches and unpacks some archives with the host's tools
@@ -27,7 +27,7 @@ flatpak-builder --install-deps-from=flathub --disable-rofiles-fuse --force-clean
     build-flatpak/build "$manifest" || status=$?
 
 if [ "$status" -eq 0 ] && [ -n "$bundle" ]; then
-    flatpak build-bundle build-flatpak/repo "$bundle" net.lutris.Lutris \
+    flatpak build-bundle build-flatpak/repo "$bundle" io.github.jedace07.Qtris \
         --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo || status=$?
 fi
 

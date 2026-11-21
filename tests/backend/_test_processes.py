@@ -1,8 +1,8 @@
-"""Running a command with the Lutris runtime through the backend."""
+"""Running a command with the Qtris runtime through the backend."""
 
 import asyncio
 
-from lutris.backend import processes
+from qtris.backend import processes
 
 
 class FakeMonitoredCommand:

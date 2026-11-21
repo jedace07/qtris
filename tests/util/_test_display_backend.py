@@ -1,9 +1,9 @@
-"""lutris.util.display asks the installed DisplayBackend what only a UI toolkit knows."""
+"""qtris.util.display asks the installed DisplayBackend what only a UI toolkit knows."""
 
 import pytest
 
-from lutris.util import display, display_backend
-from lutris.util.display_backend import EnvironmentDisplayBackend, get_display_backend, set_display_backend
+from qtris.util import display, display_backend
+from qtris.util.display_backend import EnvironmentDisplayBackend, get_display_backend, set_display_backend
 
 
 class FakeDisplayManager:

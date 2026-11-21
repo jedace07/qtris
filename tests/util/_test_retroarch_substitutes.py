@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.migrations.retire_standalone_emulators import migrate_config
-from lutris.util.retroarch import content
-from lutris.util.retroarch.content import get_content_path
-from lutris.util.retroarch.substitutes import translate_game_config, translate_runner, translate_script
+from qtris import settings
+from qtris.migrations.retire_standalone_emulators import migrate_config
+from qtris.util.retroarch import content
+from qtris.util.retroarch.content import get_content_path
+from qtris.util.retroarch.substitutes import translate_game_config, translate_runner, translate_script
 
 
 def test_rom_runners_become_their_core() -> None:
@@ -80,7 +80,7 @@ def test_dosbox_settings_and_launch_files_are_merged(tmp_path: Path) -> None:
 
     merged = Path(get_content_path(config["core"], config))
 
-    assert merged == tmp_path / "DOSBOX" / ".lutris-dosbox.conf"
+    assert merged == tmp_path / "DOSBOX" / ".qtris-dosbox.conf"
     assert merged.read_text().index("[cpu]") < merged.read_text().index("[autoexec]")
 
 

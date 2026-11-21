@@ -10,8 +10,8 @@ from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QGuiApplication, 
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
 
-from lutris import settings
-from lutris.backend import (
+from qtris import settings
+from qtris.backend import (
     configuration,
     events,
     game_actions,
@@ -26,21 +26,21 @@ from lutris.backend import (
     shortcuts,
     store_login,
 )
-from lutris.backend.launch_configurations import LaunchChoice
-from lutris.backend.models import ArtworkSettings, ServiceInfo, SourceSetting, StoragePaths
-from lutris.database import categories as categories_db
-from lutris.database import games as games_db
-from lutris.database import sql
-from lutris.game import LOG_BUFFERS, Game
-from lutris.installer import interpreter
-from lutris.installer.installer import LutrisInstaller
-from lutris.qt import store_sources
-from lutris.qt.main_window import MainWindow
-from lutris.services.base import LutrisBanner, LutrisCoverart
-from lutris.services.gog import GOGService
-from lutris.util import path_cache
-from lutris.util.test_config import setup_test_environment
-from lutris.util.yaml import read_yaml_from_file, write_yaml_to_file
+from qtris.backend.launch_configurations import LaunchChoice
+from qtris.backend.models import ArtworkSettings, ServiceInfo, SourceSetting, StoragePaths
+from qtris.database import categories as categories_db
+from qtris.database import games as games_db
+from qtris.database import sql
+from qtris.game import LOG_BUFFERS, Game
+from qtris.installer import interpreter
+from qtris.installer.installer import QtrisInstaller
+from qtris.qt import store_sources
+from qtris.qt.main_window import MainWindow
+from qtris.services.base import QtrisBanner, QtrisCoverart
+from qtris.services.gog import GOGService
+from qtris.util import path_cache
+from qtris.util.test_config import setup_test_environment
+from qtris.util.yaml import read_yaml_from_file, write_yaml_to_file
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -90,7 +90,7 @@ def test_the_window_follows_sidebar_search_and_filter(qt_application: QGuiApplic
         try:
             controller.set_installed_only(False)
             await settle(window)
-            assert window.window.title() == "Lutris"
+            assert window.window.title() == "Qtris"
             assert listed(window) == [PREFIX + "Installed", PREFIX + "Uninstalled"]
 
             controller.set_search("uninstalled")
@@ -189,15 +189,15 @@ def test_grid_reloads_artwork_and_keeps_selection_across_layouts(
     monkeypatch.setattr(
         settings,
         "read_setting",
-        lambda key, default="", section="lutris": (
+        lambda key, default="", section="qtris": (
             "covers" if key == "qt_library_layout" else read_setting(key, default, section)
         ),
     )
     monkeypatch.setattr(settings, "write_setting", lambda *_args: None)
-    monkeypatch.setattr(LutrisCoverart, "dest_path", str(tmp_path / "covers"))
-    monkeypatch.setattr(LutrisBanner, "dest_path", str(tmp_path / "banners"))
-    cover = LutrisCoverart().get_possible_media_paths(PREFIX + "installed")[1].path
-    banner = LutrisBanner().get_possible_media_paths(PREFIX + "installed")[1].path
+    monkeypatch.setattr(QtrisCoverart, "dest_path", str(tmp_path / "covers"))
+    monkeypatch.setattr(QtrisBanner, "dest_path", str(tmp_path / "banners"))
+    cover = QtrisCoverart().get_possible_media_paths(PREFIX + "installed")[1].path
+    banner = QtrisBanner().get_possible_media_paths(PREFIX + "installed")[1].path
 
     def save_image(path: str, width: int, height: int, color: Qt.GlobalColor) -> None:
         image = QImage(width, height, QImage.Format.Format_RGB32)
@@ -254,7 +254,7 @@ def test_qml_dialog_answers_a_launch_question(qt_application: QGuiApplication, l
             await settle(window)
 
             def answer() -> None:
-                prompt = window.window.findChild(QObject, "lutrisInput")
+                prompt = window.window.findChild(QObject, "qtrisInput")
                 if prompt is not None and prompt.property("visible"):
                     seen_prompt.append(True)
                     QTest.keyClick(window.window, Qt.Key.Key_Escape)
@@ -470,7 +470,7 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "installer-cache"))
     monkeypatch.setattr(settings, "write_setting", lambda *_args: None)
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(LutrisInstaller, "_get_discord_id_from_api", lambda self: None)
+    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     setup = tmp_path / "setup.txt"
     setup.write_text("game data", encoding="utf-8")
     target = tmp_path / "Games" / "qt-installed"
@@ -844,7 +844,7 @@ def test_qml_manages_ge_proton_from_preferences(
             await click("runnerVersions_wine")
             await click(f"runnerInstall_{version}")
             await click(f"runnerRemove_{version}")
-            prompt = window.window.findChild(QObject, "lutrisInput")
+            prompt = window.window.findChild(QObject, "qtrisInput")
             assert prompt is not None
             await wait_for_qml(qt_application, lambda: bool(prompt.property("visible")))
             assert QMetaObject.invokeMethod(prompt, "reject")

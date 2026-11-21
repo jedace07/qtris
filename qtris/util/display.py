@@ -1,0 +1,388 @@
+"""Module to deal with various aspects of displays"""
+
+import enum
+import os
+import subprocess
+from typing import Any
+
+try:
+    from dbus.exceptions import DBusException
+
+    DBUS_AVAILABLE = True
+except ImportError:
+    DBUS_AVAILABLE = False
+
+from gi.repository import Gio, GLib
+
+from qtris.util import cache_single
+from qtris.util.display_backend import DisplayBackend, DisplayManager, get_display_backend
+from qtris.util.graphics.displayconfig import MutterDisplayManager
+from qtris.util.graphics.xrandr import LegacyDisplayManager
+from qtris.util.log import logger
+
+
+def get_default_dpi() -> int:
+    """Computes the DPI to use for the primary monitor
+    which we pass to WINE."""
+    return 96 * get_display_backend().get_scale_factor()
+
+
+def is_display_x11() -> bool:
+    """True if the frontend runs on X11, rather than Wayland."""
+    return get_display_backend().is_x11()
+
+
+def _create_display_manager(backend: DisplayBackend) -> DisplayManager:
+    """Return the appropriate display manager instance.
+    Defaults to Mutter if available. This is the only one to support Wayland.
+    """
+    if DBUS_AVAILABLE:
+        try:
+            return MutterDisplayManager()
+        except DBusException as ex:
+            logger.debug("Mutter DBus service not reachable: %s", ex)
+        except Exception as ex:  # pylint: disable=broad-except
+            logger.exception("Failed to instantiate MutterDisplayConfig. Please report with exception: %s", ex)
+    else:
+        logger.error("DBus is not available, Qtris was not properly installed.")
+
+    return backend.get_display_manager() or LegacyDisplayManager()
+
+
+# The display manager, and the backend it was created with
+_display_manager: tuple[DisplayBackend, DisplayManager] | None = None
+
+
+def get_display_manager() -> DisplayManager:
+    """Return the display manager to read and change display modes with. It's created
+    when first needed, so that the frontend can install its DisplayBackend first."""
+    global _display_manager
+    backend = get_display_backend()
+    if _display_manager is None or _display_manager[0] is not backend:
+        _display_manager = (backend, _create_display_manager(backend))
+    return _display_manager[1]
+
+
+class DesktopEnvironment(enum.Enum):
+    """Enum of desktop environments."""
+
+    PLASMA = 0
+    MATE = 1
+    XFCE = 2
+    DEEPIN = 3
+    UNKNOWN = 999
+
+
+# These desktop environment use a compositor that can be detected with a specific
+# command, and which provide a definite answer; the DE can be asked to start and stop it..
+_compositor_commands_by_de = {
+    DesktopEnvironment.MATE: {
+        "check": ["gsettings", "get", "org.mate.Marco.general", "compositing-manager"],
+        "active_result": b"true\n",
+        "stop_compositor": ["gsettings", "set", "org.mate.Marco.general", "compositing-manager", "false"],
+        "start_compositor": ["gsettings", "set", "org.mate.Marco.general", "compositing-manager", "true"],
+    },
+    DesktopEnvironment.XFCE: {
+        "check": ["xfconf-query", "--channel=xfwm4", "--property=/general/use_compositing"],
+        "active_result": b"true\n",
+        "stop_compositor": ["xfconf-query", "--channel=xfwm4", "--property=/general/use_compositing", "--set=false"],
+        "start_compositor": ["xfconf-query", "--channel=xfwm4", "--property=/general/use_compositing", "--set=true"],
+    },
+    DesktopEnvironment.DEEPIN: {
+        "check": [
+            "dbus-send",
+            "--session",
+            "--dest=com.deepin.WMSwitcher",
+            "--type=method_call",
+            "--print-reply=literal",
+            "/com/deepin/WMSwitcher",
+            "com.deepin.WMSwitcher.CurrentWM",
+        ],
+        "active_result": b"deepin wm\n",
+        "stop_compositor": [
+            "dbus-send",
+            "--session",
+            "--dest=com.deepin.WMSwitcher",
+            "--type=method_call",
+            "/com/deepin/WMSwitcher",
+            "com.deepin.WMSwitcher.RequestSwitchWM",
+        ],
+        "start_compositor": [
+            "dbus-send",
+            "--session",
+            "--dest=com.deepin.WMSwitcher",
+            "--type=method_call",
+            "/com/deepin/WMSwitcher",
+            "com.deepin.WMSwitcher.RequestSwitchWM",
+        ],
+    },
+}
+
+# These additional compositors can be detected by looking for their process,
+# and must be started more directly.
+_non_de_compositor_commands = [
+    {
+        "check": ["pgrep", "picom"],
+        "stop_compositor": ["pkill", "picom"],
+        "start_compositor": ["picom", ""],
+        "run_in_background": True,
+    },
+    {
+        "check": ["pgrep", "compton"],
+        "stop_compositor": ["pkill", "compton"],
+        "start_compositor": ["compton", ""],
+        "run_in_background": True,
+    },
+]
+
+
+def get_desktop_environment() -> DesktopEnvironment | None:
+    """Converts the value of the DESKTOP_SESSION environment variable
+    to one of the constants in the DesktopEnvironment class.
+    Returns None if DESKTOP_SESSION is empty or unset.
+    """
+    desktop_session = os.environ.get("DESKTOP_SESSION", "").lower()
+    if not desktop_session:
+        return None
+    if desktop_session.endswith("mate"):
+        return DesktopEnvironment.MATE
+    if desktop_session.endswith("xfce"):
+        return DesktopEnvironment.XFCE
+    if desktop_session.endswith("deepin"):
+        return DesktopEnvironment.DEEPIN
+    if "plasma" in desktop_session:
+        return DesktopEnvironment.PLASMA
+    return DesktopEnvironment.UNKNOWN
+
+
+def _get_command_output(command: list[str]) -> bytes | None:
+    """Some rogue function that gives no shit about residing in the correct module"""
+    try:
+        return subprocess.Popen(  # pylint: disable=consider-using-with
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, close_fds=True
+        ).communicate()[0]
+    except FileNotFoundError:
+        logger.error("Unable to run command, %s not found", command[0])
+
+    return None
+
+
+def is_compositing_enabled() -> bool:
+    """Checks whether compositing is currently disabled or enabled.
+    Returns True for enabled, False for disabled or if we didn't recognize
+    the compositor.
+    """
+
+    desktop_environment = get_desktop_environment()
+    if desktop_environment in _compositor_commands_by_de:
+        command_set = _compositor_commands_by_de[desktop_environment]
+        return _check_compositor_active(command_set)
+
+    for command_set in _non_de_compositor_commands:
+        if _check_compositor_active(command_set):
+            return True
+
+    # No compositor detected
+    return False
+
+
+def _check_compositor_active(command_set: dict[str, Any]) -> bool:
+    """Applies the 'check' command; and returns whether the result
+    was the desired 'active_result'; if that is omitted, we check for
+    any result at all."""
+    command = command_set["check"]
+    result = _get_command_output(command)
+
+    if "active_result" in command_set:
+        return bool(result == command_set["active_result"])
+
+    return result != b""
+
+
+# One element is appended to this for every invocation of disable_compositing:
+# True if compositing has been disabled, False if not. enable_compositing
+# removes the last element, and only re-enables compositing if that element
+# was True.
+_COMPOSITING_DISABLED_STACK = []
+
+
+@cache_single
+def _get_compositor_commands() -> tuple[list[str] | None, list[str] | None, bool]:
+    """Returns the commands to enable/disable compositing on the current
+    desktop environment as a 3-tuple: start command, stop-command and
+    a flag to indicate if we need to run the commands in the background.
+    """
+    desktop_environment = get_desktop_environment()
+    command_set = None
+    if desktop_environment is not None:
+        command_set = _compositor_commands_by_de.get(desktop_environment)
+
+    if not command_set:
+        for c in _non_de_compositor_commands:
+            if _check_compositor_active(c):
+                command_set = c
+                break
+
+    if command_set:
+        start_compositor: list[str] = command_set["start_compositor"]
+        stop_compositor: list[str] = command_set["stop_compositor"]
+        run_in_background = bool(command_set.get("run_in_background"))
+        return start_compositor, stop_compositor, run_in_background
+
+    return None, None, False
+
+
+def _run_command(*command: str, run_in_background: bool = False) -> subprocess.Popen[bytes] | None:
+    """Random _run_command lost in the middle of the project,
+    are you lost little _run_command?
+    """
+    try:
+        if not run_in_background:
+            return subprocess.Popen(  # pylint: disable=consider-using-with
+                command,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+            )
+        return subprocess.Popen(  # pylint: disable=consider-using-with
+            " ".join(command),
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+            shell=True,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        logger.error("FileNotFoundError when running command: %s", command)
+
+    return None
+
+
+def disable_compositing() -> None:
+    """Disable compositing if not already disabled."""
+    compositing_enabled = is_compositing_enabled()
+    if any(_COMPOSITING_DISABLED_STACK):
+        compositing_enabled = False
+    _COMPOSITING_DISABLED_STACK.append(compositing_enabled)
+    if not compositing_enabled:
+        return
+    _, stop_compositor, background = _get_compositor_commands()
+    if stop_compositor:
+        _run_command(*stop_compositor, run_in_background=background)
+
+
+def enable_compositing() -> None:
+    """Re-enable compositing if the corresponding call to disable_compositing
+    disabled it."""
+
+    if not _COMPOSITING_DISABLED_STACK:
+        logger.debug("enable_compositing() called without a matching disable_compositing()")
+        return
+    compositing_disabled = _COMPOSITING_DISABLED_STACK.pop()
+    if not compositing_disabled:
+        return
+    start_compositor, _, background = _get_compositor_commands()
+    if start_compositor:
+        _run_command(*start_compositor, run_in_background=background)
+
+
+class DBusScreenSaverInhibitor:
+    """Inhibit and uninhibit the suspend using DBus.
+
+    Without a D-Bus interface to use, it asks the frontend's DisplayBackend to
+    prevent the computer from going to sleep.
+
+    For enviroments which don't support either org.freedesktop.ScreenSaver or
+    org.gnome.ScreenSaver interfaces one can declare a DBus interface which
+    requires the Inhibit() and UnInhibit() methods to be exposed."""
+
+    def __init__(self) -> None:
+        self.proxy: Any = None
+        self._used_backend = False
+
+    def set_dbus_iface(self, name: str, path: str, interface: str, bus_type: Gio.BusType = Gio.BusType.SESSION) -> None:
+        """Sets a dbus proxy to be used instead of the DisplayBackend, this
+        method can raise an exception."""
+        self.proxy = Gio.DBusProxy.new_for_bus_sync(
+            bus_type, Gio.DBusProxyFlags.NONE, None, name, path, interface, None
+        )
+
+    def inhibit(self, game_name: str) -> int | None:
+        """Inhibit suspend.
+        Returns a cookie that must be passed to the corresponding uninhibit() call.
+        If an error occurs, None is returned instead."""
+        reason = "Running game: %s" % game_name
+        self._used_backend = False
+
+        if self.proxy:
+            try:
+                cookie = self.proxy.Inhibit("(ss)", "Qtris", reason)
+                if cookie:
+                    return cookie
+                # D-Bus call succeeded but returned no cookie
+                logger.warning("D-Bus screensaver inhibit returned no cookie, falling back to the frontend")
+            except Exception as ex:
+                logger.warning("Failed to inhibit screensaver via D-Bus, falling back to the frontend: %s", ex)
+
+        cookie = get_display_backend().inhibit_suspend(reason)
+        if cookie is None:
+            return None
+
+        self._used_backend = True
+        return cookie
+
+    def uninhibit(self, cookie: int | None) -> None:
+        """Uninhibit suspend.
+        Takes a cookie as returned by inhibit. If cookie is None, no action is taken."""
+        if not cookie:
+            return
+
+        if self.proxy and not self._used_backend:
+            try:
+                self.proxy.UnInhibit("(u)", cookie)
+                return
+            except Exception as ex:
+                logger.warning("Failed to uninhibit screensaver via D-Bus: %s", ex)
+
+        get_display_backend().uninhibit_suspend(cookie)
+
+
+def _get_suspend_inhibitor() -> DBusScreenSaverInhibitor:
+    """Return the appropriate suspend inhibitor instance.
+    If the required interface isn't available, it will default to the
+    DisplayBackend's."""
+    desktop_environment = get_desktop_environment()
+    inhibitor = DBusScreenSaverInhibitor()
+
+    # Build list of D-Bus interfaces to try in order of preference
+    interfaces_to_try = []
+
+    if desktop_environment is DesktopEnvironment.MATE:
+        interfaces_to_try.append(("org.mate.ScreenSaver", "/", "org.mate.ScreenSaver"))
+    elif desktop_environment is DesktopEnvironment.XFCE:
+        # Try XFCE-specific interface first, then fall back to freedesktop.
+        # Some XFCE setups use xfce4-screensaver (org.xfce.ScreenSaver),
+        # others use light-locker or other lockers (org.freedesktop.ScreenSaver).
+        interfaces_to_try.append(("org.xfce.ScreenSaver", "/", "org.xfce.ScreenSaver"))
+        interfaces_to_try.append(
+            ("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver")
+        )
+
+    for name, path, interface in interfaces_to_try:
+        try:
+            inhibitor.set_dbus_iface(name, path, interface)
+        except GLib.Error as err:
+            logger.debug("D-Bus interface %s not available: %s", name, err)
+            continue
+        # Creating a proxy succeeds even when no service owns the name, so
+        # only keep it if something is actually there to answer our calls.
+        if not inhibitor.proxy.get_name_owner():
+            logger.debug("D-Bus interface %s has no owner, skipping it", name)
+            inhibitor.proxy = None
+            continue
+        logger.debug("Using D-Bus screensaver interface: %s", name)
+        return inhibitor
+
+    # No D-Bus interface available, will use the DisplayBackend
+    return inhibitor
+
+
+SCREEN_SAVER_INHIBITOR = _get_suspend_inhibitor()

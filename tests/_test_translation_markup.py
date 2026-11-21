@@ -36,7 +36,7 @@ class TestTranslatedMarkup(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             for po_path in sorted(PO_DIR.glob("*.po")):
                 mo_path = os.path.join(tmp, po_path.stem + ".mo")
-                # Compiling skips fuzzy entries, which Lutris never shows either
+                # Compiling skips fuzzy entries, which Qtris never shows either
                 subprocess.run(["msgfmt", str(po_path), "-o", mo_path], check=True, capture_output=True)
                 with open(mo_path, "rb") as mo_file:
                     catalog = gettext.GNUTranslations(mo_file)._catalog

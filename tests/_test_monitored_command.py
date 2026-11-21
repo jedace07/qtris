@@ -2,8 +2,8 @@ import subprocess
 import time
 from unittest import TestCase
 
-from lutris.monitored_command import MonitoredCommand
-from lutris.util.test_config import setup_test_environment
+from qtris.monitored_command import MonitoredCommand
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 

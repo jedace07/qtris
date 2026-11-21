@@ -21,8 +21,8 @@ Prerequisites
 - The checkout with its dependencies installed (``uv sync``); see ``CONTRIBUTING.md``.
   Activate the virtualenv (``source .venv/bin/activate``) first, the commands below
   use the same interpreter as the script.
-- A normal user account; Lutris refuses to start as root.
-- Part A does not care whether your own Lutris is running: the script and the
+- A normal user account; Qtris refuses to start as root.
+- Part A does not care whether your own Qtris is running: the script and the
   ``launch()`` helper below use a private D-Bus session, so nothing reaches the
   instance on your desktop. Part B uses your own profile, so use one client at a
   time there.
@@ -68,22 +68,22 @@ client writes files such as the exported game script.
     Built and used by the automated checks. They are kept so you can look at what
     a check saw, and are not part of the manual pass.
 
-Settings live in ``$SMOKE/<profile>/home/.local/share/lutris/lutris.conf``;
-``~/.config/lutris`` is the deprecated location and is not used by these profiles.
+Settings live in ``$SMOKE/<profile>/home/.local/share/qtris/qtris.conf``;
+``~/.config/qtris`` is the deprecated location and is not used by these profiles.
 
 Step 3 - Open a sandbox profile
 -------------------------------
 
-Never launch ``uv run lutris`` bare for Part A: that opens your real profile.
+Never launch ``uv run qtris`` bare for Part A: that opens your real profile.
 The smoke test prints this snippet with the installed launcher filled in::
 
-    SMOKE=/tmp/lutris-smoke.XXXXXXXX
+    SMOKE=/tmp/qtris-smoke.XXXXXXXX
     launch() {
         env HOME="$SMOKE/$1/home" \
             XDG_DATA_HOME="$SMOKE/$1/home/.local/share" \
             XDG_CONFIG_HOME="$SMOKE/$1/home/.config" \
             XDG_CACHE_HOME="$SMOKE/$1/home/.cache" \
-            dbus-run-session -- "/path/to/checkout/.venv/bin/lutris" -d
+            dbus-run-session -- "/path/to/checkout/.venv/bin/qtris" -d
     }
 
     launch first-run
@@ -91,13 +91,13 @@ The smoke test prints this snippet with the installed launcher filled in::
 Notes:
 
 - ``dbus-run-session`` is not optional. Every command line but ``--version``
-  goes over D-Bus to the primary instance of ``net.lutris.Lutris`` when one is
+  goes over D-Bus to the primary instance of ``io.github.jedace07.Qtris`` when one is
   running, whichever profile it happens to use. The
   private session is what keeps Part A out of your own library.
 - Drop ``-d`` to see the client the way a normal user would; keep it while
   testing, it is what makes a failure diagnosable.
 - The log of that client is
-  ``$SMOKE/first-run/home/.cache/lutris/lutris.log``.
+  ``$SMOKE/first-run/home/.cache/qtris/qtris.log``.
 - Start over with: ``rm -rf $SMOKE`` and re-run the script with ``--keep``.
 
 Part A - a genuine first run (sandbox, ~10 minutes)
@@ -115,12 +115,12 @@ Item 1 - First start
 ("Search games"), an "Add Game" button, a view toggle and the main menu. The
 sidebar shows **Library** (Games, Recent, Favorites, Uncategorized, Hidden,
 Missing, Running) followed by **Categories**, **Sources**, **Runners** and
-**Platforms**. The library is empty. Lutris starts fetching its runtime/DXVK
+**Platforms**. The library is empty. Qtris starts fetching its runtime/DXVK
 components, which is normal on a first run. No error dialog.
 
 Anything already in this library means a profile was reused, not a first start.
 
-**If it fails:** attach ``$SMOKE/first-run/home/.cache/lutris/lutris.log`` and the
+**If it fails:** attach ``$SMOKE/first-run/home/.cache/qtris/qtris.log`` and the
 console output of the launch.
 
 Item 3 - Add a locally installed game
@@ -136,7 +136,7 @@ the game with right-click → **Configure** → **Game options**, set **Argument
 running ``launch first-run`` again it is still there, and the arguments are still
 set — which is the game-level option check::
 
-    grep args "$SMOKE"/first-run/home/.local/share/lutris/games/*.yml
+    grep args "$SMOKE"/first-run/home/.local/share/qtris/games/*.yml
 
 ``sleepy.sh`` is a two-line script that sleeps for 30 seconds; item 4 needs a game
 that stays running for a moment.
@@ -152,18 +152,18 @@ game window opens on double-click, **Show logs** shows the process output, and
 which shows in the **Recent** ordering.
 
 **If it fails:** right-click → **Show logs** and attach that plus
-``$SMOKE/first-run/home/.cache/lutris/lutris.log``.
+``$SMOKE/first-run/home/.cache/qtris/qtris.log``.
 
 Item 5 - Preferences persist
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Do:** main menu → **Preferences** ("Lutris settings"); the sidebar has Interface,
+**Do:** main menu → **Preferences** ("Qtris settings"); the sidebar has Interface,
 Runners, Sources, Accounts, Updates, System, Storage and Global options. Under
 **Interface** set **Theme** to Dark, close the dialog, quit the client with Ctrl+Q
 and run ``launch first-run`` again.
 
 **Pass:** the theme is applied immediately and still applied after the restart, and
-it is recorded in ``$SMOKE/first-run/home/.local/share/lutris/lutris.conf``.
+it is recorded in ``$SMOKE/first-run/home/.local/share/qtris/qtris.conf``.
 Switching back to System Default also works.
 
 Item 6 - Runner configuration
@@ -176,7 +176,7 @@ the context menu.) Untick **Enable DXVK** and save.
 **Pass:** the value is written to the runner configuration and survives reopening
 the dialog; the reset button next to the option restores the default::
 
-    cat "$SMOKE"/first-run/home/.local/share/lutris/runners/wine.yml
+    cat "$SMOKE"/first-run/home/.local/share/qtris/runners/wine.yml
 
 The file should contain ``wine:`` and ``dxvk: false``. The Linux runner has no
 runner-level options (its Arguments field is a *game* option, covered by item 3),
@@ -188,9 +188,9 @@ Item 10 - Restart and clean shutdown
 **Do:** quit with Ctrl+Q, relaunch the same profile, then check the profile from
 the command line::
 
-    grep -i traceback "$SMOKE"/first-run/home/.cache/lutris/lutris.log
+    grep -i traceback "$SMOKE"/first-run/home/.cache/qtris/qtris.log
     python3 -c 'import sqlite3, sys; print(sqlite3.connect(sys.argv[1]).execute("pragma integrity_check").fetchone()[0])' \
-        "$SMOKE/first-run/home/.local/share/lutris/pga.db"
+        "$SMOKE/first-run/home/.local/share/qtris/pga.db"
 
 **Pass:** the client reopens with the same library and settings, the ``grep`` finds
 nothing, and ``pragma integrity_check`` prints ``ok``.
@@ -206,21 +206,21 @@ where services and a real library can be exercised.
 Step B1 - Back up the whole profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The migrations rewrite ``lutris.conf`` and ``games/*.yml``, and
+The migrations rewrite ``qtris.conf`` and ``games/*.yml``, and
 ``migration_version`` never goes back down, so going back to the installed release
 means restoring all of it, not just the database. Skip the runner and runtime
 downloads, which are large and untouched::
 
-    tar -C ~/.local/share --exclude='lutris/runners/*' --exclude='lutris/runtime/*' \
-        -cJf ~/lutris-profile-backup.tar.xz lutris
-    [ -d ~/.config/lutris ] && tar -C ~/.config -cJf ~/lutris-config-backup.tar.xz lutris
+    tar -C ~/.local/share --exclude='qtris/runners/*' --exclude='qtris/runtime/*' \
+        -cJf ~/qtris-profile-backup.tar.xz qtris
+    [ -d ~/.config/qtris ] && tar -C ~/.config -cJf ~/qtris-config-backup.tar.xz qtris
 
 Step B2 - Open your profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
-    uv run lutris -d
+    uv run qtris -d
 
 No HOME or XDG overrides this time: this is your real profile. The first launch of a
 new build runs any pending migrations once, which is what the backup above is for.
@@ -241,7 +241,7 @@ and the category survives a restart.
 Item 7 - Install a store game or run a local Windows setup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Do:** start Lutris. Sync a store library, select a small
+**Do:** start Qtris. Sync a store library, select a small
 uninstalled game, and choose **Game Actions → Install**. A local setup can be
 run through **Add → Run Windows Setup**. Choose a Windows version and
 locale, then select the setup executable.
@@ -263,7 +263,7 @@ service game, then **Reload** again.
 **Reload** does not duplicate entries, and **Disconnect** clears them. The command
 line agrees, on your real profile::
 
-    uv run lutris --list-all-service-games
+    uv run qtris --list-all-service-games
 
 **Skip it** with a note when the release does not touch service code. It cannot be
 done in the sandbox: Steam is looked up under ``~/.steam`` and the other services
@@ -275,7 +275,7 @@ Item 9 - Shortcuts, then revert
 **Do:** right-click a game → **Create desktop shortcut**, then **Create application
 menu shortcut**.
 
-**Pass:** both files exist and contain a ``lutris:rungameid/`` URL::
+**Pass:** both files exist and contain a ``qtris:rungameid/`` URL::
 
     ls ~/Desktop
     ls ~/.local/share/applications
@@ -289,8 +289,8 @@ Step B3 - Restore if something looks wrong
 
 Quit the client, then restore whichever backup you took::
 
-    tar -C ~/.local/share -xJf ~/lutris-profile-backup.tar.xz
-    [ -f ~/lutris-config-backup.tar.xz ] && tar -C ~/.config -xJf ~/lutris-config-backup.tar.xz
+    tar -C ~/.local/share -xJf ~/qtris-profile-backup.tar.xz
+    [ -f ~/qtris-config-backup.tar.xz ] && tar -C ~/.config -xJf ~/qtris-config-backup.tar.xz
 
 This puts the backed-up files back and leaves files created since the backup in
 place, such as a ``games/*.yml`` for something added during the pass. That is
@@ -302,7 +302,7 @@ Step 4 - Tear down
 ::
 
     rm -rf "$SMOKE"
-    rm -f ~/lutris-profile-backup.tar.xz ~/lutris-config-backup.tar.xz
+    rm -f ~/qtris-profile-backup.tar.xz ~/qtris-config-backup.tar.xz
 
 Reporting the result
 --------------------
@@ -327,8 +327,8 @@ Troubleshooting
 - "the client shows my own library during Part A": the environment variables were
   not applied, or ``launch`` was not used. Check that ``$SMOKE`` is set.
 - A game does not start: right-click → **Show logs**. The exact command line is
-  there, and ``$SMOKE/<profile>/home/.cache/lutris/lutris.log`` has the rest.
+  there, and ``$SMOKE/<profile>/home/.cache/qtris/qtris.log`` has the rest.
 - "Creating launcher: unable to find directory for .desktop files": the XDG desktop
   directory is disabled in that profile. Skip the desktop half of item 9 and say so.
-- Settings seem not to persist: look at ``.local/share/lutris/lutris.conf``, not at
-  ``~/.config/lutris`` (the deprecated location, unused by these profiles).
+- Settings seem not to persist: look at ``.local/share/qtris/qtris.conf``, not at
+  ``~/.config/qtris`` (the deprecated location, unused by these profiles).

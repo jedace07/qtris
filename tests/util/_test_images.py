@@ -1,10 +1,10 @@
-"""Tests for lutris.util.images: image processing that needs no UI toolkit."""
+"""Tests for qtris.util.images: image processing that needs no UI toolkit."""
 
 import os
 
 from PIL import Image
 
-from lutris.util.images import get_default_icon_path, get_image_file_extension, paste_overlay, thumbnail_image
+from qtris.util.images import get_default_icon_path, get_image_file_extension, paste_overlay, thumbnail_image
 
 
 def test_thumbnail_covers_the_target_and_crops_the_overflow():

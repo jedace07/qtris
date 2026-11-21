@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.backend import configuration, events
-from lutris.backend.models import ConfigForm, ConfigOptionInfo, GameDetails, GameInfo
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.util.test_config import setup_test_environment
-from lutris.util.yaml import read_yaml_from_file, write_yaml_to_file
+from qtris import settings
+from qtris.backend import configuration, events
+from qtris.backend.models import ConfigForm, ConfigOptionInfo, GameDetails, GameInfo
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.util.test_config import setup_test_environment
+from qtris.util.yaml import read_yaml_from_file, write_yaml_to_file
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -70,7 +70,7 @@ def test_game_form_edits_and_saves_game_level_options(
 
         await configuration.save_config(form.id)
         await configuration.close_config(form.id)
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await configuration.get_config_form(form.id)
 
     try:
@@ -155,9 +155,9 @@ def test_linux_runtime_can_override_runner_default(game_id: str) -> None:
 def test_values_are_checked_against_the_option_type(game_id: str) -> None:
     async def run() -> None:
         form = await configuration.open_game_config(game_id)
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await configuration.set_option(form.id, "system", "disable_screen_saver", "maybe")
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await configuration.set_option(form.id, "game", "no_such_option", "x")
         form = await configuration.set_option(form.id, "system", "env", {" DXVK_HUD ": "1", "": "dropped"})
         assert find(form, "system", "env").value == {"DXVK_HUD": "1"}
@@ -183,7 +183,7 @@ def test_runner_and_system_forms_write_their_own_files(config_dir: Path) -> None
         await configuration.save_config(system.id)
         await configuration.close_config(system.id)
 
-        with pytest.raises(LutrisError):
+        with pytest.raises(QtrisError):
             await configuration.open_runner_config("no-such-runner")
 
     asyncio.run(run())
@@ -230,7 +230,7 @@ def test_game_details_are_saved_with_the_configuration(
         assert await configuration.save_config(form.id) == game_id
         await configuration.close_config(form.id)
 
-        with pytest.raises(LutrisError, match="must be a number"):
+        with pytest.raises(QtrisError, match="must be a number"):
             form = await configuration.open_game_config(game_id)
             await configuration.set_game_details(form.id, replace_year(form, "soon"))
             await configuration.save_config(form.id)
@@ -274,7 +274,7 @@ def test_new_games_need_a_runner_and_are_created_on_save(
         form = await configuration.set_game_details(
             form.id, GameDetails(name="Hand Added", sortname="", slug="", runner="", year="", playtime="")
         )
-        with pytest.raises(LutrisError, match="Runner not provided"):
+        with pytest.raises(QtrisError, match="Runner not provided"):
             await configuration.save_config(form.id)
 
         form = await configuration.set_game_runner(form.id, "linux")

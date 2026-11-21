@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from lutris.services.humblebundle import HumbleBundleService
+from qtris.services.humblebundle import HumbleBundleService
 
 
 def make_download(platform, filename):

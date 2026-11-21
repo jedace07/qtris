@@ -2,8 +2,8 @@
 
 from PySide6.QtGui import QGuiApplication
 
-from lutris.backend.models import LibraryArtwork, LibraryGame
-from lutris.qt.library_model import GameRole, LibraryModel
+from qtris.backend.models import LibraryArtwork, LibraryGame
+from qtris.qt.library_model import GameRole, LibraryModel
 
 
 def make_game(

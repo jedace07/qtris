@@ -2,7 +2,7 @@ import os
 import tempfile
 from unittest import TestCase
 
-from lutris.util import gog
+from qtris.util import gog
 
 
 class TestGetGogGamePath(TestCase):

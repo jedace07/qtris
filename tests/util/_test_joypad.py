@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util import joypad
+from qtris.util import joypad
 
 # A standard gamepad, as reported by evdev
 DEVICE_INFO = SimpleNamespace(bustype=3, vendor=0x045E, product=0x028E, version=0x0110)

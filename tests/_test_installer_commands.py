@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 
 import yaml
 
-from lutris.installer.commands import normalize_accepted_return_code
-from lutris.installer.errors import ScriptingError
-from lutris.installer.interpreter import ScriptInterpreter
-from lutris.util.test_config import setup_test_environment
+from qtris.installer.commands import normalize_accepted_return_code
+from qtris.installer.errors import ScriptingError
+from qtris.installer.interpreter import ScriptInterpreter
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -24,10 +24,10 @@ class TestExecuteCommand(TestCase):
             "runner": "linux",
         }
         self.interpreter = ScriptInterpreter(installer)
-        process_patch = patch("lutris.installer.commands.MonitoredCommand")
+        process_patch = patch("qtris.installer.commands.MonitoredCommand")
         self.process = process_patch.start()
         self.addCleanup(process_patch.stop)
-        schedule_patch = patch("lutris.installer.commands.schedule_repeating_at_idle")
+        schedule_patch = patch("qtris.installer.commands.schedule_repeating_at_idle")
         self.schedule = schedule_patch.start()
         self.addCleanup(schedule_patch.stop)
 
@@ -170,7 +170,7 @@ class TestGogdlSetupPath(TestCase):
         self.interpreter = ScriptInterpreter(installer)
         self.interpreter.target_path = self.tmp.name
         self.interpreter.interpreter_ui_delegate = Mock()
-        run_patch = patch("lutris.installer.commands.run_gogdl")
+        run_patch = patch("qtris.installer.commands.run_gogdl")
         self.run_gogdl = run_patch.start()
         self.addCleanup(run_patch.stop)
         post_patch = patch.object(ScriptInterpreter, "_apply_gogdl_post_install")

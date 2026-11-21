@@ -7,12 +7,12 @@ from typing import Any
 
 import pytest
 
-from lutris.artwork import steamgriddb
-from lutris.backend import game_artwork
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.services.base import LutrisBanner, LutrisCoverart, LutrisIcon
-from lutris.util.test_config import setup_test_environment
+from qtris.artwork import steamgriddb
+from qtris.backend import game_artwork
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.services.base import QtrisBanner, QtrisCoverart, QtrisIcon
+from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -23,7 +23,7 @@ JPEG = b"\xff\xd8\xff" + b"jpeg data"
 
 @pytest.fixture
 def game_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop) -> Iterator[str]:
-    for media_class, folder in ((LutrisCoverart, "coverart"), (LutrisBanner, "banners"), (LutrisIcon, "icons")):
+    for media_class, folder in ((QtrisCoverart, "coverart"), (QtrisBanner, "banners"), (QtrisIcon, "icons")):
         monkeypatch.setattr(media_class, "dest_path", str(tmp_path / folder))
     monkeypatch.setattr(game_artwork.system, "update_desktop_icons", lambda: None)
     monkeypatch.setattr(game_artwork, "forget_misses", lambda slug: None)
@@ -73,14 +73,14 @@ def test_custom_artwork_replaces_the_automatic_one_until_reset(
 
 def test_only_png_and_jpeg_are_stored_and_icons_must_be_png(game_id: str, tmp_path: Path) -> None:
     async def run() -> None:
-        with pytest.raises(LutrisError, match="PNG or JPEG"):
+        with pytest.raises(QtrisError, match="PNG or JPEG"):
             await game_artwork.set_custom_artwork(game_id, "banner", image(tmp_path / "text.png", b"not an image"))
-        with pytest.raises(LutrisError, match="Icons must be PNG"):
+        with pytest.raises(QtrisError, match="Icons must be PNG"):
             await game_artwork.set_custom_artwork(game_id, "icon", image(tmp_path / "icon.jpg", JPEG))
-        with pytest.raises(LutrisError, match="Unknown kind"):
+        with pytest.raises(QtrisError, match="Unknown kind"):
             await game_artwork.set_custom_artwork(game_id, "poster", image(tmp_path / "poster.png", PNG))
         icon = await game_artwork.set_custom_artwork(game_id, "icon", image(tmp_path / "icon.png", PNG))
-        assert icon.path == str(tmp_path / "icons" / "lutris_custom-artwork-game.png")
+        assert icon.path == str(tmp_path / "icons" / "qtris_custom-artwork-game.png")
 
     asyncio.run(run())
 
@@ -89,7 +89,7 @@ def test_choices_come_from_steamgriddb_and_are_downloaded(
     game_id: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def run() -> None:
-        with pytest.raises(LutrisError, match="API key"):
+        with pytest.raises(QtrisError, match="API key"):
             await game_artwork.list_steamgriddb_artwork(game_id, "cover")
 
     asyncio.run(run())

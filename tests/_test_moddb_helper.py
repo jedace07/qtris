@@ -1,7 +1,7 @@
 import unittest
 from typing import Any
 
-from lutris.util.log import logger
+from qtris.util.log import logger
 
 try:
     import moddb
@@ -11,8 +11,8 @@ except ImportError:
     moddb: Any = object
     logger.error("ModDB tests skipped")
     SKIP_TESTS = True
-from lutris.util.log import logger
-from lutris.util.moddb import ModDB, is_moddb_url
+from qtris.util.log import logger
+from qtris.util.moddb import ModDB, is_moddb_url
 
 
 class ModDBHelperTests(unittest.TestCase):

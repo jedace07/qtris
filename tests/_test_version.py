@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from lutris import __version__, version
+from qtris import __version__, version
 
 
 def test_version_matches_pyproject() -> None:
@@ -48,10 +48,10 @@ def test_pyproject_of_another_project_is_rejected(tmp_path: Path) -> None:
 
 
 def test_source_version_comes_from_pyproject(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    module_path = tmp_path / "lutris" / "version.py"
+    module_path = tmp_path / "qtris" / "version.py"
     module_path.parent.mkdir()
     module_path.touch()
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "lutris"\nversion = "1.2.3"\n', encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "qtris"\nversion = "1.2.3"\n', encoding="utf-8")
     monkeypatch.setattr(version, "__file__", str(module_path))
     monkeypatch.setattr(version, "_read_installed_version", lambda: "0.1.0")
 
@@ -60,10 +60,10 @@ def test_source_version_comes_from_pyproject(monkeypatch: pytest.MonkeyPatch, tm
 
 def test_unrelated_parent_pyproject_is_ignored(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # An installed copy nested somewhere under another project's tree
-    module_path = tmp_path / "site-packages" / "lutris" / "version.py"
+    module_path = tmp_path / "site-packages" / "qtris" / "version.py"
     module_path.parent.mkdir(parents=True)
     module_path.touch()
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "lutris"\nversion = "9.9.9"\n', encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "qtris"\nversion = "9.9.9"\n', encoding="utf-8")
     monkeypatch.setattr(version, "__file__", str(module_path))
     monkeypatch.setattr(version, "_read_installed_version", lambda: "1.2.3")
 
@@ -73,7 +73,7 @@ def test_unrelated_parent_pyproject_is_ignored(monkeypatch: pytest.MonkeyPatch, 
 def test_installed_version_comes_from_package_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(version, "_read_source_version", lambda: None)
 
-    assert version.read_version() == distribution_version("lutris")
+    assert version.read_version() == distribution_version("qtris")
 
 
 def test_unknown_version_without_any_source(monkeypatch: pytest.MonkeyPatch) -> None:

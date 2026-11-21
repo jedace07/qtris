@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from lutris.services import ea_app
+from qtris.services import ea_app
 
 EA_APP_GAME = {
     "name": "EA App",
@@ -20,7 +20,7 @@ class TestInstallFromEAApp(unittest.TestCase):
         with (
             patch.object(ea_app.ServiceGameCollection, "get_game", return_value=service_game),
             patch.object(ea_app, "get_game_by_field", return_value=None),
-            patch.object(ea_app, "LutrisConfig", return_value=MagicMock(game_level={"game": {}})),
+            patch.object(ea_app, "QtrisConfig", return_value=MagicMock(game_level={"game": {}})),
             patch.object(ea_app, "write_game_config", return_value="configpath"),
             patch.object(ea_app, "get_launch_arguments", return_value=""),
             patch.object(ea_app, "add_game") as add_game,

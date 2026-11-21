@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.backend import events, game_actions, game_maintenance, local_games
-from lutris.backend.models import GameInfo
-from lutris.database import categories
-from lutris.database import games as games_db
-from lutris.delegates import CommandLineUIDelegate
-from lutris.exceptions import LutrisError
-from lutris.game import Game
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.backend import events, game_actions, game_maintenance, local_games
+from qtris.backend.models import GameInfo
+from qtris.database import categories
+from qtris.database import games as games_db
+from qtris.delegates import CommandLineUIDelegate
+from qtris.exceptions import QtrisError
+from qtris.game import Game
+from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -72,7 +72,7 @@ def test_link_preserves_library_identity_and_categories(executable: Path) -> Non
         assert (game.id, game.name, game.playtime, game.directory) == (game_id, "Existing Game", 2.5, None)
         assert game.installed
         assert categories.get_categories_in_game(game_id) == ["local-game-registration-test"]
-        with pytest.raises(LutrisError, match="cannot be linked"):
+        with pytest.raises(QtrisError, match="cannot be linked"):
             asyncio.run(local_games.register_linux_game(str(executable), "", game_id=game_id))
     finally:
         categories.remove_category_from_game(game_id, category_id)
@@ -82,15 +82,15 @@ def test_link_preserves_library_identity_and_categories(executable: Path) -> Non
 
 def test_reject_invalid_executables_and_store_entries(executable: Path, tmp_path: Path) -> None:
     executable.chmod(0o600)
-    with pytest.raises(LutrisError, match="not executable"):
+    with pytest.raises(QtrisError, match="not executable"):
         asyncio.run(local_games.register_linux_game(str(executable), "Invalid Game"))
-    with pytest.raises(LutrisError, match="absolute path"):
+    with pytest.raises(QtrisError, match="absolute path"):
         asyncio.run(local_games.register_linux_game("./relative-launcher", "Invalid Game"))
 
     executable.chmod(0o700)
     game_id = games_db.add_game(name="Store Game", installed=0, service="steam", runner="steam")
     try:
-        with pytest.raises(LutrisError, match="cannot be linked"):
+        with pytest.raises(QtrisError, match="cannot be linked"):
             asyncio.run(local_games.register_linux_game(str(executable), "", game_id=game_id))
         assert not Game(game_id).is_installed
         assert not (tmp_path / "config" / "games").exists()

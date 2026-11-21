@@ -4,8 +4,8 @@ screensaver while a game runs."""
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util import display
-from lutris.util.display import DesktopEnvironment
+from qtris.util import display
+from qtris.util.display import DesktopEnvironment
 
 
 class _FakeProxy:

@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QUICK_BACKEND", "software")
 
 from PySide6.QtGui import QGuiApplication  # noqa: E402
 
-from lutris.qt.translations import QmlTranslator  # noqa: E402
+from qtris.qt.translations import QmlTranslator  # noqa: E402
 
 
 @pytest.fixture(scope="session")

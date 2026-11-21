@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Lutris release smoke test - end-to-end checks of the basic features.
+# Qtris release smoke test - end-to-end checks of the basic features.
 #
 # Run this from a git checkout before each release. Everything happens inside a
 # throwaway profile: HOME and the XDG directories point into a temp folder, so
-# the Lutris install of the machine is never modified (except by an explicit
+# the Qtris install of the machine is never modified (except by an explicit
 # --existing-profile copy, which only reads the source).
 #
 # Two scenarios are covered:
@@ -39,21 +39,21 @@ EXISTING_PROFILE=""
 
 usage() {
     cat <<'EOF'
-Lutris release smoke test (end-to-end, basic features).
+Qtris release smoke test (end-to-end, basic features).
 
 Usage: utils/release-smoke-test.sh [options]
 
   --scenario fresh|existing|both   which profile scenario to run (default: both)
-  --existing-profile DIR           also clone a real profile (~/.local/share/lutris)
+  --existing-profile DIR           also clone a real profile (~/.local/share/qtris)
                                    into the sandbox and check that it still loads
   --keep                           keep the sandbox directory and print its path
   --no-gui                         skip the "window stays up" check
-  --with-exec                      also check `lutris -e`, which hangs today; see
+  --with-exec                      also check `qtris -e`, which hangs today; see
                                    https://github.com/lutris/lutris/issues/6997
   --timeout SECONDS                per-command timeout (default: 240)
   -h, --help                       this text
 
-Every command runs on a private D-Bus session, so a Lutris instance running on the
+Every command runs on a private D-Bus session, so a Qtris instance running on the
 machine can neither receive nor answer them.
 
 Exit status: 0 if all checks passed, 1 otherwise.
@@ -99,7 +99,7 @@ if [ "$TIMEOUT" -le 0 ]; then
 fi
 
 if [ "$(id -u)" -eq 0 ]; then
-    echo "error: run the smoke test as a normal user (Lutris refuses to run as root)" >&2
+    echo "error: run the smoke test as a normal user (Qtris refuses to run as root)" >&2
     exit 2
 fi
 
@@ -114,16 +114,16 @@ if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && ! command -v xvfb-r
 fi
 
 # Every command line but --version is forwarded to the primary instance of
-# net.lutris.Lutris when one is running, and redirecting HOME and the XDG
-# directories does not change that. So a Lutris instance
+# io.github.jedace07.Qtris when one is running, and redirecting HOME and the XDG
+# directories does not change that. So a Qtris instance
 # of the machine would receive our --import and run our games against the real library.
 # Re-running the whole script on a private session bus keeps every command inside it.
-if [ -z "${LUTRIS_SMOKE_SESSION:-}" ]; then
+if [ -z "${QTRIS_SMOKE_SESSION:-}" ]; then
     if ! command -v dbus-run-session >/dev/null 2>&1; then
         echo "error: dbus-run-session not found (it is part of the dbus package)" >&2
         exit 2
     fi
-    exec env LUTRIS_SMOKE_SESSION=1 dbus-run-session -- "$SCRIPT_PATH" \
+    exec env QTRIS_SMOKE_SESSION=1 dbus-run-session -- "$SCRIPT_PATH" \
         "${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}"
 fi
 
@@ -136,12 +136,12 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 2
 fi
 PY=$(uv run --project "$REPO_ROOT" --locked python -c 'import sys; print(sys.executable)') || exit 2
-LUTRIS_ENTRY="$(dirname "$PY")/lutris"
+QTRIS_ENTRY="$(dirname "$PY")/qtris"
 
 EXPECTED_VERSION=$("$PY" -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' \
     "$REPO_ROOT/pyproject.toml")
 EXPECTED_MIGRATION_VERSION=$(sed -n 's/^MIGRATION_VERSION = \([0-9]\{1,\}\).*/\1/p' \
-    "$REPO_ROOT/lutris/migrations/__init__.py")
+    "$REPO_ROOT/qtris/migrations/__init__.py")
 if [ -z "$EXPECTED_VERSION" ] || [ -z "$EXPECTED_MIGRATION_VERSION" ]; then
     echo "error: could not read the version from the source tree" >&2
     exit 2
@@ -160,14 +160,14 @@ fi
 # Sandbox
 # ---------------------------------------------------------------------------
 
-SANDBOX=$(mktemp -d "${TMPDIR:-/tmp}/lutris-smoke.XXXXXX") || exit 1
+SANDBOX=$(mktemp -d "${TMPDIR:-/tmp}/qtris-smoke.XXXXXX") || exit 1
 
 cleanup() {
     if [ "$KEEP" -eq 1 ]; then
         printf '\nSandbox kept at %s\n' "$SANDBOX"
     else
         case "$SANDBOX" in
-            */lutris-smoke.*) rm -rf "$SANDBOX" ;;
+            */qtris-smoke.*) rm -rf "$SANDBOX" ;;
         esac
     fi
 }
@@ -235,11 +235,11 @@ profile_reset() { # <scenario-name>
     export XDG_DATA_HOME="$P_HOME/.local/share"
     export XDG_CONFIG_HOME="$P_HOME/.config"
     export XDG_CACHE_HOME="$P_HOME/.cache"
-    unset LUTRIS_SKIP_INIT
+    unset QTRIS_SKIP_INIT
 
-    P_DATA="$XDG_DATA_HOME/lutris"
-    P_CACHE="$XDG_CACHE_HOME/lutris"
-    P_CONF="$P_DATA/lutris.conf"
+    P_DATA="$XDG_DATA_HOME/qtris"
+    P_CACHE="$XDG_CACHE_HOME/qtris"
+    P_CONF="$P_DATA/qtris.conf"
     P_DB="$P_DATA/pga.db"
 }
 
@@ -267,10 +267,10 @@ EOF
 
 # Run the real entry point in the current profile.
 # stdout -> $1, stderr -> $1.stderr, exit status -> $RC
-lutris_run() {
+qtris_run() {
     local log="$1"; shift
     ( cd "$P_WORK" && timeout "$TIMEOUT" "${DISP[@]+"${DISP[@]}"}" \
-        "$LUTRIS_ENTRY" "$@" ) >"$log" 2>"$log.stderr"
+        "$QTRIS_ENTRY" "$@" ) >"$log" 2>"$log.stderr"
     RC=$?
     return 0
 }
@@ -306,11 +306,11 @@ import sys
 repo, games_root, slug, name, platform = sys.argv[1:6]
 sys.path.insert(0, repo)
 
-from lutris.config import write_game_config
-from lutris.database.games import add_game
-from lutris.startup import init_lutris
+from qtris.config import write_game_config
+from qtris.database.games import add_game
+from qtris.startup import init_qtris
 
-init_lutris()
+init_qtris()
 
 game_dir = os.path.join(games_root, slug)
 os.makedirs(game_dir, exist_ok=True)
@@ -347,7 +347,7 @@ seed_legacy_profile() {
     mkdir -p "$P_DATA/games" "$P_CACHE"
     touch "$P_CACHE/auth-token" "$P_CACHE/user.json"
     cat > "$P_CONF" <<EOF
-[lutris]
+[qtris]
 migration_version = $LEGACY_FIXTURE_MIGRATION
 pga_cache_path = $P_ROOT/pga-cache
 hide_media = False
@@ -361,9 +361,9 @@ import sys
 repo, data_dir, games_root = sys.argv[1:4]
 sys.path.insert(0, repo)
 
-from lutris.database import schema
-from lutris.database.games import add_game
-from lutris.util.yaml import write_yaml_to_file
+from qtris.database import schema
+from qtris.database.games import add_game
+from qtris.util.yaml import write_yaml_to_file
 
 schema.syncdb()
 
@@ -438,7 +438,7 @@ launch_and_check() { # <scenario> <slug> <label>
     local scenario="$1" slug="$2" label="$3"
     local marker="$P_GAMES/$slug/launched.marker"
 
-    lutris_run "$P_LOGS/launch-$slug" "lutris:rungame/$slug"
+    qtris_run "$P_LOGS/launch-$slug" "qtris:rungame/$slug"
     expect_eq "$scenario/$label: 'rungame' exits 0" 0 "$RC"
     expect_file "$scenario/$label: the game process actually ran" "$marker"
     expect_eq "$scenario/$label: playtime recorded" "1" \
@@ -457,14 +457,14 @@ scenario_fresh() {
     local scenario=fresh out gui_rc
 
     # F1 - version
-    lutris_run "$P_LOGS/version" --version
+    qtris_run "$P_LOGS/version" --version
     expect_eq "F1 version: '--version' exits 0" 0 "$RC"
-    expect_eq "F1 version: prints lutris-$EXPECTED_VERSION" \
-        "lutris-$EXPECTED_VERSION" "$(tail -n 1 "$P_LOGS/version")"
+    expect_eq "F1 version: prints qtris-$EXPECTED_VERSION" \
+        "qtris-$EXPECTED_VERSION" "$(tail -n 1 "$P_LOGS/version")"
 
     # F2 - first start on an empty profile
-    lutris_run "$P_LOGS/first-start" -l -j
-    expect_eq "F2 library: first 'lutris -l -j' exits 0" 0 "$RC"
+    qtris_run "$P_LOGS/first-start" -l -j
+    expect_eq "F2 library: first 'qtris -l -j' exits 0" 0 "$RC"
     expect_eq "F2 library: empty library is []" "[]" \
         "$(tr -d '[:space:]' < "$P_LOGS/first-start")"
 
@@ -479,13 +479,13 @@ scenario_fresh() {
 
     # F6 - runners. Every JSON runner in the checkout has to appear by name, so a
     # loader regression fails here while adding or removing a runner does not.
-    lutris_run "$P_LOGS/runners" --list-runners
+    qtris_run "$P_LOGS/runners" --list-runners
     out=$(cat "$P_LOGS/runners" 2>/dev/null || true)
     expect_eq "F6 runners: '--list-runners' exits 0" 0 "$RC"
     expect_contains "F6 runners: built-in 'linux' runner listed" "$out" "linux"
     expect_contains "F6 runners: built-in 'wine' runner listed" "$out" "wine"
     local json name json_count=0 missing=()
-    for json in "$REPO_ROOT"/lutris/data/json/*.json; do
+    for json in "$REPO_ROOT"/qtris/data/json/*.json; do
         [ -e "$json" ] || continue
         json_count=$((json_count + 1))
         name=$(basename "$json" .json)
@@ -501,7 +501,7 @@ scenario_fresh() {
 
     # F7 - add a game, it shows up in the library
     seed_linux_game "smoke-fresh-game" "Smoke Fresh Game" "Linux"
-    lutris_run "$P_LOGS/list-game" -l -j
+    qtris_run "$P_LOGS/list-game" -l -j
     out=$(cat "$P_LOGS/list-game" 2>/dev/null || true)
     expect_eq "F7 library: listing a one-game library exits 0" 0 "$RC"
     expect_contains "F7 library: added game is listed" "$out" '"slug": "smoke-fresh-game"'
@@ -512,7 +512,7 @@ scenario_fresh() {
     launch_and_check "$scenario" "smoke-fresh-game" "launch"
 
     # F10 - standalone script output
-    lutris_run "$P_LOGS/script" -b smoke-fresh-game
+    qtris_run "$P_LOGS/script" -b smoke-fresh-game
     expect_eq "F10 script: '-b <slug>' exits 0" 0 "$RC"
     if [ -x "$P_WORK/smoke-fresh-game.sh" ]; then
         ok "F10 script: '<slug>.sh' written and executable"
@@ -524,25 +524,25 @@ scenario_fresh() {
 
     # F11 - export / import
     mkdir -p "$P_ROOT/export" "$P_ROOT/import"
-    lutris_run "$P_LOGS/export" --export smoke-fresh-game --dest "$P_ROOT/export"
+    qtris_run "$P_LOGS/export" --export smoke-fresh-game --dest "$P_ROOT/export"
     expect_file "F11 export: archive created" "$P_ROOT/export/smoke-fresh-game.tar.xz"
-    lutris_run "$P_LOGS/import" --import "$P_ROOT/export/smoke-fresh-game.tar.xz" \
+    qtris_run "$P_LOGS/import" --import "$P_ROOT/export/smoke-fresh-game.tar.xz" \
         --dest "$P_ROOT/import"
     expect_contains "F11 import: game re-added" \
         "$(cat "$P_LOGS/import" 2>/dev/null || true)" "Added game with ID"
 
     # F12 - restarting is idempotent
-    lutris_run "$P_LOGS/second-start" -l -j
+    qtris_run "$P_LOGS/second-start" -l -j
     expect_eq "F12 restart: second startup exits 0" 0 "$RC"
     expect_eq "F12 restart: integrity_check still ok" "ok" "$(db_query 'pragma integrity_check')"
     expect_eq "F12 restart: library size is still 2 after the import" "2" \
         "$(game_count "$P_LOGS/second-start")"
 
-    # F13 - optional: `lutris -e`
+    # F13 - optional: `qtris -e`
     if [ "$WITH_EXEC" -eq 1 ]; then
         mkdir -p "$P_ROOT/exec"
-        lutris_run "$P_LOGS/exec" -e "/bin/sh -c 'printf ok > $P_ROOT/exec/marker'"
-        expect_eq "F13 exec: 'lutris -e' returns" 0 "$RC"
+        qtris_run "$P_LOGS/exec" -e "/bin/sh -c 'printf ok > $P_ROOT/exec/marker'"
+        expect_eq "F13 exec: 'qtris -e' returns" 0 "$RC"
         expect_file "F13 exec: the command ran" "$P_ROOT/exec/marker"
     fi
 
@@ -554,7 +554,7 @@ scenario_fresh() {
         return
     fi
     ( cd "$P_WORK" && timeout --signal=TERM 15 "${DISP[@]+"${DISP[@]}"}" \
-        "$LUTRIS_ENTRY" -d ) >"$P_LOGS/gui" 2>"$P_LOGS/gui.stderr"
+        "$QTRIS_ENTRY" -d ) >"$P_LOGS/gui" 2>"$P_LOGS/gui.stderr"
     gui_rc=$?
     if [ "$gui_rc" -eq 124 ]; then
         ok "F14 gui: window stays up for 15s"
@@ -581,7 +581,7 @@ scenario_existing() {
     seed_legacy_profile
 
     # E1/E2 - first start of the new version on an old profile
-    lutris_run "$P_LOGS/upgrade-list" -l -j
+    qtris_run "$P_LOGS/upgrade-list" -l -j
     out=$(cat "$P_LOGS/upgrade-list" 2>/dev/null || true)
     expect_eq "E1 upgrade: first start exits 0" 0 "$RC"
     expect_contains "E2 library: emulator game still listed" "$out" '"slug": "legacy-emulator"'
@@ -619,7 +619,7 @@ scenario_existing() {
 
     # E7 - migrations must not run twice: the file is left alone on the second start
     migrated_yml=$(cksum "$legacy_yml" | cut -d' ' -f1)
-    lutris_run "$P_LOGS/upgrade-list-2" -l -j
+    qtris_run "$P_LOGS/upgrade-list-2" -l -j
     expect_eq "E7 upgrade: second start exits 0" 0 "$RC"
     expect_eq "E7 upgrade: migrated config not rewritten on restart" \
         "$migrated_yml" "$(cksum "$legacy_yml" | cut -d' ' -f1)"
@@ -663,14 +663,14 @@ scenario_cloned_profile() {
 
     cp -a "$EXISTING_PROFILE/pga.db" "$P_DATA/" || fail "clone: copy pga.db"
 
-    # lutris.conf, games/ and runners/ live in ~/.config/lutris when that folder exists,
+    # qtris.conf, games/ and runners/ live in ~/.config/qtris when that folder exists,
     # and in the data directory when it does not (settings.py: CONFIG_DIR). When both
     # exist the config folder wins, which is what the client does as well.
     local config_source="$EXISTING_PROFILE"
-    local legacy_config="$EXISTING_PROFILE/../../../.config/lutris"
+    local legacy_config="$EXISTING_PROFILE/../../../.config/qtris"
     if [ -d "$legacy_config" ]; then
         config_source="$(cd "$legacy_config" && pwd)"
-        printf '  info: using the ~/.config/lutris layout of this profile\n' >&2
+        printf '  info: using the ~/.config/qtris layout of this profile\n' >&2
     fi
     if [ -d "$config_source/games" ]; then
         cp -a "$config_source/games/." "$P_DATA/games/" || fail "clone: copy games/"
@@ -683,12 +683,12 @@ scenario_cloned_profile() {
     fi
 
     local source_conf=""
-    if [ -f "$config_source/lutris.conf" ]; then
-        source_conf="$config_source/lutris.conf"
+    if [ -f "$config_source/qtris.conf" ]; then
+        source_conf="$config_source/qtris.conf"
     fi
 
-    # A copied lutris.conf may redirect the database or the directories to the real ones
-    # (lutris/settings.py and lutris/cache.py), which would make the sandboxed client
+    # A copied qtris.conf may redirect the database or the directories to the real ones
+    # (qtris/settings.py and qtris/cache.py), which would make the sandboxed client
     # open, and migrate, the user's library. Drop those keys from the copy.
     if [ -n "$source_conf" ]; then
         "$PY" - "$source_conf" "$P_CONF" <<'PY'
@@ -700,14 +700,14 @@ REDIRECTING_KEYS = ("pga_path", "cache_dir", "runner_dir", "runtime_dir", "pga_c
 
 parser = configparser.ConfigParser(interpolation=None)
 parser.read(source)
-if parser.has_section("lutris"):
+if parser.has_section("qtris"):
     for key in REDIRECTING_KEYS:
-        if parser.has_option("lutris", key):
+        if parser.has_option("qtris", key):
             print(
-                "  info: dropped '%s = %s' from the copied lutris.conf" % (key, parser.get("lutris", key)),
+                "  info: dropped '%s = %s' from the copied qtris.conf" % (key, parser.get("qtris", key)),
                 file=sys.stderr,
             )
-            parser.remove_option("lutris", key)
+            parser.remove_option("qtris", key)
 with open(destination, "w", encoding="utf-8") as conf_file:
     parser.write(conf_file)
 PY
@@ -721,8 +721,8 @@ PY
         fail "clone: profile copied" "could not count the games in the copied database"
     fi
 
-    lutris_run "$P_LOGS/clone-list" -l -j
-    expect_eq "clone: 'lutris -l -j' exits 0" 0 "$RC"
+    qtris_run "$P_LOGS/clone-list" -l -j
+    expect_eq "clone: 'qtris -l -j' exits 0" 0 "$RC"
     if [ -n "$before" ]; then
         expect_eq "clone: game count unchanged after upgrade" "$before" \
             "$(db_query 'select count(*) from games' 2>/dev/null)"
@@ -758,7 +758,7 @@ To do the GUI pass, open the client with one of the profiles:
           XDG_DATA_HOME="\$SMOKE/\$1/home/.local/share" \\
           XDG_CONFIG_HOME="\$SMOKE/\$1/home/.config" \\
           XDG_CACHE_HOME="\$SMOKE/\$1/home/.cache" \\
-          dbus-run-session -- "$LUTRIS_ENTRY" -d
+          dbus-run-session -- "$QTRIS_ENTRY" -d
   }
   launch first-run  # never opened: item 1 needs a real first start
   launch fresh      # automated profile: one seeded game
@@ -771,7 +771,7 @@ EOF
 
     cat <<EOF
 
-Quit the client before opening another profile: Lutris is single-instance, and the
+Quit the client before opening another profile: Qtris is single-instance, and the
 private bus above only belongs to that one client.
 Test games: \$SMOKE/first-run/games/{fake-game.sh,sleepy.sh}
 Step-by-step checklist: docs/manual-gui-checklist.rst
@@ -782,7 +782,7 @@ EOF
 # Main
 # ---------------------------------------------------------------------------
 
-printf '%sLutris release smoke test%s\n' "$C_BOLD" "$C_RESET"
+printf '%sQtris release smoke test%s\n' "$C_BOLD" "$C_RESET"
 printf '  repository : %s\n' "$REPO_ROOT"
 printf '  version    : %s\n' "$EXPECTED_VERSION"
 printf '  python     : %s\n' "$PY"

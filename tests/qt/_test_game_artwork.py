@@ -10,13 +10,13 @@ import pytest
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QColor, QGuiApplication, QImage
 
-from lutris.backend import game_artwork
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.qt.delegates import PromptController
-from lutris.qt.game_artwork import GameArtworkController, prepare_image
-from lutris.services.base import LutrisBanner, LutrisCoverart, LutrisIcon
-from lutris.util.test_config import setup_test_environment
+from qtris.backend import game_artwork
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.qt.delegates import PromptController
+from qtris.qt.game_artwork import GameArtworkController, prepare_image
+from qtris.services.base import QtrisBanner, QtrisCoverart, QtrisIcon
+from qtris.util.test_config import setup_test_environment
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -51,13 +51,13 @@ def test_images_are_scaled_to_fit_and_converted(qt_application: QGuiApplication,
         Path(icon).unlink()
 
     (tmp_path / "text.png").write_text("not an image", encoding="utf-8")
-    with pytest.raises(LutrisError):
+    with pytest.raises(QtrisError):
         prepare_image(str(tmp_path / "text.png"), "cover")
 
 
 @pytest.fixture
 def game_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop) -> Iterator[str]:
-    for media_class, folder in ((LutrisCoverart, "coverart"), (LutrisBanner, "banners"), (LutrisIcon, "icons")):
+    for media_class, folder in ((QtrisCoverart, "coverart"), (QtrisBanner, "banners"), (QtrisIcon, "icons")):
         monkeypatch.setattr(media_class, "dest_path", str(tmp_path / folder))
     monkeypatch.setattr(game_artwork.system, "update_desktop_icons", lambda: None)
     monkeypatch.setattr(game_artwork, "forget_misses", lambda slug: None)
@@ -87,7 +87,7 @@ def test_the_controller_stores_and_resets_a_chosen_cover(
     def cover() -> dict[str, Any]:
         return next(image for image in controller.property("images") if image["kind"] == "cover")
 
-    leftovers = set(Path(tempfile.gettempdir()).glob("lutris-artwork-*"))
+    leftovers = set(Path(tempfile.gettempdir()).glob("qtris-artwork-*"))
 
     async def run() -> None:
         controller.open_game(game_id)
@@ -100,7 +100,7 @@ def test_the_controller_stores_and_resets_a_chosen_cover(
         assert QImage(str(stored)).size().width() == 600
         assert cover()["url"].toLocalFile() == str(stored) and cover()["url"].query()
         # The prepared temporary file is gone
-        assert set(Path(tempfile.gettempdir()).glob("lutris-artwork-*")) <= leftovers
+        assert set(Path(tempfile.gettempdir()).glob("qtris-artwork-*")) <= leftovers
 
         controller.reset("cover")
         await wait(lambda: not cover()["custom"])

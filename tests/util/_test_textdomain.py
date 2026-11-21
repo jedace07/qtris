@@ -1,4 +1,4 @@
-"""Guards the import-order constraints documented in lutris.util.textdomain."""
+"""Guards the import-order constraints documented in qtris.util.textdomain."""
 
 import ast
 import contextlib
@@ -14,17 +14,17 @@ import tempfile
 import unittest
 from unittest import mock
 
-from lutris.util import textdomain
+from qtris.util import textdomain
 
 MODULE_PATH = pathlib.Path(textdomain.__file__)
 
 # Importing any of these drags in the cascade of modules that translate strings as
 # they import, which must not happen before the text domain is bound.
-FORBIDDEN_IMPORTS = ("lutris.config", "lutris.settings", "lutris.sysoptions", "lutris.util.i18n")
+FORBIDDEN_IMPORTS = ("qtris.config", "qtris.settings", "qtris.sysoptions", "qtris.util.i18n")
 
 
 class TestImportIsolation(unittest.TestCase):
-    """lutris.util.textdomain must stay importable before the domain is bound."""
+    """qtris.util.textdomain must stay importable before the domain is bound."""
 
     def test_import_pulls_in_nothing_heavy(self):
         """A fresh import must not load any module that translates at import time."""
@@ -33,9 +33,9 @@ class TestImportIsolation(unittest.TestCase):
             "fired = []\n"
             "orig = gettext.gettext\n"
             "gettext.gettext = lambda m: (fired.append(m), orig(m))[1]\n"
-            "import lutris.util.textdomain\n"
+            "import qtris.util.textdomain\n"
             "print(len(fired))\n"
-            "print(' '.join(sorted(m for m in sys.modules if m.startswith('lutris'))))\n"
+            "print(' '.join(sorted(m for m in sys.modules if m.startswith('qtris'))))\n"
         )
         completed = subprocess.run(
             [sys.executable, "-c", script],
@@ -47,10 +47,10 @@ class TestImportIsolation(unittest.TestCase):
         translated, loaded = completed.stdout.splitlines()
 
         self.assertEqual(int(translated), 0, "strings were translated before the domain was bound")
-        # lutris.version comes with the package itself and translates nothing
-        self.assertEqual(loaded.split(), ["lutris", "lutris.util", "lutris.util.textdomain", "lutris.version"])
+        # qtris.version comes with the package itself and translates nothing
+        self.assertEqual(loaded.split(), ["qtris", "qtris.util", "qtris.util.textdomain", "qtris.version"])
 
-    def test_no_module_level_lutris_imports(self):
+    def test_no_module_level_qtris_imports(self):
         """The forbidden imports may appear inside functions, never at module level."""
         tree = ast.parse(MODULE_PATH.read_text())
         for node in tree.body:
@@ -91,7 +91,7 @@ class TestCompileSourceCatalogs(unittest.TestCase):
         self.write_catalog("fr.po", 'msgid "Change"\nmsgstr "Modifier"\n')
         locale_dir = textdomain.compile_source_catalogs(self.source)
         assert locale_dir is not None
-        self.assertTrue((locale_dir / "fr/LC_MESSAGES/lutris.mo").is_file())
+        self.assertTrue((locale_dir / "fr/LC_MESSAGES/qtris.mo").is_file())
 
     @unittest.skipIf(os.geteuid() == 0, "root ignores directory permissions")
     def test_builds_from_read_only_package(self) -> None:
@@ -116,7 +116,7 @@ class TestCompileSourceCatalogs(unittest.TestCase):
         textdomain.compile_source_catalogs(other_source)
         locale_dir = textdomain.compile_source_catalogs(self.source)
         assert locale_dir is not None
-        translation = gettext.translation("lutris", localedir=str(locale_dir), languages=["fr"])
+        translation = gettext.translation("qtris", localedir=str(locale_dir), languages=["fr"])
         self.assertEqual(translation.gettext("Change"), "FROM-A")
 
     @unittest.skipIf(os.geteuid() == 0, "root ignores directory permissions")
@@ -133,7 +133,7 @@ class TestCompileSourceCatalogs(unittest.TestCase):
         self.write_catalog("fr.po", 'msgid "Change"\nmsgstr "Modifier"\n')
         locale_dir = textdomain.compile_source_catalogs(self.source)
         assert locale_dir is not None
-        mo_path = locale_dir / "fr/LC_MESSAGES/lutris.mo"
+        mo_path = locale_dir / "fr/LC_MESSAGES/qtris.mo"
         compiled_at = os.path.getmtime(mo_path)
 
         textdomain.compile_source_catalogs(self.source)
@@ -143,7 +143,7 @@ class TestCompileSourceCatalogs(unittest.TestCase):
         po_path = self.write_catalog("fr.po", 'msgid "Change"\nmsgstr "Modifier"\n')
         locale_dir = textdomain.compile_source_catalogs(self.source)
         assert locale_dir is not None
-        mo_path = locale_dir / "fr/LC_MESSAGES/lutris.mo"
+        mo_path = locale_dir / "fr/LC_MESSAGES/qtris.mo"
         compiled_at = os.path.getmtime(mo_path)
 
         os.utime(po_path, (compiled_at + 10, compiled_at + 10))
@@ -158,15 +158,15 @@ class TestCompileSourceCatalogs(unittest.TestCase):
             locale_dir = textdomain.compile_source_catalogs(self.source)
         self.assertIn("broken.po", reported.getvalue())
         assert locale_dir is not None
-        self.assertTrue((locale_dir / "fr/LC_MESSAGES/lutris.mo").is_file())
-        self.assertFalse((locale_dir / "broken/LC_MESSAGES/lutris.mo").exists())
+        self.assertTrue((locale_dir / "fr/LC_MESSAGES/qtris.mo").is_file())
+        self.assertFalse((locale_dir / "broken/LC_MESSAGES/qtris.mo").exists())
 
     def test_returns_none_without_catalogs(self):
         self.assertIsNone(textdomain.compile_source_catalogs(self.source))
 
 
 class TestNeverFatal(unittest.TestCase):
-    """Translation setup must never stop Lutris from starting."""
+    """Translation setup must never stop Qtris from starting."""
 
     def run_entry_point(self, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         """Run the console entry point in an isolated profile."""
@@ -174,7 +174,7 @@ class TestNeverFatal(unittest.TestCase):
         env = dict(os.environ, LANGUAGE="fr", XDG_CACHE_HOME=root)
         env.update(extra_env or {})
         return subprocess.run(
-            [str(pathlib.Path(sysconfig.get_path("scripts")) / "lutris"), "--help"],
+            [str(pathlib.Path(sysconfig.get_path("scripts")) / "qtris"), "--help"],
             capture_output=True,
             text=True,
             env=env,
@@ -235,7 +235,7 @@ class TestNeverFatal(unittest.TestCase):
 
     def test_uses_precompiled_catalogs_without_msgfmt(self) -> None:
         root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
-        catalog = root / "fr/LC_MESSAGES/lutris.mo"
+        catalog = root / "fr/LC_MESSAGES/qtris.mo"
         catalog.parent.mkdir(parents=True)
         catalog.touch()
         with (
@@ -248,4 +248,4 @@ class TestNeverFatal(unittest.TestCase):
         ):
             textdomain.bind_text_domain()
         compile_catalogs.assert_not_called()
-        bind_catalogs.assert_called_once_with("lutris", str(root))
+        bind_catalogs.assert_called_once_with("qtris", str(root))

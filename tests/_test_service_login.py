@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lutris.delegates import Delegate, InstallUIDelegate, ServiceLoginUIDelegate
-from lutris.services.base import SERVICE_LOGIN, OnlineService
-from lutris.services.humblebundle import HumbleBundleService
-from lutris.services.itchio import ItchIoService
+from qtris.delegates import Delegate, InstallUIDelegate, ServiceLoginUIDelegate
+from qtris.services.base import SERVICE_LOGIN, OnlineService
+from qtris.services.humblebundle import HumbleBundleService
+from qtris.services.itchio import ItchIoService
 
 
 class RecordingLoginDelegate(ServiceLoginUIDelegate):
@@ -123,7 +123,7 @@ def test_default_delegates_never_wait_for_a_user():
 
 
 def test_wine_runs_the_executable_the_user_picks():
-    from lutris.runners.wine import wine
+    from qtris.runners.wine import wine
 
     runner = wine()
     delegate = RecordingLoginDelegate(file="/games/setup.exe")
@@ -134,7 +134,7 @@ def test_wine_runs_the_executable_the_user_picks():
 
 
 def test_wine_runs_nothing_when_the_user_cancels():
-    from lutris.runners.wine import wine
+    from qtris.runners.wine import wine
 
     runner = wine()
     with patch.object(runner, "_run_executable") as run_executable:

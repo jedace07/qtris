@@ -5,9 +5,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from lutris.util.upstream import ReleaseSource
-from lutris.util.wine import dll_manager
-from lutris.util.wine.dll_manager import DLLManager
+from qtris.util.upstream import ReleaseSource
+from qtris.util.wine import dll_manager
+from qtris.util.wine.dll_manager import DLLManager
 
 
 class FakeManager(DLLManager):

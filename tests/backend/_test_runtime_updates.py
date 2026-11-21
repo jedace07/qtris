@@ -6,12 +6,12 @@ from typing import Any
 
 import pytest
 
-from lutris.backend import runtime_updates
-from lutris.backend.models import RuntimeUpdateStatus
-from lutris.runtime import ComponentUpdater, get_components
-from lutris.sysoptions import system_options
-from lutris.util.progress_info import ProgressInfo
-from lutris.util.upstream import ReleaseSource
+from qtris.backend import runtime_updates
+from qtris.backend.models import RuntimeUpdateStatus
+from qtris.runtime import ComponentUpdater, get_components
+from qtris.sysoptions import system_options
+from qtris.util.progress_info import ProgressInfo
+from qtris.util.upstream import ReleaseSource
 from tests.conftest import FakeMainLoop
 
 
@@ -104,6 +104,6 @@ def test_runtime_components_come_from_individual_upstreams() -> None:
     assert not {"dxvk", "vkd3d", "lib32", "lib64", "network-tools"} & components.keys()
 
 
-def test_system_options_no_longer_offer_the_lutris_runtime() -> None:
+def test_system_options_no_longer_offer_the_qtris_runtime() -> None:
     options = {option["option"] for option in system_options}
     assert not {"disable_runtime", "prefer_system_libs"} & options

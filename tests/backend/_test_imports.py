@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from lutris import settings
-from lutris.backend import game_maintenance, imports
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.util import path_cache
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.backend import game_maintenance, imports
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.util import path_cache
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -45,7 +45,7 @@ def test_rom_import_deduplicates_resolved_paths_and_preserves_files(
             assert not duplicate.imported and not duplicate.error
             state = await game_maintenance.get_maintenance_info(game_id)
             assert state.installed and not state.directory and state.files_unavailable_reason
-            with pytest.raises(LutrisError):
+            with pytest.raises(QtrisError):
                 await game_maintenance.uninstall_game(game_id, state, trash_files=True)
             await game_maintenance.uninstall_game(game_id, state, remove_from_library=True)
         finally:

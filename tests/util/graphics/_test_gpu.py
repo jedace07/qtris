@@ -3,7 +3,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from lutris.util.graphics import gpu
+from qtris.util.graphics import gpu
 
 VULKANINFO_SUMMARY = """\
 ==========

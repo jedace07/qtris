@@ -48,14 +48,14 @@ required:
   - slug
   - runner
   - script
-description: Lutris install script
+description: Qtris install script
 type: object
 properties:
   name:
     description: Name of the game, should be surrounded in quotes if containing special characters.
     type: string
   game_slug:
-    description: Game identifier on the Lutris website
+    description: Game identifier on the Lutris.net website
     type: string
   version:
     description: Name of the installer
@@ -276,7 +276,7 @@ properties:
                   description: Space-separated list of processes to monitor when determining if the execute phase finished
                   type: string
                 disable_runtime:
-                  description: Run a process without Lutris runtime
+                  description: Run a process without Qtris runtime
                   type: boolean
                 env:
                   $ref: "#/definitions/env"

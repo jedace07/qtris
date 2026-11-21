@@ -6,13 +6,13 @@ from zipfile import ZipFile
 
 import pytest
 
-from lutris import settings
-from lutris.delegates import InstallUIDelegate
-from lutris.runners import NonInstallableRunnerError
-from lutris.runners.libretro import libretro
-from lutris.runners.runner import Runner
-from lutris.util import flatpak
-from lutris.util.retroarch import locations
+from qtris import settings
+from qtris.delegates import InstallUIDelegate
+from qtris.runners import NonInstallableRunnerError
+from qtris.runners.libretro import libretro
+from qtris.runners.runner import Runner
+from qtris.util import flatpak
+from qtris.util.retroarch import locations
 
 
 def test_download_and_extract_publishes_the_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

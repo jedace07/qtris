@@ -2,7 +2,7 @@ import os
 import tempfile
 from unittest import TestCase
 
-from lutris.util.steam import log
+from qtris.util.steam import log
 
 # Steam writes content_log.txt with CRLF line endings and separates each run
 # from the previous one with an empty line.

@@ -3,7 +3,7 @@ import tempfile
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util.ubisoft import helpers
+from qtris.util.ubisoft import helpers
 
 
 def _normalized(path):

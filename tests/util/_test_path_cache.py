@@ -6,8 +6,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 from unittest.mock import patch
 
-import lutris.util.path_cache as path_cache
-from lutris import settings
+import qtris.util.path_cache as path_cache
+from qtris import settings
 
 
 class FakeGame:
@@ -81,7 +81,7 @@ class TestPathCache(TestCase):
                 raise OSError("disk error")
             return builtins.open(path, *args, **kwargs)
 
-        with patch("lutris.util.path_cache.open", side_effect=fail_open):
+        with patch("qtris.util.path_cache.open", side_effect=fail_open):
             try:
                 path_cache._write_path_cache({"2": "/path/to/second"})
             except OSError:

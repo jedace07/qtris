@@ -5,15 +5,15 @@ import dataclasses
 
 import pytest
 
-from lutris import settings
-from lutris.backend import game_maintenance, games, preferences, runners, services
-from lutris.backend.models import GameInfo
-from lutris.database import games as games_db
-from lutris.database import sql
-from lutris.database.services import ServiceGameCollection
-from lutris.exceptions import GameConfigError
-from lutris.game import Game
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.backend import game_maintenance, games, preferences, runners, services
+from qtris.backend.models import GameInfo
+from qtris.database import games as games_db
+from qtris.database import sql
+from qtris.database.services import ServiceGameCollection
+from qtris.exceptions import GameConfigError
+from qtris.game import Game
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -110,7 +110,7 @@ def test_retired_flatpak_integration_leaves_existing_game_records() -> None:
         assert "flathub" not in {game.service for game in asyncio.run(services.list_service_games())}
         assert asyncio.run(games.get_game(game_id)) is not None
         info = asyncio.run(game_maintenance.get_maintenance_info(game_id))
-        assert info.files_unavailable_reason == "This installation is managed outside Lutris."
+        assert info.files_unavailable_reason == "This installation is managed outside Qtris."
         with pytest.raises(GameConfigError, match="Flatpak runner has been removed"):
             Game(game_id).check_launchable()
     finally:

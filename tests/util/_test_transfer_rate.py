@@ -3,8 +3,8 @@
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.util import downloader
-from lutris.util.downloader import DEFAULT_CHUNK_SIZE, SPEED_WINDOW_SECONDS, SimpleDownloader, TransferRateMeter
+from qtris.util import downloader
+from qtris.util.downloader import DEFAULT_CHUNK_SIZE, SPEED_WINDOW_SECONDS, SimpleDownloader, TransferRateMeter
 
 MEGABYTE = 1024 * 1024
 

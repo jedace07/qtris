@@ -7,12 +7,12 @@ from typing import Any
 
 import pytest
 
-from lutris import settings
-from lutris.backend import installers, services
-from lutris.database import games as games_db
-from lutris.exceptions import LutrisError
-from lutris.services.ubisoft import UbisoftConnectService
-from lutris.util.test_config import setup_test_environment
+from qtris import settings
+from qtris.backend import installers, services
+from qtris.database import games as games_db
+from qtris.exceptions import QtrisError
+from qtris.services.ubisoft import UbisoftConnectService
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 
@@ -65,9 +65,9 @@ def test_catalog_lists_usable_plans_as_plain_choices(scripts: list[dict[str, Any
 
 
 def test_unknown_sources_and_empty_catalogs_are_user_errors() -> None:
-    with pytest.raises(LutrisError, match="source is unavailable"):
+    with pytest.raises(QtrisError, match="source is unavailable"):
         asyncio.run(installers.find_store_installers("unknown-store", "42"))
-    with pytest.raises(LutrisError, match="No installer available"):
+    with pytest.raises(QtrisError, match="No installer available"):
         installers._catalog_from_scripts([])
 
 
@@ -107,12 +107,12 @@ def test_closed_and_evicted_catalogs_are_forgotten(scripts: list[dict[str, Any]]
     async def run() -> None:
         first = installers._catalog_from_scripts(scripts)
         await installers.close_catalog(first.id)
-        with pytest.raises(LutrisError, match="no longer available"):
+        with pytest.raises(QtrisError, match="no longer available"):
             await installers.select_installer(first.id, "0")
 
         oldest = installers._catalog_from_scripts(scripts)
         newer = [installers._catalog_from_scripts(scripts) for _ in range(installers._CATALOG_LIMIT)]
-        with pytest.raises(LutrisError, match="no longer available"):
+        with pytest.raises(QtrisError, match="no longer available"):
             await installers.select_installer(oldest.id, "0")
         for catalog in newer:
             await installers.close_catalog(catalog.id)
@@ -121,9 +121,9 @@ def test_closed_and_evicted_catalogs_are_forgotten(scripts: list[dict[str, Any]]
 
 
 def test_store_content_targets_the_selected_installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from lutris.installer import InstallationKind
-    from lutris.installer.interpreter import ScriptInterpreter
-    from lutris.services.gog import GOGService
+    from qtris.installer import InstallationKind
+    from qtris.installer.interpreter import ScriptInterpreter
+    from qtris.services.gog import GOGService
 
     slug = "shared-install-slug"
     first = tmp_path / "first"
@@ -178,7 +178,7 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
     ]
     saved: dict[str, str] = {}
     monkeypatch.setattr(settings, "write_setting", lambda key, value, section: saved.update({key: value}))
-    monkeypatch.setattr(settings, "read_setting", lambda key, default="", section="lutris": saved.get(key, default))
+    monkeypatch.setattr(settings, "read_setting", lambda key, default="", section="qtris": saved.get(key, default))
     monkeypatch.setattr(UbisoftConnectService, "is_authenticated", lambda self: True)
     monkeypatch.setattr(installers.ServiceGameCollection, "get_game", lambda *_args: {"appid": "test"})
     monkeypatch.setattr(
@@ -186,7 +186,7 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
     )
 
     async def run() -> None:
-        with pytest.raises(LutrisError, match="no longer available"):
+        with pytest.raises(QtrisError, match="no longer available"):
             await services.set_source_launcher("ubisoft", "no-such-launcher")
         await services.set_source_launcher("ubisoft", ids[1])
         assert (await services.list_source_launchers("ubisoft"))[0].id == ids[1]
@@ -195,7 +195,7 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
             selection = await installers.select_installer(catalog.id, "0")
             assert selection.default_directory == str(tmp_path / "preferred-launcher")
             await services.set_source_launcher("ubisoft", ids[0])
-            with pytest.raises(LutrisError, match="launcher changed"):
+            with pytest.raises(QtrisError, match="launcher changed"):
                 await installers.select_installer(catalog.id, "0")
         finally:
             await installers.close_catalog(catalog.id)
@@ -209,7 +209,7 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
 
 @pytest.mark.parametrize(("windows_version", "locale"), [("win10", ""), ("win7", "ja_JP.utf8")])
 def test_windows_setup_preserves_a_literal_executable_path(tmp_path: Path, windows_version: str, locale: str) -> None:
-    from lutris.installer.interpreter import ScriptInterpreter
+    from qtris.installer.interpreter import ScriptInterpreter
 
     executable = tmp_path / "Setup $GAMEDIR.exe"
     executable.touch()

@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
-from lutris.runners.commands import wine as wine_commands
-from lutris.util.test_config import setup_test_environment
+from qtris.runners.commands import wine as wine_commands
+from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
 

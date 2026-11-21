@@ -1,5 +1,5 @@
-from lutris.monitored_command import MonitoredCommand
-from lutris.util.log_buffer import LogBuffer
+from qtris.monitored_command import MonitoredCommand
+from qtris.util.log_buffer import LogBuffer
 
 
 def follow(log_buffer):

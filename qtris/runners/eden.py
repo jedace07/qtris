@@ -1,0 +1,105 @@
+import filecmp
+import os
+from gettext import gettext as _
+from shutil import copyfile
+
+from qtris.exceptions import MissingGameExecutableError
+from qtris.runners.runner import Runner
+from qtris.util import system
+from qtris.util.flatpak import get_app_dir
+from qtris.util.log import logger
+
+FLATPAK_ID = "dev.eden_emu.eden"
+
+
+class eden(Runner):
+    human_name = _("Eden")
+    platform_dict = Runner.to_platform_dict([_("Nintendo Switch")])
+    description = _("Nintendo Switch emulator")
+    runnable_alone = True
+    flatpak_id = FLATPAK_ID
+    game_options = [
+        {
+            "option": "main_file",
+            "type": "file",
+            "label": _("ROM file"),
+            "help": _("The game data, commonly called a ROM image."),
+        }
+    ]
+    runner_options = [
+        {
+            "option": "prod_keys",
+            "label": _("Encryption keys"),
+            "type": "file",
+            "help": _("File containing the encryption keys."),
+        },
+        {
+            "option": "title_keys",
+            "label": _("Title keys"),
+            "type": "file",
+            "help": _("File containing the title keys."),
+        },
+        {
+            "option": "fullscreen",
+            "label": _("Fullscreen"),
+            "type": "bool",
+            "default": True,
+        },
+    ]
+
+    @property
+    def data_dir(self):
+        """Return dir where Eden files lie."""
+        candidates = (str(get_app_dir(FLATPAK_ID) / "data" / "eden"), os.path.expanduser("~/.local/share/eden"))
+        for candidate in candidates:
+            path = system.fix_path_case(os.path.join(candidate, "nand"))
+            if system.path_exists(path):
+                return path[: -len("nand")]
+
+    def play(self):
+        """Run the game."""
+        arguments = self.get_command()
+
+        fullscreen = self.runner_config.get("fullscreen")
+        if fullscreen:
+            arguments.append("-f")
+
+        rom = self.game_config.get("main_file") or ""
+        if not system.path_exists(rom):
+            raise MissingGameExecutableError(filename=rom)
+        arguments += ["-g", rom]
+        return {"command": arguments}
+
+    def _update_key(self, key_type):
+        """Update a keys file if set"""
+        data_dir = self.data_dir
+        if not data_dir:
+            logger.error("Eden data dir not set")
+            return
+        if key_type == "prod_keys":
+            key_loc = os.path.join(data_dir, "keys/prod.keys")
+        elif key_type == "title_keys":
+            key_loc = os.path.join(data_dir, "keys/title.keys")
+        else:
+            logger.error("Invalid keys type %s!", key_type)
+            return
+
+        key = self.runner_config.get(key_type)
+        if not key:
+            logger.debug("No %s file was set.", key_type)
+            return
+        if not system.path_exists(key):
+            logger.warning("Keys file %s does not exist!", key)
+            return
+
+        keys_dir = os.path.dirname(key_loc)
+        if not os.path.exists(keys_dir):
+            os.makedirs(keys_dir)
+        elif os.path.isfile(key_loc) and filecmp.cmp(key, key_loc):
+            # If the files are identical, don't do anything
+            return
+        copyfile(key, key_loc)
+
+    def prelaunch(self):
+        for key in ["prod_keys", "title_keys"]:
+            self._update_key(key_type=key)

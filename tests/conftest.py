@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import pytest
 
-from lutris.util import mainloop
+from qtris.util import mainloop
 
 
 class FakeMainLoop:

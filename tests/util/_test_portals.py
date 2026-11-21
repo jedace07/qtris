@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from gi.repository import Gio, GLib
 
-from lutris.util.portals import TrashPortal
+from qtris.util.portals import TrashPortal
 
 
 class _FakeAsyncResult:
@@ -80,7 +80,7 @@ class TestTrashPortal(TestCase):
         self.addCleanup(self.tmp_dir.cleanup)
         # Our fakes invoke their callbacks immediately, so the reporting
         # callbacks must run immediately too rather than at idle time.
-        patcher = patch("lutris.util.portals.schedule_at_idle", new=lambda func, *args: func(*args))
+        patcher = patch("qtris.util.portals.schedule_at_idle", new=lambda func, *args: func(*args))
         patcher.start()
         self.addCleanup(patcher.stop)
 

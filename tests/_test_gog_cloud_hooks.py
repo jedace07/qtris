@@ -1,4 +1,4 @@
-"""Tests for lutris.services.gog_cloud_hooks
+"""Tests for qtris.services.gog_cloud_hooks
 
 Tests the game lifecycle integration hooks for GOG cloud sync.
 """
@@ -8,13 +8,13 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-import lutris.services.gog_cloud_hooks as _mod
-from lutris.services.gog_cloud import (
+import qtris.services.gog_cloud_hooks as _mod
+from qtris.services.gog_cloud import (
     CloudSaveLocation,
     SyncAction,
     SyncResult,
 )
-from lutris.services.gog_cloud_hooks import (
+from qtris.services.gog_cloud_hooks import (
     _get_game_runner_info,
     _get_gog_service,
     _resolve_save_locations,
@@ -31,7 +31,7 @@ class TestGetGogService(unittest.TestCase):
         mock_service.is_authenticated.return_value = True
 
         mock_gog_mod = MagicMock(GOGService=MagicMock(return_value=mock_service))
-        with patch.dict(sys.modules, {"lutris.services.gog": mock_gog_mod}):
+        with patch.dict(sys.modules, {"qtris.services.gog": mock_gog_mod}):
             result = _get_gog_service()
         self.assertEqual(result, mock_service)
 
@@ -40,12 +40,12 @@ class TestGetGogService(unittest.TestCase):
         mock_service.is_authenticated.return_value = False
 
         mock_gog_mod = MagicMock(GOGService=MagicMock(return_value=mock_service))
-        with patch.dict(sys.modules, {"lutris.services.gog": mock_gog_mod}):
+        with patch.dict(sys.modules, {"qtris.services.gog": mock_gog_mod}):
             result = _get_gog_service()
         self.assertIsNone(result)
 
     def test_returns_none_on_import_error(self):
-        with patch.dict(sys.modules, {"lutris.services.gog": None}):
+        with patch.dict(sys.modules, {"qtris.services.gog": None}):
             result = _get_gog_service()
         self.assertIsNone(result)
 
