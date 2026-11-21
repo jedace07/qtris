@@ -22,7 +22,8 @@ tests/coverage/*
 # Flatpak build output
 build-flatpak
 .flatpak-builder
-qtris.flatpak
+# Bundles, whatever they are named
+/*.flatpak
 
 # tool caches
 .pytest_cache
