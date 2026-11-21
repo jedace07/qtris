@@ -14,34 +14,34 @@ QtObject {
                                  || preference !== "light" && Application.styleHints.colorScheme !== Qt.ColorScheme.Light
 
     // Surfaces, from the window back to the popups in front of it
-    readonly property color window: dark ? "#131417" : "#f5f5f7"
-    readonly property color sidebar: dark ? "#1a1b1f" : "#ebebef"
-    readonly property color surface: dark ? "#1f2025" : "#ffffff"
-    readonly property color raised: dark ? "#25262c" : "#ffffff"
-    readonly property color field: dark ? "#16171a" : "#ffffff"
-    readonly property color control: dark ? "#2a2b31" : "#ffffff"
-    readonly property color controlHover: dark ? "#33353c" : "#f1f1f4"
-    readonly property color controlPressed: dark ? "#3c3e46" : "#e6e6ea"
+    readonly property color window: dark ? "#141319" : "#f6f5f9"
+    readonly property color sidebar: dark ? "#1b1a21" : "#ecebf2"
+    readonly property color surface: dark ? "#201f27" : "#ffffff"
+    readonly property color raised: dark ? "#26252e" : "#ffffff"
+    readonly property color field: dark ? "#17161c" : "#ffffff"
+    readonly property color control: dark ? "#2b2a33" : "#ffffff"
+    readonly property color controlHover: dark ? "#34333e" : "#f2f1f6"
+    readonly property color controlPressed: dark ? "#3d3c48" : "#e7e5ee"
     readonly property color hover: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
     readonly property color pressed: dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.09)
     // The groove of switches and progress bars
-    readonly property color track: dark ? "#3a3c44" : "#d3d4db"
-    readonly property color border: dark ? "#2d2e35" : "#dcdce2"
-    readonly property color borderStrong: dark ? "#3b3d45" : "#c6c7cf"
+    readonly property color track: dark ? "#3b3a47" : "#d5d3de"
+    readonly property color border: dark ? "#2e2d37" : "#dddbe5"
+    readonly property color borderStrong: dark ? "#3c3b47" : "#c8c6d2"
     readonly property color scrim: Qt.rgba(0, 0, 0, dark ? 0.6 : 0.35)
 
     // Text and icons
-    readonly property color text: dark ? "#ececf0" : "#1c1d21"
-    readonly property color textMuted: dark ? "#a2a4ad" : "#5e6069"
-    readonly property color textSubtle: dark ? "#6e717b" : "#8d8f98"
+    readonly property color text: dark ? "#edecf2" : "#1d1c23"
+    readonly property color textMuted: dark ? "#a4a2b0" : "#5f5d6b"
+    readonly property color textSubtle: dark ? "#706e7d" : "#8e8c9a"
 
-    // The Qtris orange, and the states that grow from it
-    readonly property color accent: dark ? "#ff8a3d" : "#e2661c"
-    readonly property color accentHover: dark ? "#ff9c5a" : "#ec7429"
-    readonly property color accentPressed: dark ? "#ec7529" : "#c95714"
-    readonly property color accentSubtle: dark ? Qt.rgba(1, 0.54, 0.24, 0.16) : Qt.rgba(0.89, 0.4, 0.11, 0.12)
-    readonly property color accentText: dark ? "#ffa66b" : "#c0530f"
-    readonly property color textOnAccent: dark ? "#1d1006" : "#ffffff"
+    // The Qtris violet, from the logo, and the states that grow from it
+    readonly property color accent: dark ? "#a58bff" : "#6a3de8"
+    readonly property color accentHover: dark ? "#b5a0ff" : "#774cf0"
+    readonly property color accentPressed: dark ? "#9175f5" : "#5a2fd0"
+    readonly property color accentSubtle: dark ? Qt.rgba(0.65, 0.55, 1, 0.16) : Qt.rgba(0.42, 0.24, 0.91, 0.12)
+    readonly property color accentText: dark ? "#bfadff" : "#5a2fd0"
+    readonly property color textOnAccent: dark ? "#160c33" : "#ffffff"
 
     readonly property color danger: dark ? "#f2615d" : "#d33a3a"
     readonly property color dangerHover: dark ? "#f57874" : "#dd4c4c"

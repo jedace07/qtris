@@ -85,8 +85,8 @@ ItemDelegate {
                 anchors.fill: parent
                 radius: Theme.radiusLarge
                 gradient: Gradient {
-                    GradientStop { position: 0; color: Theme.dark ? "#2a2c33" : "#e9e9ee" }
-                    GradientStop { position: 1; color: Theme.dark ? "#1c1d22" : "#dcdce3" }
+                    GradientStop { position: 0; color: Theme.dark ? "#2b2a34" : "#ebe9f1" }
+                    GradientStop { position: 1; color: Theme.dark ? "#1d1c23" : "#dedce6" }
                 }
                 border.color: Theme.border
                 visible: !card.hasArtwork

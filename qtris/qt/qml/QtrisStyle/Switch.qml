@@ -36,7 +36,7 @@ T.Switch {
             width: 16
             height: 16
             radius: 8
-            color: control.checked ? Theme.textOnAccent : Theme.dark ? "#d8d9de" : "#ffffff"
+            color: control.checked ? Theme.textOnAccent : Theme.dark ? "#d9d8e0" : "#ffffff"
 
             Behavior on x {
                 enabled: !control.down
