@@ -34,12 +34,6 @@ ColumnLayout {
         onAccepted: page.installation.choose_file(fileId, selectedFile)
     }
 
-    NativeDialogs.FolderDialog {
-        id: discPicker
-        title: qsTr("Select the folder where the disc is mounted")
-        onAccepted: page.installation.choose_disc(selectedFolder)
-    }
-
     NativeDialogs.FileDialog {
         id: runnerFilePicker
         title: page.installation.runnerFileTitle
@@ -254,55 +248,6 @@ ColumnLayout {
         enabled: page.installation.filesReady
         text: qsTr("Install")
         onClicked: page.installation.start_files()
-    }
-
-    // A choice the script asks for
-    RowLayout {
-        Layout.fillWidth: true
-        visible: page.stage === "menu"
-
-        ComboBox {
-            id: menu
-            objectName: "installationMenu"
-            Layout.fillWidth: true
-            model: page.installation.menuOptions
-            textRole: "label"
-            valueRole: "id"
-            Accessible.name: page.installation.status
-            // A new model resets the index, so the preselection follows it
-            onModelChanged: currentIndex = page.installation.menuPreselectIndex
-        }
-
-        Button {
-            objectName: "confirmInstallationMenu"
-            highlighted: true
-            text: qsTr("Continue")
-            enabled: menu.currentIndex >= 0
-            onClicked: page.installation.answer_menu(menu.currentValue)
-        }
-    }
-
-    // A disc the script needs
-    RowLayout {
-        visible: page.stage === "disc"
-
-        Button {
-            text: qsTr("Autodetect")
-            onClicked: page.installation.answer_disc("")
-        }
-
-        Button {
-            text: qsTr("Browse…")
-            icon.source: Theme.icon("folder")
-            Accessible.name: qsTr("Browse for the disc")
-            onClicked: discPicker.open()
-        }
-
-        Button {
-            visible: page.installation.discCanEject
-            text: qsTr("Eject")
-            onClicked: page.installation.eject_disc()
-        }
     }
 
     ScrollView {

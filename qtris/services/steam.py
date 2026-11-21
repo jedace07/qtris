@@ -112,18 +112,18 @@ class SteamService(BaseService):
                 continue
             game = self.game_class.new_from_steam_game(steam_game)
             game.save()
-        self.match_games()
+        self.copy_playtimes()
         return steam_games
 
-    def match_game(self, service_game, qtris_game):
-        super().match_game(service_game, qtris_game)
-
-        if service_game:
-            # Copy playtimes from Steam's data
-            for game in get_games(filters={"service": self.id, "service_id": service_game["appid"]}):
-                steam_game_playtime = json.loads(service_game["details"]).get("playtime_forever")
-                playtime = steam_game_playtime / 60
-                sql.db_update(settings.DB_PATH, "games", {"playtime": playtime}, conditions={"id": game["id"]})
+    def copy_playtimes(self) -> None:
+        """Give the library's Steam games the play time Steam recorded for them."""
+        for game in get_games(filters={"service": self.id}):
+            service_game = ServiceGameCollection.get_game(self.id, game["service_id"])
+            if not service_game:
+                continue
+            minutes = json.loads(str(service_game["details"])).get("playtime_forever")
+            if isinstance(minutes, int | float):
+                sql.db_update(settings.DB_PATH, "games", {"playtime": minutes / 60}, conditions={"id": game["id"]})
 
     def get_installer_files(self, installer, _installer_file_id):
         steam_uri = "$STEAM:%s:."

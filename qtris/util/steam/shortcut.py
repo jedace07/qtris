@@ -11,8 +11,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-from qtris.api import format_installer_url
 from qtris.exceptions import QtrisError
+from qtris.uri import format_installer_url
 from qtris.util import resources, system
 from qtris.util.log import logger
 from qtris.util.steam import vdf

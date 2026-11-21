@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from qtris import settings
-from qtris.api import parse_installer_url
 from qtris.backend import games, shortcuts
 from qtris.backend.launch_configurations import BackendLaunchUIDelegate, LaunchChoice
 from qtris.backend.models import GameInfo
@@ -16,6 +15,7 @@ from qtris.database import games as games_db
 from qtris.delegates import CommandLineUIDelegate, LaunchUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.game import Game
+from qtris.uri import parse_installer_url
 from qtris.util import xdgshortcuts
 from qtris.util.steam import shortcut as steam_shortcut
 from qtris.util.test_config import setup_test_environment

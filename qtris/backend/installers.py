@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from qtris import sysoptions
-from qtris.api import parse_installer_url
 from qtris.backend.models import InstallerCatalog, InstallerChoice, InstallerSelection
 from qtris.database import games as games_db
 from qtris.database.services import ServiceGameCollection
@@ -28,6 +27,7 @@ from qtris.installer.interpreter import ScriptInterpreter
 from qtris.runners import get_runner_human_name, is_valid_runner_name
 from qtris.services import SERVICES
 from qtris.services.base import OnlineService
+from qtris.uri import parse_installer_url
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 

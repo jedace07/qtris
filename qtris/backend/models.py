@@ -200,12 +200,6 @@ class InstallerExtraInfo:
 
 
 @dataclass(frozen=True)
-class InstallerMenuOption:
-    id: str
-    label: str
-
-
-@dataclass(frozen=True)
 class InstallerRunnerPrompt:
     title: str
     question: str
@@ -218,8 +212,8 @@ class InstallationInfo:
 
     id: str
     game_name: str
-    # "preparing", "runner_prompt", "extras", "files", "downloading", "installing", "menu", "disc",
-    # "cancelling", "finished", "failed" or "cancelled"
+    # "preparing", "runner_prompt", "extras", "files", "downloading", "installing", "cancelling",
+    # "finished", "failed" or "cancelled"
     stage: str
     # Whether the installation is still going, rather than finished, failed or cancelled
     running: bool
@@ -229,10 +223,6 @@ class InstallationInfo:
     progress_text: str
     extras: tuple[InstallerExtraInfo, ...] = ()
     files: tuple[InstallerFileInfo, ...] = ()
-    menu_options: tuple[InstallerMenuOption, ...] = ()
-    menu_preselect: str = ""
-    disc_requires: str = ""
-    disc_can_eject: bool = False
     runner_prompt: InstallerRunnerPrompt | None = None
     # Whether installer commands have written output, which get_installation_log returns
     has_log: bool = False

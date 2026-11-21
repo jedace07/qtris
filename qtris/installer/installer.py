@@ -5,9 +5,6 @@ import re
 from functools import cached_property
 from gettext import gettext as _
 
-import requests
-
-from qtris.api import get_game_details
 from qtris.config import QtrisConfig, write_game_config
 from qtris.database.games import DbGameDict, add_or_update, get_game_by_field, get_games
 from qtris.exceptions import AuthenticationError, UnavailableGameError
@@ -18,8 +15,6 @@ from qtris.runners import import_runner
 from qtris.services import SERVICES
 from qtris.util.game_finder import find_linux_game_executable, find_windows_game_executable
 from qtris.util.log import logger
-from qtris.util.moddb import ModDB, is_moddb_url
-from qtris.util.retroarch.substitutes import translate_script
 from qtris.util.system import fix_path_case
 
 # Matches the $GAMEDIR (or ${GAMEDIR}) variable that expands to the install directory
@@ -45,8 +40,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
 
         if not self.script:
             raise ScriptingError(_("This installer doesn't have a 'script' section"))
-        # Scripts for emulators that RetroArch cores replaced, or that were renamed, use their successors
-        self.runner, self.script = translate_script(self.runner, self.script)
 
         self.service = self.get_service(initial=service)
         self.service_appid = self.get_appid(installer, initial=appid)
@@ -63,7 +56,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         self.extends = self.script.get("extends")
         self.game_id = self.get_game_id()
         self.post_install_hooks = []
-        self.discord_id = installer.get("discord_id")
 
     def get_service(self, initial=None):
         if initial:
@@ -99,17 +91,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             return service_id
         return
 
-    def _get_discord_id_from_api(self):
-        """Fetch the discord_id from the Lutris.net API if available."""
-        if not self.game_slug:
-            return None
-        try:
-            game_details = get_game_details(self.game_slug)
-            return game_details.get("discord_id") or None
-        except Exception as ex:
-            logger.debug("Unable to fetch Discord ID for %s: %s", self.game_slug, ex)
-            return None
-
     @property
     def script_pretty(self):
         """Return a pretty print of the script"""
@@ -142,8 +123,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         if self.script_files or self.script.get("game", {}).get("gog") or self.script.get("game", {}).get("prefix"):
             return True
         command_names = [self.interpreter._get_command_name_and_params(c)[0] for c in self.script.get("installer", [])]
-        if "insert_disc" in command_names:
-            return True
         if "gogdl_setup" in command_names:
             return True
         if self.uses_gamedir_variable:
@@ -212,18 +191,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         # Run variable substitution on the URLs from the script
         for file in files:
             file.set_url(self.interpreter._substitute(file.url))
-            if is_moddb_url(file.url):
-                moddb_url = file.url
-                try:
-                    file.set_url(ModDB().transform_url(moddb_url))
-                except requests.RequestException as ex:
-                    logger.warning("Unable to resolve ModDB URL %s: %s", moddb_url, ex)
-                    file.set_url(
-                        "N/A:"
-                        + _("Download from {url} and select the file here").format(
-                            url=moddb_url,
-                        )
-                    )
 
         if installer_file_id and self.service:
             logger.info("Getting files for %s", installer_file_id)
@@ -321,15 +288,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             except ValueError as err:
                 raise ScriptingError(_("Invalid 'game' section"), faulty_data=self.script["game"]) from err
 
-        # Obsolete install scripts may have the entry point key at root level;
-        # we'll move them into the game-config if so, and if they are not already
-        # there. Add a warning because I'm sure this compatibility ship will get lost,
-        # and the scripts would be better updated.
-        for entry_point_key in ENTRY_POINT_KEYS:
-            if entry_point_key in self.script and entry_point_key not in game_config:
-                logger.warning("Moving entry point '%s' from script root level to the game config", entry_point_key)
-                game_config[entry_point_key] = self.script[entry_point_key]
-
         game_config = self._substitute_config(game_config)
         if AUTO_ELF_EXE in game_config.get("exe", ""):
             game_config["exe"] = find_linux_game_executable(self.interpreter.target_path, make_executable=True)
@@ -373,10 +331,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             self.game_id = self.get_game_id()
         game_config = self.get_game_config()
         configpath = write_game_config(self.slug, game_config)
-        discord_id = self.discord_id
-        if not discord_id:
-            discord_id = self._get_discord_id_from_api()
-
         self.game_id = add_or_update(
             name=self.game_name,
             runner=self.runner,
@@ -391,6 +345,5 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             service=self.service.id if self.service else None,
             service_id=self.service_appid,
             id=self.game_id,
-            discord_id=discord_id,
         )
         return self.game_id, game_config

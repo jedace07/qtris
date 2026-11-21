@@ -25,7 +25,7 @@ from qtris.monitored_command import MonitoredCommand
 from qtris.runner_interpreter import export_bash_script, get_launch_parameters
 from qtris.runners import import_runner, is_valid_runner_name
 from qtris.runners.runner import Runner, kill_processes
-from qtris.util import busy, discord, extract, jobs, linux, strings, system, xdgshortcuts
+from qtris.util import busy, extract, jobs, linux, strings, system, xdgshortcuts
 from qtris.util.display import (
     SCREEN_SAVER_INHIBITOR,
     disable_compositing,
@@ -124,8 +124,6 @@ class Game:
         except ValueError as ex:
             logger.exception("Unable to parse playtime '%s' for game %s: %s", game_data.get("playtime"), self.slug, ex)
             self.playtime = 0.0
-
-        self.discord_id = game_data.get("discord_id")  # Discord App ID for RPC
 
         self._runner = None
 
@@ -527,7 +525,6 @@ class Game:
             "playtime": self.playtime,
             "service": self.service,
             "service_id": self.appid,
-            "discord_id": self.discord_id,
             "has_custom_banner": "banner" in self.custom_images,
             "has_custom_icon": "icon" in self.custom_images,
             "has_custom_coverart_big": "coverart_big" in self.custom_images,
@@ -863,13 +860,6 @@ class Game:
         self.state = self.STATE_RUNNING
         GAME_STARTED.fire(self)
 
-        # Game is running, let's update discord status
-        if settings.read_setting("discord_rpc") == "True" and self.discord_id:
-            try:
-                discord.client.update(self.discord_id)
-            except AssertionError:
-                pass
-
         self.heartbeat = GLib.timeout_add(HEARTBEAT_DELAY, self.beat)
         with open(self.now_playing_path, "w", encoding="utf-8") as np_file:
             np_file.write(self.name)
@@ -1100,14 +1090,6 @@ class Game:
         if self.runner.system_config.get("use_us_layout"):
             with subprocess.Popen(["setxkbmap"], env=os.environ) as setxkbmap:
                 setxkbmap.communicate()
-
-        # Clear Discord Client Status
-        if settings.read_setting("discord_rpc") == "True" and self.discord_id:
-            try:
-                discord.client.clear()
-            except:
-                # Shut up no one cares about you or your errors
-                pass
 
         self.process_return_codes()
 

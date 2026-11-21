@@ -33,7 +33,6 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.game import LOG_BUFFERS, Game
 from qtris.installer import interpreter
-from qtris.installer.installer import QtrisInstaller
 from qtris.qt import store_sources
 from qtris.qt.main_window import MainWindow
 from qtris.services.base import QtrisBanner, QtrisCoverart
@@ -470,7 +469,6 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "installer-cache"))
     monkeypatch.setattr(settings, "write_setting", lambda *_args: None)
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     setup = tmp_path / "setup.txt"
     setup.write_text("game data", encoding="utf-8")
     target = tmp_path / "Games" / "qt-installed"
@@ -483,11 +481,7 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
         "script": {
             "game": {"exe": "$GAMEDIR/setup.txt"},
             "files": [{"setup": "N/A:Select the game data"}],
-            "installer": [
-                {"input_menu": {"id": "LANG", "options": [{"en": "English"}, {"fr": "French"}], "preselect": "fr"}},
-                {"copy": {"src": "setup", "dst": "$GAMEDIR"}},
-                {"write_file": {"file": "$GAMEDIR/lang.txt", "content": "$INPUT_LANG"}},
-            ],
+            "installer": [{"copy": {"src": "setup", "dst": "$GAMEDIR"}}],
         },
     }
     monkeypatch.setattr(GOGService, "generate_installers", lambda self, row: [script])
@@ -538,12 +532,6 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
             files = window.window.findChild(QObject, "startInstallationFiles")
             assert files is not None and QMetaObject.invokeMethod(files, "clicked")
 
-            await wait_for_qml(qt_application, reached("menu"))
-            menu = window.window.findChild(QObject, "installationMenu")
-            assert menu is not None and menu.property("currentValue") == "fr"
-            confirm = window.window.findChild(QObject, "confirmInstallationMenu")
-            assert confirm is not None and QMetaObject.invokeMethod(confirm, "clicked")
-
             await wait_for_qml(qt_application, reached("finished"))
             launch = window.window.findChild(QObject, "installerLaunch")
             assert launch is not None and launch.property("visible")
@@ -564,7 +552,6 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
 
     asyncio.run(run())
     assert (target / "setup.txt").read_text(encoding="utf-8") == "game data"
-    assert (target / "lang.txt").read_text(encoding="utf-8") == "fr"
 
 
 def test_qml_configures_a_game_and_the_global_options(

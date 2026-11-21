@@ -13,7 +13,7 @@ from gettext import gettext as _
 from pathlib import Path
 from typing import IO
 
-from gi.repository import Gio, GLib
+from gi.repository import GLib
 
 from qtris import settings
 from qtris.exceptions import MissingExecutableError
@@ -717,28 +717,6 @@ def get_locale_list() -> list[str]:
 def get_running_pid_list() -> list[int]:
     """Return the list of PIDs from processes currently running"""
     return [int(p) for p in os.listdir("/proc") if p[0].isdigit()]
-
-
-def get_mounted_discs() -> list[str | None]:
-    """Return a list of mounted discs and ISOs
-
-    :rtype: list of Gio.Mount
-    """
-    volumes = Gio.VolumeMonitor.get()
-    drives = []
-
-    for mount in volumes.get_mounts():
-        volume = mount.get_volume()
-        if volume:
-            device = volume.get_identifier("unix-device")
-            if not device:
-                logger.debug("No device for mount %s", mount.get_name())
-                continue
-
-            # Device is a disk drive or ISO image
-            if "/dev/sr" in device or "/dev/loop" in device:
-                drives.append(mount.get_root().get_path())
-    return drives
 
 
 def find_mount_point(path: str) -> str:

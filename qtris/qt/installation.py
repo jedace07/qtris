@@ -104,23 +104,6 @@ class InstallationController(QObject):
     def filesReady(self) -> bool:  # noqa: N802
         return bool(self._info and all(file.ready for file in self._info.files))
 
-    @Property(list, notify=stateChanged)
-    def menuOptions(self) -> list[dict[str, str]]:  # noqa: N802
-        if not self._info:
-            return []
-        return [{"id": option.id, "label": option.label} for option in self._info.menu_options]
-
-    @Property(int, notify=stateChanged)
-    def menuPreselectIndex(self) -> int:  # noqa: N802
-        if not self._info:
-            return -1
-        ids = [option.id for option in self._info.menu_options]
-        return ids.index(self._info.menu_preselect) if self._info.menu_preselect in ids else -1
-
-    @Property(bool, notify=stateChanged)
-    def discCanEject(self) -> bool:  # noqa: N802
-        return bool(self._info and self._info.disc_can_eject)
-
     @Property(str, notify=stateChanged)
     def runnerQuestion(self) -> str:  # noqa: N802
         return self._info.runner_prompt.question if self._info and self._info.runner_prompt else ""
@@ -243,20 +226,6 @@ class InstallationController(QObject):
         if installation_id := self._id():
             self._call(installations.retry_file(installation_id, file_id))
 
-    @Slot(str)
-    def answer_menu(self, option_id: str) -> None:
-        if installation_id := self._id():
-            self._call(installations.answer_menu(installation_id, option_id))
-
-    @Slot(str)
-    def answer_disc(self, path: str) -> None:
-        if installation_id := self._id():
-            self._call(installations.answer_disc(installation_id, path))
-
-    @Slot(QUrl)
-    def choose_disc(self, url: QUrl) -> None:
-        self.answer_disc(url.toLocalFile())
-
     @Slot(bool)
     def answer_runner(self, accepted: bool) -> None:
         if (installation_id := self._id()) and self.stage == "runner_prompt":
@@ -266,11 +235,6 @@ class InstallationController(QObject):
     def choose_runner_file(self, url: QUrl) -> None:
         if (installation_id := self._id()) and self.stage == "runner_prompt":
             self._call(installations.answer_runner(installation_id, url.toLocalFile() or None))
-
-    @Slot()
-    def eject_disc(self) -> None:
-        if installation_id := self._id():
-            self._call(installations.eject_disc(installation_id))
 
     @Slot(bool)
     def cancel(self, remove_files: bool) -> None:

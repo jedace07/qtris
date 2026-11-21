@@ -1,4 +1,4 @@
-"""Games and install scripts for emulators that RetroArch cores replaced."""
+"""Games of emulators that RetroArch cores replaced."""
 
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from qtris import settings
 from qtris.migrations.retire_standalone_emulators import migrate_config
 from qtris.util.retroarch import content
 from qtris.util.retroarch.content import get_content_path
-from qtris.util.retroarch.substitutes import translate_game_config, translate_runner, translate_script
+from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
 
 
 def test_rom_runners_become_their_core() -> None:
@@ -30,25 +30,9 @@ def test_other_runners_are_left_alone() -> None:
     assert translate_game_config("wine", {"exe": "game.exe"}) == {"exe": "game.exe"}
 
 
-def test_scripts_use_libretro_and_drop_the_old_runners_options() -> None:
-    script = {
-        "game": {"main_file": "$GAMEDIR/dosbox_single.conf", "config_file": "$GAMEDIR/dosbox.conf"},
-        "dosbox": {"scaler": "hq3x"},
-        "installer": [{"task": {"name": "dosbox.dosexec", "executable": "$GAMEDIR/INSTALL.EXE"}}, {"merge": {}}],
-    }
-    runner, translated = translate_script("dosbox", script)
-    assert runner == "libretro"
-    assert "dosbox" not in translated
-    assert translated["game"]["core"] == "dosbox_pure"
-    assert translated["installer"][0]["task"]["name"] == "libretro.dosexec"
-    assert translated["installer"][1] == {"merge": {}}
-    assert script["installer"][0]["task"]["name"] == "dosbox.dosexec"
-
-
 def test_renamed_runners_keep_their_options() -> None:
-    runner, translated = translate_script("yuzu", {"game": {"main_file": "game.nsp"}, "yuzu": {"fullscreen": False}})
-    assert runner == "eden"
-    assert translated == {"game": {"main_file": "game.nsp"}, "eden": {"fullscreen": False}}
+    config = {"game": {"main_file": "game.nsp"}, "yuzu": {"fullscreen": False}}
+    assert migrate_config("yuzu", config) == {"game": {"main_file": "game.nsp"}, "eden": {"fullscreen": False}}
 
 
 def test_migration_moves_game_options_to_libretro() -> None:

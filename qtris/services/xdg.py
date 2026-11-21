@@ -93,10 +93,6 @@ class XDGService(BaseService):
             return False
         return True
 
-    def match_games(self):
-        """XDG games aren't on the Lutris.net website"""
-        return
-
     def load(self):
         """Return the list of games stored in the XDG menu."""
         xdg_games = [XDGGame.new_from_xdg_app(app) for app in self.iter_xdg_games()]

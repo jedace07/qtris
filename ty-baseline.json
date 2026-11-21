@@ -1,14 +1,6 @@
 {
   "version": 0,
   "files": {
-    "qtris/api.py": [
-      {
-        "rule": "invalid-explicit-return",
-        "startColumn": 11,
-        "endColumn": 5,
-        "lineCount": 8
-      }
-    ],
     "qtris/game.py": [
       {
         "rule": "redundant-cast",
@@ -1403,14 +1395,6 @@
         "lineCount": 1
       }
     ],
-    "qtris/util/moddb.py": [
-      {
-        "rule": "not-callable",
-        "startColumn": 20,
-        "endColumn": 51,
-        "lineCount": 1
-      }
-    ],
     "qtris/util/steam/shortcut.py": [
       {
         "rule": "invalid-argument-type",
@@ -1614,26 +1598,6 @@
         "rule": "invalid-argument-type",
         "startColumn": 31,
         "endColumn": 118,
-        "lineCount": 1
-      }
-    ],
-    "tests/_test_api.py": [
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 25,
-        "endColumn": 48,
-        "lineCount": 1
-      },
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 25,
-        "endColumn": 48,
-        "lineCount": 1
-      },
-      {
-        "rule": "not-subscriptable",
-        "startColumn": 25,
-        "endColumn": 48,
         "lineCount": 1
       }
     ],
@@ -1886,26 +1850,6 @@
         "rule": "missing-union-attribute",
         "startColumn": 12,
         "endColumn": 37,
-        "lineCount": 1
-      }
-    ],
-    "tests/_test_moddb_helper.py": [
-      {
-        "rule": "missing-union-attribute",
-        "startColumn": 33,
-        "endColumn": 44,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 21,
-        "endColumn": 45,
-        "lineCount": 1
-      },
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 21,
-        "endColumn": 35,
         "lineCount": 1
       }
     ],

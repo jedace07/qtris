@@ -24,7 +24,6 @@ from qtris.backend.models import (
     InstallationInfo,
     InstallerExtraInfo,
     InstallerFileInfo,
-    InstallerMenuOption,
     InstallerRunnerPrompt,
 )
 from qtris.config import QtrisConfig
@@ -65,8 +64,6 @@ _ACTIVE_STAGES = {
     "files",
     "downloading",
     "installing",
-    "menu",
-    "disc",
     "cancelling",
 }
 
@@ -116,16 +113,6 @@ class _RunnerDelegate(InstallUIDelegate):
         self._installation.on_thread(lambda: self._installation.set_progress(fraction, progress))
 
 
-class _MenuAnswer:
-    """What the interpreter's input menu callback expects of the widget it was given."""
-
-    def __init__(self, option_id: str) -> None:
-        self._option_id = option_id
-
-    def get_active_id(self) -> str:
-        return self._option_id
-
-
 class _InterpreterDelegate(ScriptInterpreter.InterpreterUIDelegate):
     """Turns the interpreter's calls, from any thread, into installation changes. The
     interpreter is built before its installation, which attaches itself afterwards."""
@@ -148,13 +135,6 @@ class _InterpreterDelegate(ScriptInterpreter.InterpreterUIDelegate):
         # Attached at once, so no output is missed
         command.set_log_buffer(self._installation.log)
         self._installation.on_thread(self._installation.show_log)
-
-    def begin_input_menu(self, alias: str | None, options: list[dict[str, str]], preselect: str, callback: Any) -> None:
-        self._installation.on_thread(lambda: self._installation.ask_menu(alias, options, preselect, callback))
-
-    def begin_disc_prompt(self, message: str, requires: str, installer: Any, callback: Any) -> None:
-        can_eject = installer.runner == "wine"
-        self._installation.on_thread(lambda: self._installation.ask_disc(message, requires, can_eject, callback))
 
     def report_finished(self, game_id: str, status: str) -> None:
         self._installation.on_thread(lambda: self._installation.finish(game_id, status))
@@ -243,8 +223,6 @@ class _Installation:
         self.extras: dict[str, dict[str, Any]] = {}
         self.extra_sources: dict[str, str] = {}
         self.files: dict[str, _FileEntry] = {}
-        self.menu: tuple[str | None, tuple[InstallerMenuOption, ...], str, Any] | None = None
-        self.disc: tuple[str, bool, Any] | None = None
         self.has_log = False
         self.commands_started = False
         self.game_id = ""
@@ -261,10 +239,6 @@ class _Installation:
         return self.stage in _ACTIVE_STAGES
 
     def info(self) -> InstallationInfo:
-        menu_options: tuple[InstallerMenuOption, ...] = ()
-        preselect = ""
-        if self.menu:
-            _alias, menu_options, preselect, _callback = self.menu
         return InstallationInfo(
             id=self.id,
             game_name=self.interpreter.installer.game_name,
@@ -278,10 +252,6 @@ class _Installation:
                 for extra_id, extra in self.extras.items()
             ),
             files=tuple(entry.info() for entry in self.files.values()),
-            menu_options=menu_options,
-            menu_preselect=preselect,
-            disc_requires=self.disc[0] if self.disc else "",
-            disc_can_eject=bool(self.disc and self.disc[1]),
             runner_prompt=self.runner_prompt,
             has_log=self.has_log,
             can_remove_files=self._can_remove_files(),
@@ -558,52 +528,6 @@ class _Installation:
         except Exception as error:
             self.fail(error)
 
-    def ask_menu(self, alias: str | None, options: list[dict[str, str]], preselect: str, callback: Any) -> None:
-        if not self.active:
-            return
-        choices = tuple(
-            InstallerMenuOption(id=str(key), label=str(label)) for option in options for key, label in option.items()
-        )
-        self.menu = (alias, choices, preselect, callback)
-        self._enter("menu", self.status or _("Choose an option"))
-
-    def answer_menu(self, option_id: str) -> None:
-        self._require_stage("menu")
-        assert self.menu is not None
-        alias, choices, _preselect, callback = self.menu
-        if option_id not in {choice.id for choice in choices}:
-            raise QtrisError(_("Choose one of the options."))
-        self.menu = None
-        self._enter("installing", self.status, progress=-1.0)
-        try:
-            callback(alias, _MenuAnswer(option_id))
-        except Exception as error:
-            self.fail(error)
-
-    def ask_disc(self, message: str, requires: str, can_eject: bool, callback: Any) -> None:
-        if not self.active:
-            return
-        self.disc = (requires, can_eject, callback)
-        self._enter("disc", _plain(message))
-
-    def answer_disc(self, path: str) -> None:
-        self._require_stage("disc")
-        assert self.disc is not None
-        requires, _can_eject, callback = self.disc
-        try:
-            callback(None, requires, path or None)
-        except RuntimeError as error:
-            self.status = str(error)
-            self.changed()
-            return
-        self.disc = None
-        if self.stage == "disc":
-            self._enter("installing", _("Installing game data"), progress=-1.0)
-
-    def eject_disc(self) -> None:
-        self._require_stage("disc")
-        self.interpreter.eject_wine_disc()
-
     def finish(self, game_id: str, status: str) -> None:
         if not self.active:
             return
@@ -776,21 +700,8 @@ async def retry_file(installation_id: str, file_id: str) -> None:
     _get(installation_id).retry_file(file_id)
 
 
-async def answer_menu(installation_id: str, option_id: str) -> None:
-    _get(installation_id).answer_menu(option_id)
-
-
 async def answer_runner(installation_id: str, answer: str | None) -> None:
     _get(installation_id).answer_runner(answer)
-
-
-async def answer_disc(installation_id: str, path: str = "") -> None:
-    """Continue with a disc mounted at a path; without one, look through the mounted discs."""
-    _get(installation_id).answer_disc(path)
-
-
-async def eject_disc(installation_id: str) -> None:
-    await asyncio.to_thread(_get(installation_id).eject_disc)
 
 
 async def cancel_installation(installation_id: str, remove_files: bool = True) -> None:

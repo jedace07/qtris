@@ -172,12 +172,6 @@ class Runner:  # pylint: disable=too-many-public-methods
         will place its cache cache in a subdirectory here."""
         return self.shader_cache_dir
 
-    @property
-    def discord_client_id(self) -> str | None:
-        if self.game_data.get("discord_client_id"):
-            return cast(str, self.game_data.get("discord_client_id"))
-        return None
-
     @staticmethod
     def to_platform_dict(platform_list: list[str]) -> dict[str, str]:
         """

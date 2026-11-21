@@ -9,7 +9,6 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
 from qtris import settings
-from qtris.api import normalize_version_architecture
 from qtris.config import QtrisConfig, is_option_visible
 from qtris.database.games import get_game_by_field
 from qtris.exceptions import (
@@ -23,12 +22,7 @@ from qtris.game import Game
 from qtris.runners import NonInstallableRunnerError, RunnerInstallationError
 from qtris.runners.commands.wine import (  # noqa: F401 pylint: disable=unused-import
     create_prefix,
-    delete_registry_key,
-    eject_disc,
-    install_cab_component,
     open_wine_terminal,
-    set_regedit,
-    set_regedit_file,
     winecfg,
     wineexec,
     winekill,
@@ -47,6 +41,7 @@ from qtris.util.wine import proton
 from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
+from qtris.util.wine.versions import normalize_version_architecture
 from qtris.util.wine.wine import (
     GE_PROTON_LATEST,
     WINE_DEFAULT_ARCH,

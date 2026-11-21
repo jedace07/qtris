@@ -24,8 +24,6 @@ dependencies = [
     "dbus-python>=1.5.1",
     "evdev>=2.0.0",
     "PyGObject>=3.58.0",  # For GLib and Gio, which run the main loop
-    "pypresence>=4.6.2",
-    "moddb>=0.16.0",
     # Optional at runtime (guarded imports), but they back real features:
     # icons extracted from Windows executables, and WebDAV save sync
     "pefile>=2024.8.26",
@@ -110,7 +108,6 @@ ignore = [
     "ARG002", # Unused method argument: `mock_path_exists`
     "E722", # Do not use bare `except`
     "B904", # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
-    "B008", # Do not perform function call `_try_import_moddb_library` in argument defaults; instead, perform the call within the function, or read the default from a module-level singleton variable
     "ARG005", # Unused lambda argument: `e`
     "ARG001", # Unused function argument: `args`
     "PERF402", # Use `list` or `list.copy` to create a copy of a list

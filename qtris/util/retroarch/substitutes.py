@@ -1,7 +1,7 @@
 """The libretro cores that replace the standalone emulators Qtris used to run.
 
-Games and install scripts that name one of these runners run through RetroArch with
-the matching core instead. Their game options move to the libretro runner, and the
+Games made for one of these runners, and the DOS and ScummVM games GOG and ZOOM
+ship, run through RetroArch with the matching core instead. Their game options move to the libretro runner, and the
 runner's own options, which configured the standalone emulator, are dropped.
 """
 
@@ -94,9 +94,6 @@ _MACHINE_CORES: dict[str, dict[str, str]] = {
 # Runners renamed when their emulator's project was succeeded
 RUNNER_RENAMES: dict[str, str] = {"yuzu": "eden", "ryujinx": "ryubing", "frotz": "gargoyle"}
 
-# Runners whose install script tasks moved to the libretro runner
-_TASK_RUNNERS = {"dosbox": LIBRETRO}
-
 # The option that held each runner's game, when it isn't 'main_file'
 _ENTRY_POINTS = {"easyrpg": "project_path", "hatari": "disk-a", "vita3k": "title_id"}
 
@@ -161,35 +158,3 @@ def translate_runner(runner: str) -> str:
     if is_substituted(runner):
         return LIBRETRO
     return RUNNER_RENAMES.get(runner, runner)
-
-
-def translate_task_name(name: str) -> str:
-    """Return the name of an install script task once its runner's tasks moved elsewhere."""
-    runner, separator, task = name.partition(".")
-    if separator and runner in _TASK_RUNNERS:
-        return f"{_TASK_RUNNERS[runner]}.{task}"
-    return name
-
-
-def translate_script(runner: str, script: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Return the runner and script that install a game the way the script did with a removed runner.
-
-    The script's game options become libretro options, the removed runner's own section is
-    dropped, and tasks of runners that moved are renamed."""
-    script = dict(script)
-    if commands := script.get("installer"):
-        script["installer"] = [_translate_command(command) for command in commands]
-    if not is_substituted(runner):
-        new_runner = RUNNER_RENAMES.get(runner, runner)
-        if new_runner != runner and runner in script:
-            script[new_runner] = script.pop(runner)
-        return new_runner, script
-    script.pop(runner, None)
-    script["game"] = translate_game_config(runner, dict(script.get("game") or {}))
-    return LIBRETRO, script
-
-
-def _translate_command(command: Any) -> Any:
-    if isinstance(command, dict) and isinstance(task := command.get("task"), dict) and "name" in task:
-        return {**command, "task": {**task, "name": translate_task_name(str(task["name"]))}}
-    return command

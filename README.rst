@@ -54,10 +54,9 @@ the ones a game needs.
 Game library
 ============
 
-Your library is kept locally. Qtris doesn't connect to Lutris.net accounts, so
-it never logs in to the website or uploads your library or play time. It still
-downloads public data from Lutris.net, such as install scripts and runtime
-versions.
+Your library is kept locally. Qtris never connects to Lutris.net: games install
+from their stores' own downloads, or from a Windows setup program you choose,
+and Qtris doesn't use Lutris.net's community install scripts.
 
 Artwork comes from each game's store (Steam, Epic, GOG...), and from
 `SteamGridDB <https://www.steamgriddb.com>`_ for what stores lack and for games
@@ -122,8 +121,7 @@ Use a ``qtris:`` link to launch an installed game by slug or library ID::
     qtris qtris:rungameid/42
 
 To open the installer for a synced store game, use
-``qtris:install/<source>:<app-id>``. Qtris also opens the ``lutris:`` links
-of Lutris.net's install buttons.
+``qtris:install/<source>:<app-id>``.
 
 Contributing
 ============

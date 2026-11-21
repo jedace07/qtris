@@ -33,10 +33,6 @@ DATABASE: dict[str, DBSchema] = {
         {"name": "playtime", "type": "REAL"},
         {"name": "service", "type": "TEXT"},
         {"name": "service_id", "type": "TEXT"},
-        {
-            "name": "discord_id",
-            "type": "TEXT",
-        },
     ],
     "service_games": [
         {"name": "id", "type": "INTEGER", "indexed": True},
@@ -48,7 +44,6 @@ DATABASE: dict[str, DBSchema] = {
         {"name": "logo", "type": "TEXT"},
         {"name": "url", "type": "TEXT"},
         {"name": "details", "type": "TEXT"},
-        {"name": "lutris_slug", "type": "TEXT"},
     ],
     "sources": [
         {"name": "id", "type": "INTEGER", "indexed": True},

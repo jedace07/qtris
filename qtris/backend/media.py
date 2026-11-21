@@ -91,16 +91,16 @@ class ArtworkResolver:
 
     def resolve(
         self,
-        lutris_slug: str,
+        library_slug: str,
         service: str,
         service_id: str,
         service_slug: str,
         icon: str,
     ) -> LibraryArtwork:
         """Prefer Qtris artwork, then match artwork from the game's service."""
-        cover = _first_image([self._cover], lutris_slug)
-        banner = _first_image([self._banner], lutris_slug)
-        custom_icon = _first_image([self._icon], lutris_slug)
+        cover = _first_image([self._cover], library_slug)
+        banner = _first_image([self._banner], library_slug)
+        custom_icon = _first_image([self._icon], library_slug)
         if cover and banner and custom_icon:
             return LibraryArtwork(cover, banner, custom_icon)
 

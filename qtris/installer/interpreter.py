@@ -13,7 +13,7 @@ from qtris.installer import get_entry_point_path
 from qtris.installer.commands import CommandsMixin
 from qtris.installer.errors import MissingGameDependencyError, ScriptingError
 from qtris.installer.installer import QtrisInstaller
-from qtris.runners import NonInstallableRunnerError, RunnerInstallationError, steam, wine
+from qtris.runners import NonInstallableRunnerError, RunnerInstallationError, steam
 from qtris.util import system
 from qtris.util.display import get_display_manager
 from qtris.util.jobs import AsyncCall
@@ -48,16 +48,6 @@ class ScriptInterpreter(CommandsMixin):
         def attach_log(self, command):
             """Called to attach the command to a log UI, so its log output can be viewed."""
 
-        def begin_disc_prompt(self, message, requires, installer, callback):
-            """Called to prompt for a disc. When the disc is provided, the callback is invoked.
-            The method returns immediately, however."""
-            raise NotImplementedError()
-
-        def begin_input_menu(self, alias, options, preselect, callback):
-            """Called to prompt the user to select among a list of options. When the user
-            does so, the callback is invoked. The method returns immediately, however."""
-            raise NotImplementedError()
-
         def report_progress(self, fraction, text=""):
             """Called to report numeric progress (0.0 to 1.0) during installation.
             If fraction is None, hides the progress bar; if it is negative, shows a
@@ -78,11 +68,9 @@ class ScriptInterpreter(CommandsMixin):
         self.install_complete_text = None
         # Extra files for installers, either None if the extras haven't been checked yet.
         # Or a list of IDs of extras to be downloaded during the install
-        self.game_disc = None
         self.game_files = {}
         self.cancelled = False
         self.abort_current_task = None
-        self.user_inputs = []
         self.current_command = 0  # Current installer command when iterating through them
         self.runners_to_install = []
         self.current_resolution = get_display_manager().get_current_resolution()
@@ -504,9 +492,7 @@ class ScriptInterpreter(CommandsMixin):
             "CACHE": self.cache_path,
             "HOME": os.path.expanduser("~"),
             "STEAM_DATA_DIR": steam.steam().steam_data_dir,
-            "DISC": self.game_disc,
             "USER": os.getenv("USER"),
-            "INPUT": self.user_inputs[-1]["value"] if self.user_inputs else "",
             "VERSION": self.installer.version,
             "RESOLUTION": "x".join(current_res),
             "RESOLUTION_WIDTH": current_res[0],
@@ -532,11 +518,6 @@ class ScriptInterpreter(CommandsMixin):
             del replacements[key]
 
         replacements.update(self.installer.variables)
-        # Add 'INPUT_<id>' replacements for user inputs with an id
-        for input_data in self.user_inputs:
-            alias = input_data["alias"]
-            if alias:
-                replacements[alias] = input_data["value"]
         replacements.update(self.game_files)
         return replacements
 
@@ -548,8 +529,3 @@ class ScriptInterpreter(CommandsMixin):
         if str(template_string).replace("-", "_") in self.game_files:
             template_string = template_string.replace("-", "_")
         return system.substitute(template_string, self._get_string_replacements())
-
-    def eject_wine_disc(self):
-        """Use Wine to eject a CD, otherwise Wine can have problems detecting disc changes"""
-        wine_path = self.get_wine_path()
-        wine.eject_disc(wine_path, self.target_path)

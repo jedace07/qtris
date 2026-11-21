@@ -227,9 +227,7 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
 
     @staticmethod
     def get_arch() -> str | None:
-        """Return the system architecture only if compatible
-        with the supported architectures from the Lutris.net API
-        """
+        """Return the system architecture, if it's one Qtris supports"""
         match platform.machine():
             case "x86_64":
                 return "x86_64"

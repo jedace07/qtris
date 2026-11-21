@@ -58,10 +58,6 @@ for test_module in test_modules:
         break
 
 
-SITE_URL = sio.read_setting("website") or "https://lutris.net"
-
-GAME_URL = SITE_URL + "/games/%s/"
-
 GITHUB_URL = "https://github.com/jedace07/qtris"
 BUG_TRACKER_URL = GITHUB_URL + "/issues"
 

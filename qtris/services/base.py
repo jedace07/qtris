@@ -6,7 +6,7 @@ from gettext import gettext as _
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from qtris import api, settings
+from qtris import settings
 from qtris.config import write_game_config
 from qtris.database import sql
 from qtris.database.games import DbGameDict, add_game, get_game_for_service, get_games
@@ -228,46 +228,6 @@ class BaseService:
         implementation raises UnavailableGameError."""
         raise NotImplementedError(_("This service does not support extras"))
 
-    def match_game(self, service_game, qtris_game):
-        """Match a service game to a qtris game referenced by its slug"""
-        if not service_game:
-            return
-        sql.db_update(
-            settings.DB_PATH,
-            "service_games",
-            {"lutris_slug": qtris_game["slug"]},
-            conditions={"appid": service_game["appid"], "service": self.id},
-        )
-        unmatched_qtris_games = get_games(
-            searches={"installer_slug": self.matcher},
-            filters={"slug": qtris_game["slug"]},
-            excludes={"service": self.id},
-        )
-        for game in unmatched_qtris_games:
-            logger.debug("Updating unmatched game %s", game)
-            sql.db_update(
-                settings.DB_PATH,
-                "games",
-                {"service": self.id, "service_id": service_game["appid"]},
-                conditions={"id": game["id"]},
-            )
-
-    def match_games(self):
-        """Matching of service games to qtris games"""
-        service_games = {str(game["appid"]): game for game in ServiceGameCollection.get_for_service(self.id)}
-        qtris_games = api.get_api_games(list(service_games.keys()), service=self.id)
-        for qtris_game in qtris_games:
-            for provider_game in qtris_game["provider_games"]:
-                if provider_game["service"] != self.id:
-                    continue
-                self.match_game(service_games.get(provider_game["slug"]), qtris_game)
-        unmatched_service_games = get_games(searches={"installer_slug": self.matcher}, excludes={"service": self.id})
-        for qtris_game in api.get_api_games(game_slugs=[g["slug"] for g in unmatched_service_games]):
-            for provider_game in qtris_game["provider_games"]:
-                if provider_game["service"] != self.id:
-                    continue
-                self.match_game(service_games.get(provider_game["slug"]), qtris_game)
-
     def match_existing_game(self, db_games, appid, no_signal=False):
         """Checks if a game is already installed and populates the service info"""
         for _game in db_games:
@@ -276,8 +236,6 @@ class BaseService:
             game.appid = appid
             game.service = self.id
             game.save(no_signal=no_signal)
-            service_game = ServiceGameCollection.get_game(self.id, appid)
-            sql.db_update(settings.DB_PATH, "service_games", {"lutris_slug": game.slug}, {"id": service_game["id"]})
             return game
 
     def get_installed_slug(self, db_game):

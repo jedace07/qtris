@@ -66,10 +66,6 @@ class PreferencesController(QObject):
         return settings.read_bool_setting("hide_text_under_icons")
 
     @Property(bool, notify=interfaceChanged)
-    def discordPresence(self) -> bool:  # noqa: N802
-        return settings.read_bool_setting("discord_rpc")
-
-    @Property(bool, notify=interfaceChanged)
     def minimizeOnLaunch(self) -> bool:  # noqa: N802
         return settings.read_bool_setting("hide_client_on_game_start")
 
@@ -86,7 +82,6 @@ class PreferencesController(QObject):
             "show_tray_icon",
             "hide_badges_on_icons",
             "hide_text_under_icons",
-            "discord_rpc",
             "hide_client_on_game_start",
         }:
             settings.write_setting(option, enabled)

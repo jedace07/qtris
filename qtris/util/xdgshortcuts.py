@@ -8,8 +8,8 @@ from textwrap import dedent
 
 from gi.repository import GLib
 
-from qtris.api import format_installer_url
 from qtris.settings import CACHE_DIR
+from qtris.uri import format_installer_url
 from qtris.util import system
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger

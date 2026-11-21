@@ -9,5 +9,5 @@ Icon=io.github.jedace07.Qtris
 Terminal=false
 Type=Application
 StartupNotify=true
-MimeType=x-scheme-handler/qtris;x-scheme-handler/lutris;
+MimeType=x-scheme-handler/qtris;
 X-GNOME-UsesNotifications=true

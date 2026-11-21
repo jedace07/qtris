@@ -19,7 +19,6 @@ class ServiceGame:
         self.runner = None  # Name of the runner
         self.name = None  # Name
         self.slug = None  # Game slug
-        self.lutris_slug = None  # Slug used by the Lutris.net website
         self.logo = None  # Game logo
         self.icon = None  # Game icon
         self.details = None  # Additional details for the game
@@ -31,7 +30,6 @@ class ServiceGame:
             "appid": self.appid,
             "name": self.name,
             "slug": self.slug,
-            "lutris_slug": self.lutris_slug,
             "icon": self.icon,
             "logo": self.logo,
             "details": str(self.details),

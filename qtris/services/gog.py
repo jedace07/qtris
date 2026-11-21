@@ -158,7 +158,6 @@ class GOGService(OnlineService):
             raise AuthTokenExpiredError("GOG token expired, please log in again") from ex
         for game in games:
             game.save()
-        self.match_games()
         return games
 
     def login_callback(self, url) -> None:

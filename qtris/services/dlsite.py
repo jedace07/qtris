@@ -178,7 +178,6 @@ class DlsiteService(OnlineService):
             raise ex
         for game in games:
             game.save()
-        self.match_games()
         return games
 
     def get_installer_files(self, installer, installer_file_id):

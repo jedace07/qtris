@@ -254,9 +254,11 @@ asks the source for its plans in a worker thread and returns an
 ``InstallerCatalog`` of ``InstallerChoice`` metadata. GOG offers Update or Repair and Install DLC for installed games,
 and itch.io offers updates. Library → Run
 Windows Setup uses ``prepare_windows_setup`` to run a local executable with
-Wine/Proton and the selected Windows version and locale. Lutris.net installer links and uploaded
-YAML installers have been removed. ``qtris:install/<source>:<app-id>`` opens
-the same store installer.
+Wine/Proton and the selected Windows version and locale. Every plan comes from a
+store or from Qtris itself: Lutris.net's community install scripts, uploaded
+YAML installers and the script directives only they used are gone, and Qtris
+makes no requests to Lutris.net. ``qtris:install/<source>:<app-id>`` opens the
+same store installer.
 
 Plans stay in the backend until ``close_catalog``. ``select_installer``
 checks a copy in a worker thread and returns the default folder, any
@@ -353,9 +355,9 @@ prompt for a missing runner. GOG cloud conflicts prompt only when a window is
 available; otherwise the conflict is skipped rather than silently overwritten.
 
 Library → Preferences includes the interface theme, tray, game card labels and
-badges, Discord presence and minimize-on-launch options. The tray is available
-only on desktops that provide one. Library also offers checksum-based ROM
-registration from a selected folder or files dropped onto the window, without
+badges and minimize-on-launch options. The tray is available
+only on desktops that provide one. Library also offers ROM registration, by
+file extension, from a selected folder or files dropped onto the window, without
 moving or owning the ROM files. It also offers Playtron import and a local JSON
 issue report exporter shared with ``--submit-issue``.
 

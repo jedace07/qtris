@@ -10,34 +10,19 @@ from gettext import gettext as _
 from pathlib import Path
 
 from qtris.cache import is_file_in_custom_cache
-from qtris.exceptions import MissingExecutableError, UnspecifiedVersionError
+from qtris.exceptions import UnspecifiedVersionError
 from qtris.installer.errors import ScriptingError
 from qtris.installer.installer import QtrisInstaller
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import InvalidRunnerError, import_runner, import_task
 from qtris.runners.wine import wine
-from qtris.util import extract, linux, selective_merge, system
-from qtris.util.fileio import EvilConfigParser, MultiOrderedDict
+from qtris.util import extract, selective_merge, system
 from qtris.util.gog import apply_gog_config, find_gog_config_dir
 from qtris.util.gogdl import clear_stale_manifest, run_gogdl
 from qtris.util.jobs import schedule_repeating_at_idle
 from qtris.util.log import logger
 from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
 from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_default_wine_version, get_wine_path_for_version
-
-
-def normalize_accepted_return_code(return_code: object) -> str:
-    """Return a script's 'return_code' as an exit code. Before 0.5.23, qtris-wrapper reported raw
-    wait statuses (exit code * 256), so scripts on lutris.net use 'return_code: 256' to accept
-    exit code 1; in 2026 every non-zero value there was such a multiple. Real exit codes are below
-    256, so a non-zero multiple of 256 can only be one of these legacy values."""
-    try:
-        code = int(str(return_code))
-    except ValueError:
-        return str(return_code)
-    if code and code % 256 == 0:
-        code //= 256
-    return str(code)
 
 
 class CommandsMixin:
@@ -104,101 +89,6 @@ class CommandsMixin:
                         faulty_data=command_data,
                     )
 
-    def chmodx(self, filename):
-        """Make filename executable"""
-        filename = self._substitute(filename)
-        if not system.path_exists(filename):
-            raise ScriptingError(_("Invalid file '%s'. Can't make it executable") % filename)
-        system.make_executable(filename)
-
-    def execute(self, data):
-        """Run an executable file."""
-        args = []
-        terminal = None
-        working_dir = None
-        env = {}
-        return_code = "0"
-        if isinstance(data, dict):
-            self._check_required_params([("file", "command")], data, "execute")
-            if "command" in data and "file" in data:
-                raise ScriptingError(
-                    _("Parameters file and command can't be used at the same time for the execute command"),
-                    faulty_data=data,
-                )
-            if "command" in data and not isinstance(data["command"], str):
-                raise ScriptingError(
-                    _("The command parameter for execute must be a string"),
-                    faulty_data=data,
-                )
-
-            # Accept return codes other than 0
-            if "return_code" in data:
-                return_code = data.pop("return_code")
-
-            exec_path = data.get("file", "")
-            command = data.get("command", "")
-            args_string = data.get("args", "")
-            for arg in shlex.split(args_string):
-                args.append(self._substitute(arg))
-            terminal = data.get("terminal")
-            working_dir = data.get("working_dir")
-            if working_dir:
-                working_dir = self._substitute(working_dir)
-            # Loading environment variables set in the script
-            env.update(self.script_env)
-
-            # Environment variables can also be passed to the execute command
-            local_env = data.get("env") or {}
-            env.update({key: self._substitute(value) for key, value in local_env.items()})
-            include_processes = shlex.split(data.get("include_processes", ""))
-            exclude_processes = shlex.split(data.get("exclude_processes", ""))
-        elif isinstance(data, str):
-            command = data
-            include_processes = []
-            exclude_processes = []
-        else:
-            raise ScriptingError(_("No parameters supplied to execute command."), faulty_data=data)
-
-        if command:
-            exec_path = "bash"
-            args = ["-c", self._get_file_path(command.strip())]
-            include_processes.append("bash")
-        else:
-            # Determine whether 'file' value is a file id or a path
-            exec_path = self._get_file_path(exec_path)
-        if system.path_exists(exec_path) and not system.is_executable(exec_path):
-            logger.warning("Making %s executable", exec_path)
-            system.make_executable(exec_path)
-
-        try:
-            exec_abs_path = system.find_required_executable(exec_path)
-        except MissingExecutableError as ex:
-            raise ScriptingError(_("Unable to find executable %s") % exec_path) from ex
-
-        if terminal:
-            terminal = linux.get_default_terminal()
-        if working_dir and not os.path.isdir(working_dir):
-            logger.warning(
-                "Working directory %s doesn't exist or is not a directory, using target path instead", working_dir
-            )
-            working_dir = None
-        if not working_dir:
-            working_dir = self.target_path
-
-        command = MonitoredCommand(
-            [exec_abs_path] + args,
-            env=env,
-            term=terminal,
-            cwd=working_dir,
-            include_processes=include_processes,
-            exclude_processes=exclude_processes,
-        )
-        command.accepted_return_code = return_code
-        command.start()
-        self.interpreter_ui_delegate.attach_log(command)
-        schedule_repeating_at_idle(self._monitor_task, command, interval_seconds=1.0)
-        return "STOP"
-
     def extract(self, data):
         """Extract a file, guessing the compression method."""
         self._check_required_params([("file", "src")], data, "extract")
@@ -228,62 +118,6 @@ class CommandsMixin:
                 extract.extract_archive, filename, dest_path, merge_single, extractor, extract_nested
             )
         logger.debug("Extract done")
-
-    def input_menu(self, data):
-        """Display an input request as a dropdown menu with options."""
-        self._check_required_params("options", data, "input_menu")
-        identifier = data.get("id")
-        alias = "INPUT_%s" % identifier if identifier else None
-        options = data["options"]
-        preselect = self._substitute(data.get("preselect", ""))
-        self.interpreter_ui_delegate.begin_input_menu(alias, options, preselect, self._on_input_menu_validated)
-        return "STOP"
-
-    def _on_input_menu_validated(self, alias, menu):
-        choosen_option = menu.get_active_id()
-        if choosen_option:
-            self.user_inputs.append({"alias": alias, "value": choosen_option})
-            self._iter_commands()
-        else:
-            raise RuntimeError("A required input option was not selected, so the installation can't continue.")
-
-    def insert_disc(self, data):
-        """Request user to insert an optical disc"""
-        self._check_required_params("requires", data, "insert_disc")
-        requires = data.get("requires")
-        message = data.get(
-            "message",
-            _(
-                "Insert or mount game disc and click Autodetect or\n"
-                "use Browse if the disc is mounted on a non standard location."
-            ),
-        )
-        message += (
-            _(
-                "\n\nQtris is looking for a mounted disk drive or image \n"
-                "containing the following file or folder:\n"
-                "<i>%s</i>"
-            )
-            % requires
-        )
-        self.interpreter_ui_delegate.begin_disc_prompt(message, requires, self.installer, self._find_matching_disc)
-        return "STOP"
-
-    def _find_matching_disc(self, _widget, requires, extra_path=None):
-        if extra_path:
-            drives = [extra_path]
-        else:
-            drives = system.get_mounted_discs()
-        for drive in drives:
-            required_abspath = os.path.join(drive, requires)
-            required_abspath = system.fix_path_case(required_abspath)
-            if system.path_exists(required_abspath):
-                logger.debug("Found %s on cdrom %s", requires, drive)
-                self.game_disc = drive
-                self._iter_commands()
-                return
-
-        raise RuntimeError(_("The required file '%s' could not be located.") % requires)
 
     def mkdir(self, directory):
         """Create directory"""
@@ -357,29 +191,6 @@ class CommandsMixin:
         except shutil.Error as err:
             raise ScriptingError(_("Can't move {src} \nto destination {dst}").format(src=src, dst=dst)) from err
 
-    def rename(self, params):
-        """Rename file or folder."""
-        self._check_required_params(["src", "dst"], params, "rename")
-        src, dst = self._get_move_paths(params)
-        if not os.path.exists(src):
-            raise ScriptingError(_("Rename error, source path does not exist: %s") % src)
-        if os.path.isdir(dst):
-            try:
-                os.rmdir(dst)  # Remove if empty
-            except OSError:
-                pass
-        if os.path.exists(dst):
-            raise ScriptingError(_("Rename error, destination already exists: %s") % dst)
-        dst_dir = os.path.dirname(dst)
-
-        # Pre-move on dest filesystem to avoid error with
-        # os.rename through different filesystems
-        temp_dir = os.path.join(dst_dir, "qtris_rename_temp")
-        os.makedirs(temp_dir)
-        self._killable_process(shutil.move, src, temp_dir)
-        src = os.path.join(temp_dir, os.path.basename(src))
-        os.renames(src, dst)
-
     def _get_move_paths(self, params):
         """Process raw 'src' and 'dst' data."""
         try:
@@ -432,12 +243,6 @@ class CommandsMixin:
         self._check_required_params("name", data, "task")
         runner_name, task_name = self._get_task_runner_and_name(data.pop("name"))
 
-        # Accept return codes other than 0
-        if "return_code" in data:
-            return_code = data.pop("return_code")
-        else:
-            return_code = "0"
-
         if runner_name.startswith("wine"):
             data["wine_path"] = self.get_wine_path()
             data["prefix"] = data.get("prefix") or self.installer.script.get("game", {}).get("prefix") or "$GAMEDIR"
@@ -447,8 +252,6 @@ class CommandsMixin:
 
         for key in data:
             value = data[key]
-            if value is None and task_name == "set_regedit":
-                continue
             if isinstance(value, dict):
                 for inner_key in value:
                     value[inner_key] = self._substitute(value[inner_key])
@@ -464,7 +267,6 @@ class CommandsMixin:
         if isinstance(command, MonitoredCommand):
             # Monitor thread and continue when task has executed
             self.interpreter_ui_delegate.attach_log(command)
-            command.accepted_return_code = return_code
             schedule_repeating_at_idle(self._monitor_task, command, interval_seconds=1.0)
             return "STOP"
         return None
@@ -472,30 +274,12 @@ class CommandsMixin:
     def _monitor_task(self, command):
         if not command.is_running:
             logger.debug("Return code: %s", command.return_code)
-            if command.return_code not in (normalize_accepted_return_code(command.accepted_return_code), "0"):
+            if command.return_code != "0":
                 raise ScriptingError(_("Command exited with code %s") % command.return_code)
 
             self._iter_commands()
             return False
         return True  # keep checking
-
-    def write_file(self, params):
-        """Write text to a file."""
-        self._check_required_params(["file", "content"], params, "write_file")
-
-        # Get file
-        dest_file_path = self._get_file_path(params["file"])
-
-        # Create dir if necessary
-        basedir = os.path.dirname(dest_file_path)
-        os.makedirs(basedir, exist_ok=True)
-
-        mode = params.get("mode", "w")
-        if not mode.startswith(("a", "w")):
-            raise ScriptingError(_("Wrong value for write_file mode: '%s'") % mode)
-
-        with open(dest_file_path, mode, encoding="utf-8") as dest_file:
-            dest_file.write(self._substitute(params["content"]))
 
     def write_json(self, params):
         """Write data into a json file."""
@@ -525,43 +309,6 @@ class CommandsMixin:
             json_file.seek(0)
             json_file.truncate()
             json_file.write(json.dumps(json_data, indent=2))
-
-    def write_config(self, params):
-        """Write a key-value pair into an INI type config file."""
-        if params.get("data"):
-            self._check_required_params(["file", "data"], params, "write_config")
-        else:
-            self._check_required_params(["file", "section", "key", "value"], params, "write_config")
-        # Get file
-        config_file_path = self._get_file_path(params["file"])
-
-        # Create dir if necessary
-        basedir = os.path.dirname(config_file_path)
-        os.makedirs(basedir, exist_ok=True)
-
-        merge = params.get("merge", True)
-
-        parser = EvilConfigParser(allow_no_value=True, dict_type=MultiOrderedDict, strict=False)
-        parser.optionxform = str  # Preserve text case
-        if merge:
-            parser.read(config_file_path)
-
-        data = {}
-        if params.get("data"):
-            data = params["data"]
-        else:
-            data[params["section"]] = {}
-            data[params["section"]][params["key"]] = params["value"]
-
-        for section, keys in data.items():
-            if not parser.has_section(section):
-                parser.add_section(section)
-            for key, value in keys.items():
-                value = self._substitute(value)
-                parser.set(section, key, value)
-
-        with open(config_file_path, "wb") as config_file:
-            parser.write(config_file)
 
     def _get_file_path(self, fileid):
         file_path = self.game_files.get(fileid)

@@ -122,16 +122,6 @@ ScrollView {
                     onToggled: page.controller.set_interface_option("show_tray_icon", checked)
                 }
             }
-
-            SettingsRow {
-                title: qsTr("Enable Discord Rich Presence for available games")
-
-                Switch {
-                    checked: page.controller.discordPresence
-                    Accessible.name: qsTr("Enable Discord Rich Presence")
-                    onToggled: page.controller.set_interface_option("discord_rpc", checked)
-                }
-            }
         }
     }
 }

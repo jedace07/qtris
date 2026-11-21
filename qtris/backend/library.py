@@ -305,11 +305,11 @@ def _to_library_game(
     slug = game["slug"] or ""
     artwork_info = None
     if artwork:
-        lutris_slug = slug
+        library_slug = slug
         if is_service_game:
-            lutris_slug = (installed_game or {}).get("slug") or game.get("lutris_slug") or ""
+            library_slug = (installed_game or {}).get("slug") or ""
         artwork_info = artwork.resolve(
-            lutris_slug=lutris_slug,
+            library_slug=library_slug,
             service=game.get("service") or "",
             service_id=str(game.get("service_id") or ""),
             service_slug=slug if is_service_game else "",

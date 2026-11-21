@@ -1,4 +1,4 @@
-from qtris.api import normalize_version_architecture
+from qtris.util.wine.versions import normalize_version_architecture
 
 
 def test_normalize_preserves_ge_proton_tags() -> None:

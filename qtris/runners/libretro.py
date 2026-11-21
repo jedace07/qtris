@@ -18,7 +18,6 @@ import requests
 from qtris.config import QtrisConfig
 from qtris.exceptions import GameConfigError, MissingBiosError, UnspecifiedVersionError
 from qtris.runners import RunnerInstallationError
-from qtris.runners.commands.dosbox import dosexec, makeconfig  # noqa: F401 Install script tasks
 from qtris.runners.runner import Runner
 from qtris.util import async_choices, cache_single, system
 from qtris.util.libretro import RetroConfig

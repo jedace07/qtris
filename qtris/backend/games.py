@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from gettext import gettext as _
 from typing import TYPE_CHECKING, Any
 
-from qtris.api import parse_installer_url
 from qtris.backend.models import GameInfo
 from qtris.database import games as games_db
 from qtris.delegates import CommandLineUIDelegate
@@ -15,6 +14,7 @@ from qtris.exceptions import QtrisError
 from qtris.game import GAME_START, GAME_STOPPED, LOG_BUFFERS, Game
 from qtris.game import export_game as _export_game
 from qtris.game import import_game as _import_game
+from qtris.uri import parse_installer_url
 from qtris.util import resources
 from qtris.util.log import logger
 from qtris.util.standalone_scripts import generate_script

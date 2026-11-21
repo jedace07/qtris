@@ -27,11 +27,8 @@ def slugify(value: str) -> str:
     and converts spaces to hyphens.
     """
     _value = str(value)
-    # This differs from the Lutris.net website implementation which uses the Django
-    # version of `slugify` and uses the "NFKD" normalization method instead of
-    # "NFD". This creates some inconsistencies in titles containing a trademark
-    # symbols or some other special characters. The website version of slugify
-    # will likely get updated to use the same normalization method.
+    # Unlike Django's slugify, this uses the "NFD" normalization, not "NFKD", so it
+    # drops trademark symbols and similar characters rather than spelling them out
     _value = unicodedata.normalize("NFD", _value).encode("ascii", "ignore")
     _value = _value.decode("utf-8")
     _value = str(re.sub(r"[^\w\s-]", "", _value)).strip().lower()

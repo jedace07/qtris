@@ -14,11 +14,10 @@ from qtris.exceptions import QtrisError
 from qtris.game import GAME_INSTALLED, GAME_UPDATED, Game
 from qtris.scanners import playtron
 from qtris.scanners.default_installers import DEFAULT_INSTALLERS
-from qtris.scanners.tosec import clean_rom_name, guess_platform, search_tosec_by_md5
+from qtris.scanners.roms import get_rom_name, get_rom_platform
 from qtris.util.log import logger
 from qtris.util.path_cache import add_to_path_cache, get_path_cache
 from qtris.util.strings import slugify
-from qtris.util.system import get_md5_hash, get_md5_in_zip
 
 
 @dataclass(frozen=True)
@@ -57,32 +56,29 @@ def _register_rom(path: str) -> tuple[str | None, str]:
         if game_path == str(source):
             return None, Game(game_id).name
 
-    checksum = get_md5_in_zip(str(source)) if source.suffix.lower() == ".zip" else get_md5_hash(str(source))
-    for match in search_tosec_by_md5(checksum) or ():
-        platform = guess_platform(match)
-        if platform not in DEFAULT_INSTALLERS or not match.get("roms"):
-            continue
-        name = clean_rom_name(match["name"])
-        config = deepcopy(DEFAULT_INSTALLERS[platform])
-        options = config["game"]
-        assert isinstance(options, dict)
-        for key, value in options.items():
-            if value == "rom":
-                options[key] = str(source)
-        slug = slugify(name)
-        config_id = write_game_config(slug, config)
+    platform = get_rom_platform(source)
+    if platform is None or platform not in DEFAULT_INSTALLERS:
+        raise QtrisError(_("Qtris can't tell which system this ROM is for from its file extension."))
+    name = get_rom_name(source)
+    config = deepcopy(DEFAULT_INSTALLERS[platform])
+    options = config["game"]
+    assert isinstance(options, dict)
+    for key, value in options.items():
+        if value == "rom":
+            options[key] = str(source)
+    slug = slugify(name)
+    config_id = write_game_config(slug, config)
+    try:
+        game_id = add_game(
+            name=name, runner=config["runner"], slug=slug, directory="", installed=1, configpath=config_id
+        )
+    except Exception:
         try:
-            game_id = add_game(
-                name=name, runner=config["runner"], slug=slug, directory="", installed=1, configpath=config_id
-            )
-        except Exception:
-            try:
-                (Path(settings.CONFIG_DIR) / "games" / f"{config_id}.yml").unlink(missing_ok=True)
-            except OSError:
-                logger.exception("Could not remove unused ROM configuration %s", config_id)
-            raise
-        return str(game_id), name
-    raise QtrisError(_("No supported game matched this ROM's checksum."))
+            (Path(settings.CONFIG_DIR) / "games" / f"{config_id}.yml").unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Could not remove unused ROM configuration %s", config_id)
+        raise
+    return str(game_id), name
 
 
 async def import_playtron_games() -> int:

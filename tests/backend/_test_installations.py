@@ -20,7 +20,6 @@ from qtris.database import games as games_db
 from qtris.delegates import InstallUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.installer import interpreter
-from qtris.installer.installer import QtrisInstaller
 from qtris.runners.runner import Runner
 from qtris.util.test_config import setup_test_environment
 from qtris.util.wine import proton
@@ -148,7 +147,6 @@ def game_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "installer-cache"))
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     new_id = str(games_db.add_game(name="Installations Test", slug=SLUG, runner="linux", installed=0))
     yield new_id
     games_db.delete_game(new_id)
@@ -203,19 +201,14 @@ async def start(catalog: InstallerCatalog, directory: Path) -> InstallationInfo:
     return await installations.start_installation(catalog.id, catalog.choices[0].id, str(directory))
 
 
-def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
+def test_installs_downloaded_and_chosen_files(
     game_id: str, server: str, tmp_path: Path, fake_main_loop: FakeMainLoop
 ) -> None:
     manual = tmp_path / "manual.txt"
     manual.write_text("chosen by the user", encoding="utf-8")
     catalog = make_catalog(
         [{"payload": server + "/payload.txt"}, {"manual": "N/A:Select the game manual"}],
-        [
-            {"input_menu": {"id": "LANG", "options": [{"en": "English"}, {"fr": "French"}], "preselect": "en"}},
-            {"copy": {"src": "payload", "dst": "$GAMEDIR"}},
-            {"copy": {"src": "manual", "dst": "$GAMEDIR"}},
-            {"write_file": {"file": "$GAMEDIR/lang.txt", "content": "$INPUT_LANG"}},
-        ],
+        [{"copy": {"src": "payload", "dst": "$GAMEDIR"}}, {"copy": {"src": "manual", "dst": "$GAMEDIR"}}],
     )
     target = tmp_path / "Games" / SLUG
     tracker = Tracker(fake_main_loop)
@@ -235,14 +228,6 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
         assert (await installations.get_installation(info.id)).files[1].ready
         await installations.start_files(info.id)
 
-        menu = await tracker.wait_for_stage("menu")
-        assert [(option.id, option.label) for option in menu.menu_options] == [("en", "English"), ("fr", "French")]
-        assert menu.menu_preselect == "en"
-        assert menu.can_remove_files
-        with pytest.raises(QtrisError):
-            await installations.answer_menu(info.id, "de")
-        await installations.answer_menu(info.id, "fr")
-
         finished = await tracker.wait_for_stage("finished")
         assert finished.game_id == game_id
         await tracker.wait_for(lambda _info: bool(tracker.installed))
@@ -257,7 +242,6 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
 
     assert (target / "payload.txt").read_text(encoding="utf-8") == "downloaded payload"
     assert (target / "manual.txt").read_text(encoding="utf-8") == "chosen by the user"
-    assert (target / "lang.txt").read_text(encoding="utf-8") == "fr"
     row = games_db.get_game_by_field(game_id, "id")
     assert row is not None and row["installed"] == 1 and row["directory"] == str(target)
     assert [game.id for game in tracker.installed] == [game_id]
@@ -266,24 +250,17 @@ def test_installs_downloaded_and_chosen_files_and_asks_the_script_menu(
 def test_cancelling_reverts_without_marking_the_game_installed(
     game_id: str, tmp_path: Path, fake_main_loop: FakeMainLoop
 ) -> None:
-    catalog = make_catalog(
-        [],
-        [
-            {"write_file": {"file": "$GAMEDIR/started.txt", "content": "yes"}},
-            {"input_menu": {"options": [{"go": "Go on"}]}},
-            {"write_file": {"file": "$GAMEDIR/finished.txt", "content": "yes"}},
-        ],
-    )
+    catalog = make_catalog([{"manual": "N/A:Select the game manual"}], [{"copy": {"src": "manual", "dst": "$GAMEDIR"}}])
     target = tmp_path / "Games" / SLUG
     tracker = Tracker(fake_main_loop)
 
     async def run() -> None:
         info = await start(catalog, target)
-        await tracker.wait_for_stage("menu")
+        await tracker.wait_for_stage("files")
         await installations.cancel_installation(info.id, remove_files=False)
         await tracker.wait_for_stage("cancelled")
         with pytest.raises(QtrisError):
-            await installations.answer_menu(info.id, "go")
+            await installations.start_files(info.id)
         await installations.close_installation(info.id)
 
     try:
@@ -291,7 +268,7 @@ def test_cancelling_reverts_without_marking_the_game_installed(
     finally:
         tracker.close()
 
-    assert (target / "started.txt").exists() and not (target / "finished.txt").exists()
+    assert not (target / "manual.txt").exists()
     row = games_db.get_game_by_field(game_id, "id")
     assert row is not None and not row["installed"]
 
@@ -332,7 +309,6 @@ def test_steam_install_waits_for_manifest_and_keeps_steam_data(
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setattr(interpreter, "fetch_game_artwork", lambda slug: 0)
-    monkeypatch.setattr(QtrisInstaller, "_get_discord_id_from_api", lambda self: None)
     monkeypatch.setattr(steam_installer, "get_steamapps_dirs", lambda: [str(steamapps)])
     monkeypatch.setattr(steam_installer.steam.steam, "is_installed", lambda self: True)
     service = SteamService()

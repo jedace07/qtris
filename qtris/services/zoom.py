@@ -110,7 +110,6 @@ class ZoomService(OnlineService):
         games = [ZoomGame.new_from_zoom_game(game) for game in self.get_library()]
         for game in games:
             game.save()
-        self.match_games()
         return games
 
     def login_callback(self, url) -> None:

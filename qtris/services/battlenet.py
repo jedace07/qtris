@@ -83,7 +83,7 @@ class BattleNetGame(ServiceGame):
 
     @classmethod
     def create(cls, blizzard_game):
-        """Create a service game from an entry from the Dolphin cache"""
+        """Create a service game from a known Battle.net game"""
         service_game = cls()
         service_game.appid = blizzard_game[0]
         service_game.name = blizzard_game[1]
@@ -94,7 +94,6 @@ class BattleNetGame(ServiceGame):
                 "name": blizzard_game[1],
                 "product_code": blizzard_game[2],
                 "slug": blizzard_game[3],
-                "coverart": "https://lutris.net/games/cover/%s.jpg" % blizzard_game[3],
             }
         )
         return service_game
@@ -112,7 +111,6 @@ class BattleNetService(BaseService):
     client_installer = "battlenet"
     cookies_path = os.path.join(settings.CACHE_DIR, ".bnet.auth")
     cache_path = os.path.join(settings.CACHE_DIR, "bnet-library.json")
-    redirect_uris = ["https://lutris.net"]
 
     @property
     def battlenet_config_path(self):

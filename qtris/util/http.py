@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import certifi
 from gi.repository import Gio, GLib
 
-from qtris.settings import PROJECT, SITE_URL, VERSION, read_setting
+from qtris.settings import PROJECT, VERSION, read_setting
 from qtris.util import system
 from qtris.util.log import logger
 
@@ -149,8 +149,7 @@ class Request:
         if url.startswith("//"):
             url = "https:" + url
         if url.startswith("/"):
-            logger.error("Stop using relative URLs!: %s", url)
-            url = SITE_URL + url
+            raise ValueError("A relative URL can't be requested: %s" % url)
         # That's for a single URL in EGS... not sure if we need more escaping
         # The url received should already be receiving an escaped string
         url = url.replace(" ", "%20")
