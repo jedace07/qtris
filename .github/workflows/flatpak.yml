@@ -56,10 +56,22 @@ jobs:
   build:
     name: Build
     needs: prepare
-    # A plain Fedora container rather than a Flatpak CI image: updating the
-    # runtimes such an image ships fails ("Invalid cross-device link")
+    # Flatpak's official builder action, in the Flathub CI image for the
+    # manifest's runtime
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+      volumes:
+        # A named volume, which Docker fills from the image: flatpak can't update the
+        # runtimes the image ships inside its overlay ("Invalid cross-device link"),
+        # but can once they sit on the runner's own disk
+        - flatpak:/var/lib/flatpak
+        # Runner directories to delete, to make room for the build
+        - /usr/share/dotnet:/host/dotnet
+        - /usr/local/lib/android:/host/android
+        - /opt/ghc:/host/ghc
     env:
       BUNDLE: Qtris-v${{ needs.prepare.outputs.artifact_version }}-x86_64.flatpak
     steps:
@@ -67,44 +79,43 @@ jobs:
         # The full build (Mono, ...) needs far more room
         # than a runner leaves free by default
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+          rm -rf /host/dotnet/* /host/android/* /host/ghc/* /__t/CodeQL
+          df -h /var/lib/flatpak "$GITHUB_WORKSPACE"
       - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Restore the flatpak-builder cache
+        # Cached here rather than by the action, which saves only after a successful
+        # build: the first one (Mono, ...) can run out of time, and the next run should
+        # resume from the modules that did build
         uses: actions/cache/restore@v6
         with:
           path: build-flatpak/state
-          # The prefix names the build setup, so caches from another one (such as the
-          # old Ubuntu flatpak-builder's, whose git mirrors this one can't use) never match
-          key: flatpak-builder-fedora-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
+          # The prefix names the build setup, so caches from another one (whose git
+          # mirrors this flatpak-builder may not be able to use) never match
+          key: flatpak-builder-action-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
           restore-keys: |
-            flatpak-builder-fedora-${{ hashFiles('packaging/flatpak/**') }}-
-            flatpak-builder-fedora-
+            flatpak-builder-action-${{ hashFiles('packaging/flatpak/**') }}-
+            flatpak-builder-action-
       - name: Build
-        # In a Fedora container with its current flatpak-builder, through the same script
-        # as local builds: Ubuntu's older flatpak-builder lets meson install into lib64,
-        # where pkg-config doesn't look. The script also writes the bundle
-        run: >
-          docker run --rm --privileged -v "$PWD:/src" -w /src -e OWNER="$(id -u):$(id -g)"
-          registry.fedoraproject.org/fedora:45
-          packaging/flatpak/container-build.sh packaging/flatpak/io.github.jedace07.Qtris.yml "$BUNDLE"
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/flatpak/io.github.jedace07.Qtris.yml
+          bundle: ${{ env.BUNDLE }}
+          build-dir: build-flatpak/build
+          repo-dir: build-flatpak/repo
+          state-dir: build-flatpak/state
+          restore-cache: false
+          save-cache: false
+          # Uploaded below instead, unzipped, as the draft release expects
+          upload-artifact: false
       - name: Save the flatpak-builder cache
-        # Also after a failure or timeout, so the next run resumes from the
-        # modules that did build
+        # Also after a failure or timeout
         if: always()
         uses: actions/cache/save@v6
         with:
           path: build-flatpak/state
-          key: flatpak-builder-fedora-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
-      - name: Smoke test
-        # Install the bundle in a clean container and check that Qtris starts in it,
-        # so a bundle that builds but doesn't run is never uploaded
-        run: >
-          docker run --rm --privileged -v "$PWD:/src" -w /src
-          registry.fedoraproject.org/fedora:45
-          packaging/flatpak/smoke-test.sh "$BUNDLE"
+          key: flatpak-builder-action-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
       - name: Upload the bundle
         uses: actions/upload-artifact@v7
         with:
@@ -112,3 +123,26 @@ jobs:
           path: ${{ env.BUNDLE }}
           archive: false
           if-no-files-found: error
+
+  smoke-test:
+    name: Smoke test
+    needs: [prepare, build]
+    # Install the bundle in a clean Fedora container and check that Qtris starts in
+    # it. The Build Draft Release workflow waits for this job, so a bundle that builds
+    # but doesn't run is never released
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BUNDLE: Qtris-v${{ needs.prepare.outputs.artifact_version }}-x86_64.flatpak
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.BUNDLE }}
+          skip-decompress: true
+      - name: Smoke test
+        run: >
+          docker run --rm --privileged -v "$PWD:/src" -w /src
+          registry.fedoraproject.org/fedora:45
+          packaging/flatpak/smoke-test.sh "$BUNDLE"

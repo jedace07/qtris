@@ -11,20 +11,28 @@ The Flatpak bundles everything Qtris needs, including the 32-bit libraries,
 tools and Wine base that games rely on, on the freedesktop runtime. Its
 manifest lives in ``packaging/flatpak``.
 
-The simplest build is the one CI runs: a Fedora container with a current
-``flatpak-builder``, so nothing but ``podman`` (or ``docker``) is needed on the
-host, and nothing gets installed there::
+The simplest build is the one CI runs: the Flathub CI image that
+`Flatpak's GitHub action <https://github.com/flatpak/flatpak-github-actions>`_
+builds in, so nothing but ``podman`` (or ``docker``) is needed on the host, and
+nothing gets installed there::
 
     git clone --recurse-submodules https://github.com/jedace07/qtris
     cd qtris
-    podman run --rm --privileged --security-opt label=disable -v "$PWD:/src" -w /src \
-        registry.fedoraproject.org/fedora:45 \
+    podman run --rm --privileged --security-opt label=disable \
+        -v qtris-flatpak:/var/lib/flatpak -v "$PWD:/src" -w /src \
+        ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08 \
         packaging/flatpak/container-build.sh packaging/flatpak/io.github.jedace07.Qtris.yml qtris.flatpak
     flatpak install --user qtris.flatpak
     flatpak run io.github.jedace07.Qtris
 
-Add ``-v "$PWD/build-flatpak/flatpak:/var/lib/flatpak"`` to keep the downloaded
-runtimes between builds.
+The manifest includes modules from Flathub's ``shared-modules`` git submodule.
+In a checkout cloned without ``--recurse-submodules``, run
+``git submodule update --init`` first, or the build fails to load
+``shared-modules/glew/glew.json``.
+
+The ``qtris-flatpak`` volume keeps the downloaded runtimes between builds
+(``podman volume rm qtris-flatpak`` frees the space). It has to be a volume:
+flatpak can't update the runtimes the image ships inside the image itself.
 
 To build on the host instead, use the ``org.flatpak.Builder`` app from Flathub
 (older distribution packages of ``flatpak-builder`` can misplace libraries)::

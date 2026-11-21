@@ -1,9 +1,16 @@
 #!/bin/bash
-# Build the Flatpak inside a Fedora container, the way CI does, so local builds
-# match it and nothing is installed on the host. From the repository root:
+# Build the Flatpak in the Flathub CI image that CI builds in, with the flags
+# flatpak/flatpak-github-actions passes to flatpak-builder, so local builds match
+# CI and nothing is installed on the host. From the repository root:
 #
-#   podman run --rm --privileged --security-opt label=disable -v "$PWD:/src" -w /src \
-#       registry.fedoraproject.org/fedora:45 packaging/flatpak/container-build.sh
+#   podman run --rm --privileged --security-opt label=disable \
+#       -v qtris-flatpak:/var/lib/flatpak -v "$PWD:/src" -w /src \
+#       ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08 \
+#       packaging/flatpak/container-build.sh
+#
+# The qtris-flatpak volume keeps the runtimes between builds, and must be a volume:
+# flatpak can't update the runtimes the image ships inside its own overlay
+# ("Invalid cross-device link").
 #
 # Arguments: the manifest (io.github.jedace07.Qtris.yml by default), and a bundle file to
 # write once it's built. Output goes under build-flatpak/, which git ignores. Set
@@ -13,16 +20,18 @@ set -euo pipefail
 manifest=${1:-packaging/flatpak/io.github.jedace07.Qtris.yml}
 bundle=${2:-}
 
-# flatpak-builder applies patches and unpacks some archives with the host's tools
-dnf install -y --setopt=install_weak_deps=False flatpak flatpak-builder git-core patch tar bzip2 xz unzip
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-# The checkout and a restored flatpak-builder cache (with its git mirrors) belong
-# to the host user, and git won't use repositories another user owns otherwise
+if [ ! -e "$(dirname "$manifest")/shared-modules/README.md" ]; then
+    echo "The shared-modules submodule is missing; run: git submodule update --init" >&2
+    exit 1
+fi
+
+# The checkout and a restored flatpak-builder cache (with its git mirrors) can
+# belong to another user, and git won't use such repositories otherwise
 git config --global --add safe.directory '*'
 flatpak-builder --version
 
 status=0
-flatpak-builder --install-deps-from=flathub --disable-rofiles-fuse --force-clean \
+flatpak-builder --install-deps-from=flathub --disable-rofiles-fuse --force-clean --ccache \
     --state-dir=build-flatpak/state --repo=build-flatpak/repo \
     build-flatpak/build "$manifest" || status=$?
 
@@ -31,7 +40,6 @@ if [ "$status" -eq 0 ] && [ -n "$bundle" ]; then
         --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo || status=$?
 fi
 
-# Even after a failure, so CI can still cache the modules that did build
 if [ -n "${OWNER:-}" ]; then
     chown -R "$OWNER" build-flatpak ${bundle:+"$bundle"} 2>/dev/null || true
 fi
