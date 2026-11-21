@@ -25,6 +25,11 @@ def get_resolution_choices() -> list[tuple[str, str]]:
     return resolution_choices
 
 
+def get_monitor_resolution() -> str:
+    """Return the resolution of the primary monitor, as "<width>x<height>"."""
+    return "x".join(get_display_manager().get_current_resolution())
+
+
 def get_locale_choices() -> list[tuple[str, str]]:
     """Return list of available locales as label, value tuples
     suitable for inclusion in drop-downs.
@@ -246,11 +251,13 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "type": "choice_with_entry",
         "label": _("Output Resolution"),
         "choices": lambda: get_display_manager().get_resolutions(),
+        "default": get_monitor_resolution,
         "advanced": True,
         "conditional_on": "gamescope",
         "condition": system.can_find_executable("gamescope"),
         "help": _(
             "Set the resolution used by gamescope.\n"
+            "Defaults to the resolution of your primary monitor.\n"
             "Resizing the gamescope window will update these settings.\n"
             "\n"
             "<b>Custom Resolutions:</b> (width)x(height)"
@@ -264,7 +271,12 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "choices": lambda: get_display_manager().get_resolutions(),
         "conditional_on": "gamescope",
         "condition": system.can_find_executable("gamescope"),
-        "help": _("Set the maximum resolution used by the game.\n\n<b>Custom Resolutions:</b> (width)x(height)"),
+        "help": _(
+            "Set the maximum resolution used by the game.\n"
+            "Defaults to the output resolution.\n"
+            "\n"
+            "<b>Custom Resolutions:</b> (width)x(height)"
+        ),
     },
     {
         "section": _("Gamescope"),

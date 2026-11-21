@@ -243,11 +243,12 @@ class wine(Runner):
         },
         {
             "option": "fsr",
-            "label": _("Enable AMD FidelityFX Super Resolution (FSR)"),
+            "label": _("Enable fullscreen FSR upscaling"),
             "type": "bool",
-            "default": True,
+            "default": False,
             "help": _(
-                "Use FSR to upscale the game window to native resolution.\n"
+                "Use AMD FidelityFX Super Resolution 1.0 to upscale games running in exclusive fullscreen "
+                "at a lower resolution than the screen's.\n"
                 "Requires a Wine or Proton build with FSR and a lower resolution in the game's settings.\n"
                 "Does not work with games running in borderless window mode or that perform their own upscaling."
             ),
