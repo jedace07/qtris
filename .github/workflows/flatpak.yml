@@ -76,8 +76,7 @@ jobs:
       BUNDLE: Qtris-v${{ needs.prepare.outputs.artifact_version }}-x86_64.flatpak
     steps:
       - name: Free disk space
-        # The full build (Mono, ...) needs far more room
-        # than a runner leaves free by default
+        # Leave room for the SDK, multilib builds and the export repo
         run: |
           rm -rf /host/dotnet/* /host/android/* /host/ghc/* /__t/CodeQL
           df -h /var/lib/flatpak "$GITHUB_WORKSPACE"
@@ -86,7 +85,7 @@ jobs:
           submodules: true
       - name: Restore the flatpak-builder cache
         # Cached here rather than by the action, which saves only after a successful
-        # build: the first one (Mono, ...) can run out of time, and the next run should
+        # build: the first one can run out of time, and the next run should
         # resume from the modules that did build
         uses: actions/cache/restore@v6
         with:

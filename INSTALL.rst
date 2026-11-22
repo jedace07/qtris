@@ -7,9 +7,10 @@ repository, or straight from the source tree with `uv <https://docs.astral.sh/uv
 Flatpak
 -------
 
-The Flatpak bundles everything Qtris needs, including the 32-bit libraries,
-tools and Wine base that games rely on, on the freedesktop runtime. Its
-manifest lives in ``packaging/flatpak``.
+The Flatpak uses the Freedesktop runtime and its 32-bit compatibility
+extensions. Qtris downloads Proton on demand, and UMU downloads the Steam
+Linux Runtime when a Windows game needs it. Store sign-in pages use the
+bundled QtWebEngine. The manifest lives in ``packaging/flatpak``.
 
 Build it with the ``org.flatpak.Builder`` app from Flathub. It is the same
 ``flatpak-builder`` that Flathub and CI use, and it stays current whatever your
@@ -49,8 +50,16 @@ pins what ``uv.lock`` does; after changing ``uv.lock``, regenerate it with
 ``uv run --no-project packaging/flatpak/update-python-dependencies.py``.
 
 Every CI build of ``main`` publishes a bundle, and every release has one
-attached. The first build compiles bundled tools such as Mono. Later builds
-reuse flatpak-builder's cache.
+attached.
+
+Install the optional MangoHud overlay or gamescope extension if you use it.
+Qtris picks them up the next time it starts::
+
+    flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud//26.08
+    flatpak install flathub org.freedesktop.Platform.VulkanLayer.gamescope//26.08
+
+Install the extension in the same Flatpak installation as Qtris. Pass
+``--user`` if you installed Qtris per user.
 
 The sandbox can read and write your home directory and any drive mounted under
 ``/mnt``, ``/media`` or ``/run/media``. Games elsewhere need an override, for

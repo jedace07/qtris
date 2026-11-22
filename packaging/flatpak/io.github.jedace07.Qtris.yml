@@ -1,27 +1,20 @@
 # Qtris Flatpak, built from this checkout
 #
-# Derived from Lutris's Flathub manifest (github.com/flathub/net.lutris.Lutris); the
-# runtime, extensions and bundled tools are kept in step with it. What differs:
-#   * Qtris is built from this source tree rather than a pinned commit
-#   * Its Python dependencies come from python-dependencies.json, generated from
-#     uv.lock (the same pins the test suite runs against) by
-#     update-python-dependencies.py, instead of hand-maintained pip modules. Re-run
-#     it after changing uv.lock; the build itself needs no network access
-#   * Read-write access to drives mounted under /mnt
-#   * QtWebEngine, for the stores' sign-in web view, without the PySide6 add-on
-#     modules Qtris never loads (trim-pyside6.py)
+# The native game libraries come from Lutris's Flatpak manifest. As in Faugus
+# Launcher, UMU uses a Proton build and downloads its Steam Linux Runtime as
+# needed. Qtris's store sign-in views use QtWebEngine
+#
+# Regenerate python-dependencies.json after changing uv.lock. The build runs
+# offline once the declared sources are downloaded
 #
 # See INSTALL.rst for build and install commands
 
 id: io.github.jedace07.Qtris
-# The plain freedesktop runtime: the Qt frontend brings its own Qt with PySide6, and
-# 26.08 matches the Wine base and the 32-bit compat extensions below
+# PySide6 supplies Qt. Use the matching 32-bit extensions for native games and UMU
 sdk: org.freedesktop.Sdk
 runtime: org.freedesktop.Platform
 runtime-version: "26.08"
 command: qtris
-base: org.winehq.Wine
-base-version: stable-26.08
 x-compat-version: &compat-version "26.08"
 x-gl-version: &gl-version "1.4"
 x-gl-versions: &gl-versions 26.08;26.08-extra;1.4
@@ -56,7 +49,7 @@ finish-args:
   - --filesystem=~/.var/app/dev.eden_emu.eden:create
   - --filesystem=~/.var/app/io.github.ryubing.Ryujinx:create
   - --filesystem=~/.config/MangoHud:ro
-  - --env=PATH=/app/bin:/usr/bin:/app/utils/bin:/usr/lib/extensions/vulkan/MangoHud/bin/:/app/jre/bin/:/usr/lib/extensions/vulkan/gamescope/bin
+  - --env=PATH=/app/bin:/usr/bin:/app/utils/bin:/usr/lib/extensions/vulkan/MangoHud/bin:/usr/lib/extensions/vulkan/gamescope/bin
   - --env=GST_PLUGIN_SYSTEM_PATH=/app/lib/gstreamer-1.0:/app/lib32/gstreamer-1.0:/app/lib/i386-linux-gnu/codecs-extra/lib/gstreamer-1.0:/app/lib/i386-linux-gnu/gstreamer-1.0:/usr/lib/extensions/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/codecs-extra/lib/gstreamer-1.0:/usr/lib/i386-linux-gnu/codecs-extra/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0:/usr/lib/i386-linux-gnu/gstreamer-1.0
   # System tray icon
   - --talk-name=org.kde.StatusNotifierWatcher
@@ -73,10 +66,6 @@ finish-args:
   # See: https://github.com/flathub/com.valvesoftware.Steam/commit/0538256facdb0837c33232bc65a9195a8a5bc750
   - --env=XDG_DATA_DIRS=/app/share:/usr/lib/extensions/vulkan/share:/usr/share:/usr/share/runtime/share:/run/host/user-share:/run/host/share:/usr/lib/pressure-vessel/overrides/share
   - --allow=per-app-dev-shm
-
-inherit-extensions:
-  - org.winehq.Wine.gecko
-  - org.winehq.Wine.mono
 
 add-extensions:
   org.freedesktop.Platform.Compat.i386:
@@ -145,19 +134,18 @@ add-extensions:
   org.freedesktop.Platform.VulkanLayer.gamescope:
     directory: lib/extensions/vulkan/gamescope
     version: *compat-version
-    autodownload: true
+    no-autodownload: true
     autodelete: false
 
   org.freedesktop.Platform.VulkanLayer.MangoHud:
     directory: lib/extensions/vulkan/MangoHud
     version: *compat-version
-    autodownload: true
+    no-autodownload: true
     autodelete: false
+
 sdk-extensions:
   - org.freedesktop.Sdk.Compat.i386
   - org.freedesktop.Sdk.Extension.toolchain-i386
-  - org.freedesktop.Sdk.Extension.openjdk17
-  - org.freedesktop.Sdk.Extension.mono6
 
 x-compat-i386-opts: &compat_i386_opts
   prepend-pkg-config-path: /app/lib32/pkgconfig:/usr/lib/i386-linux-gnu/pkgconfig
@@ -172,11 +160,40 @@ x-compat-i386-opts: &compat_i386_opts
 cleanup:
   - "*.a"
   - "*.la"
+  - /include
+  - /lib/pkgconfig
+  - /lib32/pkgconfig
+  - /share/doc
   - /share/man
   - /share/help
+  - /share/vulkan/registry
+  # The build compiles catalogs to .mo before installing the wheel
+  - /lib/python3.14/site-packages/qtris/locale/*.po
+  # The Qt wheels ship SDK tools and editor metadata alongside their runtime
+  - /bin/pyside6-*
+  - /lib/python3.14/site-packages/PySide6/assistant
+  - /lib/python3.14/site-packages/PySide6/designer
+  - /lib/python3.14/site-packages/PySide6/doc
+  - /lib/python3.14/site-packages/PySide6/glue
+  - /lib/python3.14/site-packages/PySide6/include
+  - /lib/python3.14/site-packages/PySide6/lib/cmake
+  - /lib/python3.14/site-packages/PySide6/linguist
+  - /lib/python3.14/site-packages/PySide6/lrelease
+  - /lib/python3.14/site-packages/PySide6/lupdate
+  - /lib/python3.14/site-packages/PySide6/qmlformat
+  - /lib/python3.14/site-packages/PySide6/qmllint
+  - /lib/python3.14/site-packages/PySide6/qmlls
+  - /lib/python3.14/site-packages/PySide6/scripts
+  - /lib/python3.14/site-packages/PySide6/svgtoqml
+  - /lib/python3.14/site-packages/PySide6/typesystems
+  - /lib/python3.14/site-packages/PySide6/Qt/libexec/qml*
+  - /lib/python3.14/site-packages/PySide6/Qt/libexec/rcc
+  - /lib/python3.14/site-packages/PySide6/Qt/libexec/uic
+  - /lib/python3.14/site-packages/PySide6/Qt/metatypes
+  - /lib/python3.14/site-packages/PySide6/Qt/plugins/designer
+  - /lib/python3.14/site-packages/PySide6/Qt/plugins/qmltooling
 cleanup-commands:
-  # PySide6's deploy tool ships Jinja templates named *.tmpl.py, which aren't Python
-  - python3 -m compileall -q -x '\.tmpl\.py$' /app/lib
+  - python3 -m compileall -q /app/lib/python3.14/site-packages/qtris
   - mkdir -p /app/utils
   - mkdir -p /app/lib/extensions/vulkan/gamescope
   - mkdir -p /app/lib/extensions/vulkan/MangoHud
@@ -457,32 +474,10 @@ modules:
 
   # Standalone utilities
 
-  - name: hwdata
-    config-opts:
-      - --datarootdir=/app/share
-    sources:
-      - type: archive
-        url: https://github.com/vcrhonek/hwdata/archive/refs/tags/v0.349.tar.gz
-        sha256: 2591ebf85b36e6d953360a003b2991fc0a0c2c35d3fdbd3133f435098b0af3da
-
-  - name: pciutils
-    no-autogen: true
-    make-args:
-      - SHAREDIR=/app/share/hwdata
-      - OPT=-O2 -g
-    make-install-args:
-      - PREFIX=/app
-      - SBINDIR=/app/bin
-      - SHAREDIR=/app/share/hwdata
-      - MANDIR=/app/share/man
-    sources:
-      - type: archive
-        url: https://mirrors.edge.kernel.org/pub/software/utils/pciutils/pciutils-3.7.0.tar.gz
-        sha256: 2432e7a2e12000502d36cf769ab6e5a0cf4931e5050ccaf8b02984b2d3cb0948
-
+  # Use the runtime's lspci and hardware database
   - name: usbutils
     config-opts:
-      - --datadir=/app/share/hwdata
+      - --datadir=/usr/share/hwdata
       - --sbindir=/app/bin
     sources:
       - type: archive
@@ -526,13 +521,6 @@ modules:
       - type: archive
         url: https://downloads.sourceforge.net/psmisc/psmisc-23.4.tar.xz
         sha256: 7f0cceeace2050c525f3ebb35f3ba01d618b8d690620580bdb8cd8269a0c1679
-
-  - name: zenity
-    buildsystem: meson
-    sources:
-      - type: archive
-        url: https://download.gnome.org/sources/zenity/3.41/zenity-3.41.0.tar.xz
-        sha256: 19b676c3510e22badfcc3204062d432ba537402f5e0ae26128c0d90c954037e1
 
   # Required by some 8/16-bit emulators
   - name: fluidsynth
@@ -615,6 +603,39 @@ modules:
           - ./Configure -des -Dprefix=/app
     post-install:
       - find /app/lib/perl5 -type f -exec chmod u+w {} \;
+    cleanup:
+      - "*.pod"
+
+  # Keep the archive tools and the Winetricks fallback formerly supplied by Wine
+  - name: cabextract
+    sources:
+      - type: archive
+        url: https://deb.debian.org/debian/pool/main/c/cabextract/cabextract_1.11.orig.tar.gz
+        sha256: b5546db1155e4c718ff3d4b278573604f30dd64c3c5bfd4657cd089b823a3ac6
+
+  - name: 7zip
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 7zz /app/bin/7zz
+      - ln -s 7zz /app/bin/7z
+      - ln -s 7zz /app/bin/7za
+      - install -Dm644 License.txt /app/share/licenses/7zip/License.txt
+    sources:
+      - type: archive
+        url: https://github.com/ip7z/7zip/releases/download/26.06/7z2606-linux-x64.tar.xz
+        sha256: 2b539cf067b2ad48e1baa5093dbaa8818b73542d1222a0ffde9dc5f2922ea62e
+        strip-components: 0
+
+  - name: winetricks
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 src/winetricks /app/bin/winetricks
+      - install -Dm644 COPYING /app/share/licenses/winetricks/COPYING
+    sources:
+      - type: git
+        url: https://github.com/Winetricks/winetricks.git
+        tag: "20260125"
+        commit: b76e1ee79ac57d7aceb384f74518fc423265810c
 
   - name: librsync
     buildsystem: cmake-ninja
@@ -650,18 +671,6 @@ modules:
       arch:
         x86_64: *compat_i386_opts
     sources: *sdl12_compat_sources
-
-  # Needed for minecraft
-  - name: java17
-    buildsystem: simple
-    build-commands:
-      - /usr/lib/sdk/openjdk17/install.sh
-
-  # Needed for FreeSO
-  - name: mono
-    buildsystem: simple
-    build-commands:
-      - /usr/lib/sdk/mono6/install.sh
 
   - name: ncurses
     build-options:
@@ -723,6 +732,21 @@ modules:
       - type: archive
         url: https://github.com/astral-sh/uv/releases/download/0.13.9/uv-x86_64-unknown-linux-musl.tar.gz
         sha256: 58ccf5f1792b8a5a88d01bc910ea131a8b3db4a319a17ad5fad75e0845a3e271
+
+  # The Qt wheels link to libgssapi_krb5, which the Wine base used to supply
+  - name: krb5
+    subdir: src
+    config-opts:
+      - --localstatedir=/var/lib
+      - --disable-rpath
+    cleanup:
+      - /bin
+      - /sbin
+      - /lib/krb5/plugins/kdb
+    sources:
+      - type: archive
+        url: https://kerberos.org/dist/krb5/1.22/krb5-1.22.3.tar.gz
+        sha256: fe90af8441ad9fa9b064b8e53077cefb782a96f8a68276b031dc54af1789ff0b
 
   - name: qtris
     buildsystem: simple

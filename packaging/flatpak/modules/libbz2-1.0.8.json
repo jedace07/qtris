@@ -7,8 +7,8 @@
     ],
     "no-make-install": true,
     "post-install": [
-      "mv libbz2.so.1.0.8 ${FLATPAK_DEST}/lib/",
-      "ln -s ${FLATPAK_DEST}/lib/libbz2.so.1.0.8 ${FLATPAK_DEST}/lib/libbz2.so.1.0"
+      "install -Dm755 libbz2.so.1.0.8 ${FLATPAK_DEST}/lib/libbz2.so.1.0.8",
+      "ln -s libbz2.so.1.0.8 ${FLATPAK_DEST}/lib/libbz2.so.1.0"
     ],
     "sources": [
       {
@@ -18,4 +18,3 @@
       }
     ]
 }
-  

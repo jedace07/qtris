@@ -561,8 +561,7 @@ class wine(Runner):
             return False
 
     def install_dialog(self, ui_delegate: "InstallUIDelegate") -> bool:
-        """Download the Proton build the game uses; Wine is always on hand, and Proton
-        comes when a game first needs it, so there is nothing to ask."""
+        """Download the game's Proton build on demand."""
         self.install(ui_delegate)
         return self.is_installed()
 
