@@ -695,7 +695,7 @@ class GOGService(OnlineService):
             game_config["prefix"] = "$GAMEDIR/pfx"
         return {
             "name": db_game["name"],
-            "version": _('Linux download') if runner == 'linux' else _('Windows download'),
+            "version": _("Linux download") if runner == "linux" else _("Windows download"),
             "slug": slug,
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,
@@ -728,7 +728,7 @@ class GOGService(OnlineService):
             ]
         return {
             "name": db_game["name"],
-            "version": _('Linux offline installer') if runner == 'linux' else _('Windows offline installer'),
+            "version": _("Linux offline installer") if runner == "linux" else _("Windows offline installer"),
             "slug": slug,
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,

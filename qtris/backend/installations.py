@@ -650,11 +650,11 @@ def _get(installation_id: str) -> _Installation:
 async def start_installation(
     catalog_id: str,
     choice_id: str,
-    directory: str = '',
+    directory: str = "",
     shortcut_kinds: tuple[str, ...] = (),
     *,
     include_extras: bool = True,
-    wine_prefix: str = '',
+    wine_prefix: str = "",
 ) -> InstallationInfo:
     """Start installing with a catalog's script into a folder, if the script creates one.
 

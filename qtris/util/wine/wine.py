@@ -66,16 +66,16 @@ def prepare_wine_prefix(directory: str) -> str:
     try:
         path = Path(directory).expanduser()
         if not path.is_absolute():
-            raise QtrisError(_('Enter an absolute path for the Wine prefix.'))
+            raise QtrisError(_("Enter an absolute path for the Wine prefix."))
         path = path.resolve()
         if is_prefix_directory(str(path)):
-            if detect_prefix_arch(str(path)) == 'win32':
-                raise QtrisError(_('Proton needs a 64-bit Wine prefix.'))
+            if detect_prefix_arch(str(path)) == "win32":
+                raise QtrisError(_("Proton needs a 64-bit Wine prefix."))
         elif path.exists() and (not path.is_dir() or any(path.iterdir())):
-            raise QtrisError(_('Choose a Wine prefix, an empty folder, or a new path.'))
+            raise QtrisError(_("Choose a Wine prefix, an empty folder, or a new path."))
         path.parent.mkdir(parents=True, exist_ok=True)
     except (OSError, RuntimeError, ValueError) as error:
-        raise QtrisError(_('Could not open the Wine prefix path: %s') % directory) from error
+        raise QtrisError(_("Could not open the Wine prefix path: %s") % directory) from error
     return str(path)
 
 

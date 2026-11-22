@@ -50,7 +50,7 @@ class LocalGameController(QObject):
 
     async def _register(self, executable: str, arguments: str, game_id: str) -> None:
         try:
-            game = await local_games.register_linux_game(executable, '', arguments, game_id=game_id)
+            game = await local_games.register_linux_game(executable, "", arguments, game_id=game_id)
         finally:
             self._working = False
             self.stateChanged.emit()

@@ -236,13 +236,13 @@ class CommandsMixin:
         """
         self._check_required_params("name", data, "task")
         runner_name, task_name = self._get_task_runner_and_name(data.pop("name"))
-        wine_prefix = ''
+        wine_prefix = ""
 
         if runner_name.startswith("wine"):
             wine_prefix = self.installer.wine_prefix
             data["wine_path"] = self.get_wine_path()
             if not wine_prefix:
-                data['prefix'] = data.get('prefix') or self.installer.script.get('game', {}).get('prefix') or '$GAMEDIR'
+                data["prefix"] = data.get("prefix") or self.installer.script.get("game", {}).get("prefix") or "$GAMEDIR"
             data["arch"] = data.get("arch") or self.installer.script.get("game", {}).get("arch") or WINE_DEFAULT_ARCH
             if task_name == "wineexec":
                 data["env"] = self.script_env
@@ -260,7 +260,7 @@ class CommandsMixin:
             data[key] = value
 
         if wine_prefix:
-            data['prefix'] = wine_prefix
+            data["prefix"] = wine_prefix
         task = import_task(runner_name, task_name)
         command = task(**data)
         if isinstance(command, MonitoredCommand):
@@ -268,7 +268,7 @@ class CommandsMixin:
                 self.abort_current_task = command.stop
                 if self.cancelled:
                     command.stop()
-                    return 'STOP'
+                    return "STOP"
             # Monitor thread and continue when task has executed
             self.interpreter_ui_delegate.attach_log(command)
             schedule_repeating_at_idle(self._monitor_task, command, interval_seconds=1.0)

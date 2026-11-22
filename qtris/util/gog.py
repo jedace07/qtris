@@ -14,7 +14,7 @@ def get_gog_game_path(target_path, product_id: str | None = None):
         return None
     games = os.listdir(gog_game_path)
     if product_id:
-        manifest = f'goggame-{product_id}.info'
+        manifest = f"goggame-{product_id}.info"
         return next(
             (
                 os.path.join(gog_game_path, game)
@@ -33,7 +33,7 @@ def get_gog_game_path(target_path, product_id: str | None = None):
 
 def get_gog_config(gog_game_path, product_id: str | None = None):
     """Extract runtime information such as executable paths from GOG files"""
-    manifest = f'goggame-{product_id}.info' if product_id else 'goggame-*.info'
+    manifest = f"goggame-{product_id}.info" if product_id else "goggame-*.info"
     config_files = glob.glob(os.path.join(glob.escape(gog_game_path), manifest))
     if not config_files:
         logger.error("No config file found in %s", gog_game_path)
@@ -141,7 +141,7 @@ def apply_gog_config(installer):
     prefix = installer.wine_prefix or installer.interpreter.target_path
     product_id = str(installer.service_appid) if installer.wine_prefix and installer.service_appid else None
     if (
-        'game' in installer.script
+        "game" in installer.script
         and (gog_game_path := get_gog_game_path(prefix, product_id))
         and (gog_config := get_gog_config(gog_game_path, product_id))
     ):

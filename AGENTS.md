@@ -1,6 +1,5 @@
 # Instructions
 
-- Prefer single quotes, but docstrings are sill double quotes.
 - Use numpy docstring style when asked to write docstrings.
 - Comments should start with a capital letter but not end with a period.
 - Strictly typed, target Python 3.14.

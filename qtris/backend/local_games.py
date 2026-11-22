@@ -47,7 +47,7 @@ async def register_linux_game(executable: str, name: str, arguments: str = "", *
 
 
 async def register_gog_game(
-    appid: str, directory: str, executable: str = '', *, game_id: str = '', wine_prefix: str = ''
+    appid: str, directory: str, executable: str = "", *, game_id: str = "", wine_prefix: str = ""
 ) -> GameInfo:
     """Link a GOG library entry to an existing game folder."""
 
@@ -60,93 +60,91 @@ async def register_gog_game(
     return await game_maintenance._run_maintenance(game_id, register)
 
 
-def _register_gog(
-    appid: str, directory: str, executable: str, game_id: str, wine_prefix: str
-) -> games_db.DbGameDict:
+def _register_gog(appid: str, directory: str, executable: str, game_id: str, wine_prefix: str) -> games_db.DbGameDict:
     if not appid.isascii() or not appid.isdecimal():
-        raise QtrisError(_('This GOG game has an invalid product ID.'))
-    source = ServiceGameCollection.get_game('gog', appid)
+        raise QtrisError(_("This GOG game has an invalid product ID."))
+    source = ServiceGameCollection.get_game("gog", appid)
     if source is None:
-        raise QtrisError(_('Sync GOG to find this game in your library.'))
+        raise QtrisError(_("Sync GOG to find this game in your library."))
 
     folder = Path(directory).expanduser()
     if not folder.is_absolute() or not folder.is_dir():
-        raise QtrisError(_('Choose an existing game folder.'))
+        raise QtrisError(_("Choose an existing game folder."))
     folder = folder.resolve()
     if executable:
-        options = {'exe': str(Path(executable).expanduser())}
+        options = {"exe": str(Path(executable).expanduser())}
         manifest_dir = folder
     else:
         options, manifest_dir = _detect_gog_launch(folder, appid)
 
-    path = Path(options['exe'])
+    path = Path(options["exe"])
     if not path.is_absolute() or not path.resolve().is_relative_to(folder) or not path.is_file():
-        raise QtrisError(_('Choose a game executable inside the selected folder.'))
-    runner = 'wine' if path.suffix.casefold() == '.exe' else 'linux'
-    if runner == 'linux':
+        raise QtrisError(_("Choose a game executable inside the selected folder."))
+    runner = "wine" if path.suffix.casefold() == ".exe" else "linux"
+    if runner == "linux":
         if wine_prefix:
-            raise QtrisError(_('Clear the Wine prefix to use the Linux executable.'))
+            raise QtrisError(_("Clear the Wine prefix to use the Linux executable."))
         _check_executable(str(path))
-    working_dir = Path(options.get('working_dir') or path.parent)
+    working_dir = Path(options.get("working_dir") or path.parent)
     if not working_dir.is_absolute():
         working_dir = manifest_dir / working_dir
     if not working_dir.resolve().is_relative_to(folder) or not working_dir.is_dir():
         working_dir = path.parent
-    options['working_dir'] = str(working_dir)
+    options["working_dir"] = str(working_dir)
 
     # Serialize the duplicate check and registration with other library writes
     with sql.DB_LOCK:
-        matches = games_db.get_games(filters={'service': 'gog', 'service_id': appid})
-        if any(row['installed'] for row in matches):
-            raise QtrisError(_('This game is already installed.'))
-        entry = next((row for row in matches if not game_id or row['id'] == game_id), None)
+        matches = games_db.get_games(filters={"service": "gog", "service_id": appid})
+        if any(row["installed"] for row in matches):
+            raise QtrisError(_("This game is already installed."))
+        entry = next((row for row in matches if not game_id or row["id"] == game_id), None)
         if game_id and entry is None:
-            raise QtrisError(_('This game is no longer in the library.'))
-        if runner == 'wine':
-            default_prefix = Path(settings.DATA_DIR) / 'prefixes' / f'gog-{appid}'
-            options['prefix'] = prepare_wine_prefix(wine_prefix or str(default_prefix))
-        name = entry['name'] if entry else str(source['name'])
+            raise QtrisError(_("This game is no longer in the library."))
+        if runner == "wine":
+            default_prefix = Path(settings.DATA_DIR) / "prefixes" / f"gog-{appid}"
+            options["prefix"] = prepare_wine_prefix(wine_prefix or str(default_prefix))
+        name = entry["name"] if entry else str(source["name"])
         return _save_registration(
             name,
             entry,
             options,
             {
-                'service': 'gog',
-                'service_id': appid,
-                'runner': runner,
-                'platform': _('Windows') if runner == 'wine' else linux().get_platform(),
-                'directory': str(folder),
-                'external_files': 1,
+                "service": "gog",
+                "service_id": appid,
+                "runner": runner,
+                "platform": _("Windows") if runner == "wine" else linux().get_platform(),
+                "directory": str(folder),
+                "external_files": 1,
             },
-            slug=str(source['slug'] or ''),
+            slug=str(source["slug"] or ""),
         )
 
 
 def _detect_gog_launch(folder: Path, appid: str) -> tuple[dict[str, str], Path]:
-    for manifest_dir in (folder, folder / 'game'):
-        manifest = manifest_dir / f'goggame-{appid}.info'
+    for manifest_dir in (folder, folder / "game"):
+        manifest = manifest_dir / f"goggame-{appid}.info"
         if not manifest.is_file():
             continue
-        start_script = folder / 'start.sh'
+        start_script = folder / "start.sh"
         if start_script.is_file() and os.access(start_script, os.X_OK):
-            return {'exe': str(start_script)}, folder
+            return {"exe": str(start_script)}, folder
         try:
-            data = json.loads(manifest.read_text(encoding='utf-8-sig'))
+            data = json.loads(manifest.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError) as error:
-            raise QtrisError(_('Could not read the GOG launch info. Choose the game executable below.')) from error
-        tasks = data.get('playTasks', []) if isinstance(data, dict) else []
+            raise QtrisError(_("Could not read the GOG launch info. Choose the game executable below.")) from error
+        tasks = data.get("playTasks", []) if isinstance(data, dict) else []
         if not isinstance(tasks, list):
             break
         for task in tasks:
-            if not isinstance(task, dict) or not task.get('isPrimary') or not isinstance(task.get('path'), str):
+            if not isinstance(task, dict) or not task.get("isPrimary") or not isinstance(task.get("path"), str):
                 continue
             options = get_game_config(
-                {key: task[key] for key in ('path', 'workingDir', 'arguments') if isinstance(task.get(key), str)},
+                {key: task[key] for key in ("path", "workingDir", "arguments") if isinstance(task.get(key), str)},
                 str(manifest_dir),
             )
             if options:
                 return options, manifest_dir
-    raise QtrisError(_('Could not detect this game in the chosen folder. Choose its executable below.'))
+    raise QtrisError(_("Could not detect this game in the chosen folder. Choose its executable below."))
 
 
 def _check_executable(executable: str) -> str:
@@ -176,7 +174,7 @@ def _register(executable: str, name: str, arguments: str, game_id: str) -> games
     if arguments:
         options["args"] = arguments
     return _save_registration(
-        name, entry, options, {'runner': 'linux', 'platform': linux().get_platform(), 'directory': ''}
+        name, entry, options, {"runner": "linux", "platform": linux().get_platform(), "directory": ""}
     )
 
 
@@ -186,10 +184,10 @@ def _save_registration(
     options: dict[str, str],
     installation: games_db.DbGameDict,
     *,
-    slug: str = '',
+    slug: str = "",
 ) -> games_db.DbGameDict:
-    config_id = f'local-{uuid4().hex}'
-    config_path = Path(settings.CONFIG_DIR) / 'games' / f'{config_id}.yml'
+    config_id = f"local-{uuid4().hex}"
+    config_path = Path(settings.CONFIG_DIR) / "games" / f"{config_id}.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     fields = {
         "installed": 1,
@@ -202,14 +200,14 @@ def _save_registration(
     write_yaml_to_file({"game": options}, str(config_path))
     try:
         if entry:
-            updated = sql.db_update(settings.DB_PATH, 'games', fields, {'id': entry['id']})
+            updated = sql.db_update(settings.DB_PATH, "games", fields, {"id": entry["id"]})
             if updated.rowcount != 1:
                 raise QtrisError(_("This game is no longer in the library."))
             return {**entry, **fields}
 
         slug = slug or slugify(name)
         new_id = games_db.add_game(name=name, slug=slug, **fields)
-        return {**fields, 'id': new_id, 'name': name, 'slug': slug}
+        return {**fields, "id": new_id, "name": name, "slug": slug}
     except Exception:
         try:
             config_path.unlink()

@@ -105,7 +105,7 @@ class Game:
         self.slug = game_data.get("slug") or ""
         self._runner_name = game_data.get("runner") or ""
         self.directory = game_data.get("directory") or ""
-        self.external_files = bool(game_data.get('external_files'))
+        self.external_files = bool(game_data.get("external_files"))
         self.name = game_data.get("name") or ""
         self.sortname = game_data.get("sortname") or ""
         self.is_installed = bool(game_data.get("installed") and self.game_config_id)
@@ -471,7 +471,7 @@ class Game:
         Params:
             delete_files (bool): Delete the game files
         """
-        sql.db_update(settings.DB_PATH, 'games', {'installed': 0, 'runner': '', 'external_files': 0}, {'id': self.id})
+        sql.db_update(settings.DB_PATH, "games", {"installed": 0, "runner": "", "external_files": 0}, {"id": self.id})
         if self.config:
             self.config.remove()
         xdgshortcuts.remove_launcher(self.slug, self.id, desktop=True, menu=True)

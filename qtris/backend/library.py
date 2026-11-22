@@ -332,7 +332,7 @@ def _to_library_game(
         appid=game.get("appid") or None,
         icon=game.get("icon") or None,
         artwork=artwork_info,
-        external_files=bool(get('external_files')),
+        external_files=bool(get("external_files")),
     )
 
 

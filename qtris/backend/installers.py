@@ -96,11 +96,11 @@ async def get_store_game_name(service_id: str, appid: str) -> str:
     """Look up the synced title without contacting the store."""
     source = SERVICES.get(service_id)
     if not source or not appid:
-        raise QtrisError(_('This game source is unavailable.'))
+        raise QtrisError(_("This game source is unavailable."))
     row = await asyncio.to_thread(ServiceGameCollection.get_game, service_id, appid)
     if row is None:
-        raise QtrisError(_('Sync %s to find this game in your library.') % source.name)
-    return str(row['name'])
+        raise QtrisError(_("Sync %s to find this game in your library.") % source.name)
+    return str(row["name"])
 
 
 async def find_store_installers(
@@ -150,8 +150,8 @@ def _installed_game(game_id: str, service_id: str, appid: str) -> games_db.DbGam
     row = games_db.get_game_by_field(game_id, "id") if game_id else None
     if not row or not row["installed"] or row["service"] != service_id or str(row["service_id"]) != appid:
         raise QtrisError(_("This game must be installed from this source first."))
-    if row.get('external_files'):
-        raise QtrisError(_('This installation is managed outside Qtris.'))
+    if row.get("external_files"):
+        raise QtrisError(_("This installation is managed outside Qtris."))
     if not row["directory"] or not Path(row["directory"]).is_dir():
         raise QtrisError(_("The installed game's folder could not be found."))
     return row
@@ -245,7 +245,7 @@ async def build_interpreter(
     choice_id: str,
     delegate: ScriptInterpreter.InterpreterUIDelegate,
     *,
-    wine_prefix: str = '',
+    wine_prefix: str = "",
 ) -> tuple[ScriptInterpreter, InstallationKind]:
     """Build a fresh interpreter on a copy of the selected installation plan."""
     script, origin = _copy_choice(catalog_id, choice_id)
@@ -254,7 +254,7 @@ async def build_interpreter(
 
 
 def _build_interpreter(
-    script: _Script, origin: _Origin, delegate: ScriptInterpreter.InterpreterUIDelegate, wine_prefix: str = ''
+    script: _Script, origin: _Origin, delegate: ScriptInterpreter.InterpreterUIDelegate, wine_prefix: str = ""
 ) -> ScriptInterpreter:
     delegate.service = origin.service
     delegate.appid = origin.appid
@@ -278,18 +278,18 @@ def _build_interpreter(
     installer = interpreter.installer
     if wine_prefix:
         if not _can_choose_wine_prefix(interpreter, origin.kind):
-            raise QtrisError(_('This installation cannot use a custom Wine prefix.'))
+            raise QtrisError(_("This installation cannot use a custom Wine prefix."))
         installer.wine_prefix = prepare_wine_prefix(wine_prefix)
-    elif installer.runner == 'wine' and delegate.installed_game:
-        config = QtrisConfig(runner_slug='wine', game_config_id=delegate.installed_game['configpath'])
-        installer.wine_prefix = config.game_config.get('prefix') or ''
+    elif installer.runner == "wine" and delegate.installed_game:
+        config = QtrisConfig(runner_slug="wine", game_config_id=delegate.installed_game["configpath"])
+        installer.wine_prefix = config.game_config.get("prefix") or ""
     return interpreter
 
 
 def _can_choose_wine_prefix(interpreter: ScriptInterpreter, kind: InstallationKind) -> bool:
     return (
         kind == InstallationKind.INSTALL
-        and interpreter.installer.runner == 'wine'
+        and interpreter.installer.runner == "wine"
         and interpreter.installer.creates_game_folder
     )
 

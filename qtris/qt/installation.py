@@ -148,7 +148,7 @@ class InstallationController(QObject):
         shortcut_kinds: tuple[str, ...] | None,
         *,
         include_extras: bool,
-        wine_prefix: str = '',
+        wine_prefix: str = "",
     ) -> None:
         if self.active:
             return

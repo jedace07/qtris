@@ -57,7 +57,7 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         self.extends = self.script.get("extends")
         self.game_id = self.get_game_id()
         self.post_install_hooks = []
-        self.wine_prefix: str = ''
+        self.wine_prefix: str = ""
         self.prefix_install_started_at: int | None = None
 
     def get_service(self, initial=None):
@@ -292,17 +292,17 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
                 raise ScriptingError(_("Invalid 'game' section"), faulty_data=self.script["game"]) from err
 
         game_config = self._substitute_config(game_config)
-        if self.runner == 'wine' and self.wine_prefix:
-            game_config['prefix'] = self.wine_prefix
+        if self.runner == "wine" and self.wine_prefix:
+            game_config["prefix"] = self.wine_prefix
         if AUTO_ELF_EXE in game_config.get("exe", ""):
             game_config["exe"] = find_linux_game_executable(self.interpreter.target_path, make_executable=True)
         elif AUTO_WIN32_EXE in game_config.get("exe", ""):
             executable = find_windows_game_executable(self.interpreter.target_path)
             if not executable and self.wine_prefix and self.prefix_install_started_at is not None:
                 executable = find_windows_game_executable(
-                    os.path.join(self.wine_prefix, 'drive_c'), changed_since_ns=self.prefix_install_started_at
+                    os.path.join(self.wine_prefix, "drive_c"), changed_since_ns=self.prefix_install_started_at
                 )
-            game_config['exe'] = executable
+            game_config["exe"] = executable
 
         # Fix possible case differences
         for key in ENTRY_POINT_KEYS:

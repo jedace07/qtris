@@ -39,12 +39,12 @@ class InstallerController(QObject):
         self._selection: InstallerSelection | None = None
         self._choice_index = -1
         self._directory = ""
-        self._error = ''
+        self._error = ""
         self._kind = InstallationKind.INSTALL
         self._task: asyncio.Task[None] | None = None
         self._gog_target: tuple[str, str] | None = None
         self._importing = False
-        self._import_error = ''
+        self._import_error = ""
         self.installation_controller = InstallationController(prompts, self)
 
     @Property(QObject, constant=True)
@@ -135,10 +135,10 @@ class InstallerController(QObject):
     @Property(str, notify=stateChanged)
     def startLabel(self) -> str:  # noqa: N802
         if self._kind == InstallationKind.UPDATE:
-            return _('Apply')
+            return _("Apply")
         if self._kind == InstallationKind.DLC:
-            return _('Install DLC')
-        return _('Install')
+            return _("Install DLC")
+        return _("Install")
 
     @Slot(str, str, str, str, str)
     def open_installers(self, service: str, appid: str, game_id: str, game_name: str, operation: str) -> None:
@@ -147,7 +147,7 @@ class InstallerController(QObject):
         kind = InstallationKind[operation.upper()]
         self._reset(game_name)
         self._kind = kind
-        if service == 'gog' and appid and kind == InstallationKind.INSTALL:
+        if service == "gog" and appid and kind == InstallationKind.INSTALL:
             self._gog_target = (appid, game_id)
             self.existingStateChanged.emit()
         request = partial(installers.find_store_installers, service, appid, game_id, kind)
@@ -177,7 +177,7 @@ class InstallerController(QObject):
         name = await installers.get_store_game_name(service, appid)
         if self.installation_controller.active or self._importing:
             raise QtrisError(_("Finish the current installation first."))
-        self.open_installers(service, appid, '', name, 'install')
+        self.open_installers(service, appid, "", name, "install")
 
     @Slot(int)
     def select(self, index: int) -> None:
@@ -197,7 +197,7 @@ class InstallerController(QObject):
         if self._gog_target is None or self._importing or self.installation_controller.active:
             return
         self._importing = True
-        self._import_error = ''
+        self._import_error = ""
         self.existingStateChanged.emit()
         appid, game_id = self._gog_target
         start_task(
@@ -244,7 +244,7 @@ class InstallerController(QObject):
             self._directory.strip(),
             kinds if self.createsShortcuts else None,
             include_extras=include_extras and selection.offers_extras,
-            wine_prefix=wine_prefix.strip() if selection.can_choose_wine_prefix else '',
+            wine_prefix=wine_prefix.strip() if selection.can_choose_wine_prefix else "",
         )
 
     @Slot()
@@ -264,10 +264,10 @@ class InstallerController(QObject):
         self._selection = None
         self._choice_index = -1
         self._directory = ""
-        self._error = ''
+        self._error = ""
         self._kind = InstallationKind.INSTALL
         self._gog_target = None
-        self._import_error = ''
+        self._import_error = ""
         self.existingStateChanged.emit()
         self.stateChanged.emit()
 
@@ -281,7 +281,7 @@ class InstallerController(QObject):
         except QtrisError as error:
             self._error = str(error)
         except Exception:
-            self._error = _('Could not prepare the installation.')
+            self._error = _("Could not prepare the installation.")
             raise
         finally:
             # A cancelled task must not clear the task that replaced it
@@ -297,8 +297,8 @@ class InstallerController(QObject):
     async def _select(self, catalog: InstallerCatalog, index: int) -> None:
         self._choice_index = index
         self._selection = None
-        self._directory = ''
-        self._error = ''
+        self._directory = ""
+        self._error = ""
         self.stateChanged.emit()
         self._selection = await installers.select_installer(catalog.id, catalog.choices[index].id)
         self._directory = self._selection.default_directory

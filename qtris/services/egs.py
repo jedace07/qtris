@@ -216,8 +216,8 @@ class EpicGamesStoreService(OnlineService):
             }
 
         return [
-            installer('update', _('Update'), _('Download the latest game files.')),
-            installer('repair', _('Verify files'), _('Verify game files and re-download any that are damaged.')),
+            installer("update", _("Update"), _("Download the latest game files.")),
+            installer("repair", _("Verify files"), _("Verify game files and re-download any that are damaged.")),
         ]
 
     def get_installed_runner_name(self, db_game: dict[str, Any]) -> str:
