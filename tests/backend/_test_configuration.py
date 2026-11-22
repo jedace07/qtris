@@ -300,3 +300,27 @@ def test_new_games_need_a_runner_and_are_created_on_save(
     finally:
         for game_id in created:
             games_db.delete_game(game_id)
+
+
+def test_steam_games_have_no_runner_options_and_steam_is_not_offered(config_dir: Path, game_id: str) -> None:
+    write_yaml_to_file({"game": {"appid": "440"}}, str(config_dir / "games" / "steam-440.yml"))
+    steam_game_id = str(
+        games_db.add_game(name="Team Fortress 2", slug="tf2", runner="steam", configpath="steam-440", installed=1)
+    )
+
+    async def run() -> None:
+        form = await configuration.open_game_config(steam_game_id)
+        assert [page.section for page in form.pages] == ["game", "system"]
+        assert [option.key for option in form.pages[0].options] == ["appid", "args"]
+        # It keeps its runner, which no other game can be switched to
+        assert "steam" in [choice.value for choice in form.runner_choices]
+        await configuration.close_config(form.id)
+
+        form = await configuration.open_game_config(game_id)
+        assert "steam" not in [choice.value for choice in form.runner_choices]
+        await configuration.close_config(form.id)
+
+    try:
+        asyncio.run(run())
+    finally:
+        games_db.delete_game(steam_game_id)

@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from qtris import runners as runner_registry
 from qtris import settings
 from qtris.backend import runners
 from qtris.runners import InvalidRunnerError, runner
@@ -31,9 +32,21 @@ def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
     return values
 
 
-def test_a_new_profile_has_steam_linux_and_wine_turned_on(saved: dict[tuple[str, str], str]) -> None:
+def test_a_new_profile_has_linux_and_wine_turned_on(saved: dict[tuple[str, str], str]) -> None:
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["linux", "steam", "wine"]
+    assert [item.name for item in enabled] == ["linux", "wine"]
+
+
+def test_steam_is_not_offered_as_a_runner(saved: dict[tuple[str, str], str]) -> None:
+    # A profile that turned the Steam runner off before it became internal
+    saved[("runners", "steam")] = "False"
+    assert "steam" not in asyncio.run(runners.list_runners())
+    assert "steam" not in {entry.name for entry in asyncio.run(runners.list_runner_catalog())}
+    assert "steam" not in {item.name for item in asyncio.run(runners.list_enabled_runners())}
+    # The Steam source's games still run through it
+    assert runner_registry.is_runner_enabled("steam") and runner_registry.is_valid_runner_name("steam")
+    with pytest.raises(InvalidRunnerError):
+        asyncio.run(runners.set_runner_enabled("steam", True))
 
 
 def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,14 +62,14 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
     async def change() -> None:
         await runners.set_runner_enabled("web", True)
         await runners.set_runner_enabled("eden", True)
-        await runners.set_runner_enabled("steam", False)
+        await runners.set_runner_enabled("linux", False)
 
     asyncio.run(change())
     # Only the runner that wasn't installed yet is installed
     assert installs == ["eden"]
-    assert saved[("runners", "steam")] == "False"
+    assert saved[("runners", "linux")] == "False"
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["eden", "linux", "web", "wine"]
+    assert [item.name for item in enabled] == ["eden", "web", "wine"]
 
     with pytest.raises(InvalidRunnerError):
         asyncio.run(runners.set_runner_enabled("no-such-runner", True))
@@ -64,7 +77,7 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
 
 def test_the_catalog_says_which_runners_are_on(saved: dict[tuple[str, str], str]) -> None:
     catalog = {entry.name: entry for entry in asyncio.run(runners.list_runner_catalog())}
-    assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "steam", "wine"}
+    assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "wine"}
     # Proton comes when a game needs it, so Wine is always ready
     assert catalog["wine"].installed and not catalog["wine"].can_install
 

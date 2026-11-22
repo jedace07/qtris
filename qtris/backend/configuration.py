@@ -30,7 +30,13 @@ from qtris.config import QtrisConfig, make_game_config_id, rename_config
 from qtris.database import games as games_db
 from qtris.exceptions import QtrisError
 from qtris.game import Game
-from qtris.runners import InvalidRunnerError, get_runner_names, import_runner, is_runner_enabled
+from qtris.runners import (
+    InvalidRunnerError,
+    get_user_runner_names,
+    import_runner,
+    is_runner_enabled,
+    is_valid_runner_name,
+)
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import get_formatted_playtime, parse_playtime, slugify
@@ -95,7 +101,8 @@ class _Form:
         if section == "game":
             return self.level == "game" and self.runner is not None
         if section == "runner":
-            return self.level in ("game", "runner") and self.runner is not None
+            # Internal runners, such as Steam's, have no options of their own to set
+            return self.level in ("game", "runner") and self.runner is not None and bool(self.options("runner"))
         return True
 
     def options(self, section: str) -> list[Option]:
@@ -450,8 +457,11 @@ def _checked_value(option: Option, value: Any) -> Any:
 
 
 def _runner_choices(current: str) -> tuple[ConfigChoice, ...]:
-    """The runners a game can use: those turned on, and the one it already has."""
-    names = [name for name in get_runner_names() if name == current or is_runner_enabled(name)]
+    """The runners a game can use: those offered to the user that are turned on, and the
+    one it already has, which may be an internal runner such as Steam's."""
+    names = [name for name in get_user_runner_names() if name == current or is_runner_enabled(name)]
+    if current and current not in names and is_valid_runner_name(current):
+        names.append(current)
     runners = sorted((import_runner(name)() for name in names), key=lambda runner: runner.human_name.casefold())
     return tuple(
         ConfigChoice(label=f"{runner.human_name} ({getattr(runner, 'description', '')})", value=runner.name)

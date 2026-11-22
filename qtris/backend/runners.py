@@ -19,7 +19,7 @@ from qtris.game import Game
 from qtris.runners import (
     RunnerInstallationError,
     get_enabled,
-    get_runner_names,
+    get_user_runner_names,
     import_runner,
     is_runner_enabled,
 )
@@ -112,8 +112,8 @@ class _InstallDelegate(InstallUIDelegate):
 
 
 async def list_runners() -> list[str]:
-    """Return the names of every runner Qtris knows, in alphabetical order."""
-    return sorted(get_runner_names(), key=lambda name: name.lower())
+    """Return the names of the runners offered to the user, in alphabetical order."""
+    return sorted(get_user_runner_names(), key=lambda name: name.lower())
 
 
 async def list_enabled_runners() -> list[RunnerInfo]:
@@ -139,7 +139,7 @@ async def list_runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
 
 def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
     entries = []
-    for name in get_runner_names():
+    for name in get_user_runner_names():
         runner = import_runner(name)()
         # Wine downloads the Proton build a game needs when it first runs, so it's always ready
         installed = name == "wine" or runner.is_installed()

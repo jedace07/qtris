@@ -72,48 +72,42 @@ class KeepGameAliveTest(TestCase):
             runner._launch_monitor_start = 0.0  # far in the past
             with (
                 patch.object(steam, "get_steam_game_pids", return_value=set()),
-                patch.object(steam.time, "monotonic", return_value=runner.launch_grace_seconds + 1),
+                patch.object(steam.time, "monotonic", return_value=steam.LAUNCH_GRACE_SECONDS + 1),
             ):
                 self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
-
-    def test_grace_window_uses_configured_value(self):
-        # A custom launch_grace_seconds option overrides the default.
-        with make_runner(runner_config={"launch_grace_seconds": "10"}) as runner:
-            self.assertEqual(runner.launch_grace_seconds, 10)
-            runner._launch_monitor_start = 0.0
-            with (
-                patch.object(steam, "get_steam_game_pids", return_value=set()),
-                patch.object(steam.time, "monotonic", return_value=5),  # within 10s window
-            ):
-                self.assertTrue(runner.keep_game_alive(set(), game_thread_running=False))
-            with (
-                patch.object(steam, "get_steam_game_pids", return_value=set()),
-                patch.object(steam.time, "monotonic", return_value=11),  # past 10s window
-            ):
-                self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
-
-    def test_grace_default_and_invalid_fallback(self):
-        with make_runner() as runner:  # no option set
-            self.assertEqual(runner.launch_grace_seconds, steam.DEFAULT_LAUNCH_GRACE_SECONDS)
-        # Non-numeric and non-positive values both fall back to the default and
-        # both emit a warning (the two invalid cases are treated identically).
-        with make_runner(runner_config={"launch_grace_seconds": "notanumber"}) as runner:
-            with self.assertLogs(steam.logger, level="WARNING"):
-                self.assertEqual(runner.launch_grace_seconds, steam.DEFAULT_LAUNCH_GRACE_SECONDS)
-        with make_runner(runner_config={"launch_grace_seconds": "-5"}) as runner:
-            with self.assertLogs(steam.logger, level="WARNING"):
-                self.assertEqual(runner.launch_grace_seconds, steam.DEFAULT_LAUNCH_GRACE_SECONDS)
 
     def test_false_without_appid(self):
         with make_runner(appid="") as runner:
             self.assertFalse(runner.keep_game_alive({5555}, game_thread_running=False))
 
-    def test_drm_free_mode_is_tracked_like_any_game(self):
-        config = {"appid": "440", "run_without_steam": True, "steamless_binary": "/games/tf/hl2.sh"}
-        with make_runner() as runner, patch.object(steam.steam, "game_config", new_callable=PropertyMock) as game:
-            game.return_value = config
-            with patch.object(steam, "get_steam_game_pids", return_value=set()):
-                self.assertFalse(runner.keep_game_alive(set(), game_thread_running=False))
+
+class PlayTest(TestCase):
+    """Games start through Steam, with the arguments set for them."""
+
+    def play(self, args="", is_flatpak=False):
+        with (
+            make_runner() as runner,
+            patch.object(
+                steam.steam, "game_config", new_callable=PropertyMock, return_value={"appid": "440", "args": args}
+            ),
+            patch.object(steam.steam, "get_command", return_value=["steam"]),
+            patch.object(steam.linux.LINUX_SYSTEM, "is_flatpak", return_value=is_flatpak),
+        ):
+            return runner.play()["command"]
+
+    def test_games_start_through_steam(self):
+        self.assertEqual(self.play(), ["steam", "steam://rungameid/440"])
+
+    def test_arguments_are_passed_to_the_game(self):
+        self.assertEqual(self.play("-novid -console"), ["steam", "-applaunch", "440", "-novid", "-console"])
+
+    def test_the_flatpak_opens_a_steam_uri(self):
+        self.assertEqual(self.play(is_flatpak=True), ["steam", "steam://rungameid/440"])
+        self.assertEqual(self.play("-novid", is_flatpak=True), ["steam", "steam://run/440//-novid/"])
+
+    def test_steam_has_no_options_of_its_own(self):
+        self.assertEqual(steam.steam().get_runner_options(), [])
+        self.assertEqual([option["option"] for option in steam.steam.game_options], ["appid", "args"])
 
 
 class ForceStopGameTest(TestCase):

@@ -8,10 +8,10 @@ from gettext import gettext as _
 from typing import Optional
 
 from qtris.config import QtrisConfig
-from qtris.exceptions import MissingGameExecutableError, UnavailableRunnerError
+from qtris.exceptions import UnavailableRunnerError
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import NonInstallableRunnerError
-from qtris.runners.runner import Runner
+from qtris.runners.runner import Runner, RunnerOptionDict
 from qtris.util import host_processes, linux, system
 from qtris.util.log import logger
 from qtris.util.steam.appinfo import get_app_oslist
@@ -20,11 +20,10 @@ from qtris.util.steam.config import get_compat_tools, get_default_acf, get_steam
 from qtris.util.steam.vdfutils import to_vdf
 from qtris.util.strings import split_arguments
 
-# Default time (seconds) to keep monitoring after the launcher exits while
-# waiting for the game's processes to appear, before concluding the launch
-# failed. Covers slow hand-off, shader pre-caching and first-launch
-# prerequisites. Overridable per-game via the "launch_grace_seconds" option.
-DEFAULT_LAUNCH_GRACE_SECONDS = 120
+# Time (seconds) to keep monitoring after the launcher exits while waiting for the
+# game's processes to appear, before concluding the launch failed. Covers slow
+# hand-off, shader pre-caching and first-launch prerequisites.
+LAUNCH_GRACE_SECONDS = 120
 
 # How long a game gets to quit after SIGTERM before it's killed
 STOP_TIMEOUT_SECONDS = 5.0
@@ -63,6 +62,9 @@ def get_steam_game_platform(appid: str) -> str:
 
 
 class steam(Runner):
+    """Runs the Steam source's games through Steam. It isn't offered as a runner, and
+    has no options of its own: Steam's launch options are set in Steam."""
+
     description = _("Runs Steam for Linux games")
     human_name = _("Steam")
     platform_dict = Runner.to_platform_dict([_("Linux"), _("Windows")])
@@ -84,58 +86,7 @@ class steam(Runner):
             "option": "args",
             "type": "string",
             "label": _("Arguments"),
-            "help": _(
-                "Command line arguments used when launching the game.\nIgnored when Steam Big Picture mode is enabled."
-            ),
-        },
-        {
-            "option": "run_without_steam",
-            "label": _("DRM free mode (Do not launch Steam)"),
-            "type": "bool",
-            "default": False,
-            "advanced": True,
-            "help": _("Run the game directly without Steam, requires the game binary path to be set"),
-        },
-        {
-            "option": "steamless_binary",
-            "type": "file",
-            "label": _("Game binary path"),
-            "advanced": True,
-            "help": _("Path to the game executable (Required by DRM free mode)"),
-        },
-    ]
-    runner_options = [
-        {
-            "option": "start_in_big_picture",
-            "label": _("Start Steam in Big Picture mode"),
-            "type": "bool",
-            "default": False,
-            "help": _(
-                "Launches Steam in Big Picture mode.\n"
-                "Only works if Steam is not running or "
-                "already running in Big Picture mode.\n"
-                "Useful when playing with a Steam Controller."
-            ),
-        },
-        {
-            "option": "args",
-            "type": "string",
-            "label": _("Arguments"),
-            "advanced": True,
-            "help": _("Extra command line arguments used when launching Steam"),
-        },
-        {
-            "option": "launch_grace_seconds",
-            "type": "string",
-            "label": _("Launch grace period (seconds)"),
-            "advanced": True,
-            "help": _(
-                "How long Qtris keeps monitoring after the Steam launcher exits "
-                "while waiting for the game to appear, before assuming the launch "
-                "failed. Covers shader pre-caching and first-launch prerequisites. "
-                "Leave blank to use the default (%s seconds)."
-            )
-            % DEFAULT_LAUNCH_GRACE_SECONDS,
+            "help": _("Command line arguments used when launching the game."),
         },
     ]
 
@@ -145,25 +96,8 @@ class steam(Runner):
         self._launch_monitor_start: Optional[float] = None
         self._steam_game_seen: bool = False
 
-    @property
-    def launch_grace_seconds(self) -> float:
-        """Launch grace period, from the per-game option if set and valid,
-        otherwise DEFAULT_LAUNCH_GRACE_SECONDS."""
-        raw = self.runner_config.get("launch_grace_seconds")
-        if raw not in (None, ""):
-            try:
-                value = float(raw)  # type: ignore[arg-type]
-            except TypeError, ValueError:
-                value = None
-            if value is not None and value > 0:
-                return value
-            logger.warning("Invalid launch_grace_seconds %r; using default", raw)
-        return DEFAULT_LAUNCH_GRACE_SECONDS
-
-    @property
-    def runs_through_steam(self) -> bool:
-        """False in DRM-free mode, which runs the game's binary without Steam."""
-        return not (self.game_config.get("run_without_steam") and self.game_config.get("steamless_binary"))
+    def get_runner_options(self) -> list[RunnerOptionDict]:
+        return []
 
     @property
     def runnable_alone(self):
@@ -204,31 +138,6 @@ class steam(Runner):
             # Fallback to xgd-open for Steam URIs in Flatpak
             return system.find_required_executable("xdg-open")
         return super().get_executable()
-
-    @property
-    def has_working_dir(self) -> bool:
-        return bool(self._get_steamless_working_dir() or super().has_working_dir)
-
-    @property
-    def working_dir(self):
-        """Return the working directory to use when running the game."""
-        return self._get_steamless_working_dir() or super().working_dir
-
-    def _get_steamless_working_dir(self) -> str | None:
-        """Return the working directory to use when running the game."""
-        if self.game_config.get("run_without_steam"):
-            steamless_binary = self.game_config.get("steamless_binary")
-            if steamless_binary and os.path.isfile(steamless_binary):
-                return os.path.dirname(steamless_binary)
-        return None
-
-    @property
-    def launch_args(self):
-        """Provide launch arguments for Steam"""
-        command = self.get_command()
-        if self.runner_config.get("start_in_big_picture"):
-            command.append("-bigpicture")
-        return command + split_arguments(self.runner_config.get("args") or "")
 
     def get_game_path_from_appid(self, appid):
         """Return the game directory."""
@@ -274,7 +183,7 @@ class steam(Runner):
         system.spawn(self.get_command() + [f"steam://install/{appid}"])
 
     def get_run_data(self):
-        return {"command": self.launch_args, "env": self.get_env()}
+        return {"command": self.get_command(), "env": self.get_env()}
 
     def play(self):
         # Reset launch-window tracking for this run (the runner instance may be
@@ -282,46 +191,25 @@ class steam(Runner):
         self._launch_monitor_start = None
         self._steam_game_seen = False
         game_args = self.game_config.get("args") or ""
-
-        binary_path = self.game_config.get("steamless_binary")
-        if not self.runs_through_steam:
-            # Start without steam
-            if not system.path_exists(binary_path):
-                raise MissingGameExecutableError(filename=binary_path)
-            command = [binary_path]
-        else:
-            # Start through steam
-            if linux.LINUX_SYSTEM.is_flatpak():
-                if game_args:
-                    steam_uri = "steam://run/%s//%s/" % (self.appid, game_args)
-                else:
-                    steam_uri = "steam://rungameid/%s" % self.appid
-                return {
-                    "command": self.launch_args + [steam_uri],
-                    "env": self.get_env(),
-                }
-            command = self.launch_args
-            if self.runner_config.get("start_in_big_picture") or not game_args:
-                command.append("steam://rungameid/%s" % self.appid)
+        command = self.get_command()
+        if linux.LINUX_SYSTEM.is_flatpak():
+            # Steam is reached through xdg-open, which takes a single URI
+            if game_args:
+                command.append("steam://run/%s//%s/" % (self.appid, game_args))
             else:
-                command.append("-applaunch")
-                command.append(self.appid)
-
-        if game_args:
-            for arg in split_arguments(game_args):
-                command.append(arg)
-
-        return {
-            "command": command,
-            "env": self.get_env(),
-        }
+                command.append("steam://rungameid/%s" % self.appid)
+        elif game_args:
+            command += ["-applaunch", self.appid, *split_arguments(game_args)]
+        else:
+            command.append("steam://rungameid/%s" % self.appid)
+        return {"command": command, "env": self.get_env()}
 
     def force_stop_game(self, game_pids: Iterable[int]) -> None:
         """Stop a running Steam game without harming the Steam client: send SIGTERM
         to every process of the game, and SIGKILL to those left after
         STOP_TIMEOUT_SECONDS. Blocks until the game is gone."""
         super().force_stop_game(game_pids)
-        if not self.appid or not self.runs_through_steam:
+        if not self.appid:
             return
         pids = get_steam_game_pids(self.appid)
         if not pids:
@@ -343,10 +231,10 @@ class steam(Runner):
         and the game's processes may take a while to appear (Steam starting,
         updates, shader pre-caching). The game is alive while game_thread runs or
         any of its processes do. Before any has appeared, it's given
-        launch_grace_seconds; once its processes have been seen and are gone, it
+        LAUNCH_GRACE_SECONDS; once its processes have been seen and are gone, it
         has quit.
         """
-        if not self.appid or not self.runs_through_steam:
+        if not self.appid:
             return False
 
         running = bool(get_steam_game_pids(self.appid))
@@ -358,7 +246,7 @@ class steam(Runner):
             return False
         if self._launch_monitor_start is None:
             self._launch_monitor_start = time.monotonic()
-        return (time.monotonic() - self._launch_monitor_start) < self.launch_grace_seconds
+        return (time.monotonic() - self._launch_monitor_start) < LAUNCH_GRACE_SECONDS
 
     def remove_game_data(self, app_id=None, **kwargs):
         if not self.is_installed():
