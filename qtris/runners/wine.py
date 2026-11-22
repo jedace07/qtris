@@ -1,4 +1,6 @@
-"""Wine runner"""
+"""Proton runner, registered as 'wine' for existing games and installers."""
+
+from __future__ import annotations
 
 # pylint: disable=too-many-lines
 import os
@@ -154,7 +156,7 @@ def _get_wine_version_choices() -> list[tuple[str, str]]:
 
 class wine(Runner):
     description: str = _("Runs Windows games")
-    human_name = _("Wine")
+    human_name = _("Proton")
     platform_dict = Runner.to_platform_dict([_("Windows")])
     multiple_versions = True
     entry_point_option = "exe"

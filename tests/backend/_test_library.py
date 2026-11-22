@@ -98,7 +98,7 @@ def test_rows_describe_their_games(games):
         games[PREFIX + "game-9"],
         "Game 9",
         "wine",
-        "Wine",
+        "Proton",
         True,
         2009,
     )

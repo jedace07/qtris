@@ -1,5 +1,7 @@
 """Turning runners on and off, and what a new profile starts with."""
 
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 from typing import Any
@@ -32,9 +34,9 @@ def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
     return values
 
 
-def test_a_new_profile_has_linux_and_wine_turned_on(saved: dict[tuple[str, str], str]) -> None:
+def test_a_new_profile_has_linux_and_proton_turned_on(saved: dict[tuple[str, str], str]) -> None:
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["linux", "wine"]
+    assert [(item.name, item.human_name) for item in enabled] == [("linux", "Linux"), ("wine", "Proton")]
 
 
 def test_steam_is_not_offered_as_a_runner(saved: dict[tuple[str, str], str]) -> None:
@@ -69,7 +71,7 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
     assert installs == ["eden"]
     assert saved[("runners", "linux")] == "False"
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["eden", "web", "wine"]
+    assert [item.name for item in enabled] == ["eden", "wine", "web"]
 
     with pytest.raises(InvalidRunnerError):
         asyncio.run(runners.set_runner_enabled("no-such-runner", True))
@@ -78,7 +80,8 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
 def test_the_catalog_says_which_runners_are_on(saved: dict[tuple[str, str], str]) -> None:
     catalog = {entry.name: entry for entry in asyncio.run(runners.list_runner_catalog())}
     assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "wine"}
-    # Proton comes when a game needs it, so Wine is always ready
+    assert catalog["wine"].label == "Proton"
+    # The runner downloads Proton builds when a game needs them
     assert catalog["wine"].installed and not catalog["wine"].can_install
 
 

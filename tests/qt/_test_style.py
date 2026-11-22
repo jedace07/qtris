@@ -78,7 +78,7 @@ def sidebar_views() -> list[dict[str, str]]:
         ({"saved_search": "Unplayed"}, "saved-search"),
         ({"service": "gog"}, "store"),
         ({"runner": "linux"}, "linux"),
-        ({"runner": "wine"}, "wine"),
+        ({"runner": "wine"}, "proton"),
         ({"runner": "steam"}, "steam"),
         ({"runner": "web"}, "runner"),
         ({"platform": "Linux"}, "linux"),

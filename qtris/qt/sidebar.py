@@ -25,7 +25,7 @@ _VIEW_ICONS = {
     ("dynamic_category", ".uncategorized"): "uncategorized",
     ("category", ".hidden"): "hidden",
     ("runner", "linux"): "linux",
-    ("runner", "wine"): "wine",
+    ("runner", "wine"): "proton",
     ("runner", "steam"): "steam",
 }
 _KIND_ICONS = {

@@ -784,7 +784,7 @@ def test_qml_manages_ge_proton_from_preferences(
         return (
             runners.RunnerCatalogEntry(
                 "wine",
-                "Wine",
+                "Proton",
                 "Runs Windows games",
                 enabled=wine_enabled,
                 installed=True,
