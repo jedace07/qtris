@@ -13,6 +13,7 @@ Dialog {
     required property bool installed
     property bool externalFiles: false
     readonly property bool targetInstalled: controller.ready ? controller.installed : installed
+    readonly property bool removingFromLibrary: !targetInstalled || removeEntry.checked
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -63,6 +64,21 @@ Dialog {
             text: qsTr("Also remove this game from the library")
         }
 
+        CheckBox {
+            id: trashWebProfile
+            objectName: "trashWebGameProfile"
+            visible: dialog.removingFromLibrary && dialog.controller.hasWebProfile
+            enabled: !dialog.controller.working
+            text: qsTr("Move browser data to the Trash")
+        }
+
+        Label {
+            Layout.fillWidth: true
+            visible: trashWebProfile.visible
+            text: qsTr("This includes any local saves, game settings, and sign-in cookies.")
+            wrapMode: Text.WordWrap
+        }
+
         ProgressBar {
             Layout.fillWidth: true
             visible: dialog.controller.working
@@ -86,7 +102,8 @@ Dialog {
             enabled: dialog.controller.ready && !dialog.controller.working
             DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
             onClicked: dialog.controller.uninstall(!dialog.externalFiles && trashFiles.checked,
-                                                   !dialog.controller.installed || removeEntry.checked)
+                                                   dialog.removingFromLibrary,
+                                                   trashWebProfile.visible && trashWebProfile.checked)
         }
     }
 }

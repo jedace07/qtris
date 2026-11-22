@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import fcntl
-import os
 import re
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from PySide6.QtWebEngineCore import (
@@ -19,32 +16,12 @@ from PySide6.QtWebEngineCore import (
 from qtris.qt.web_player.local_server import HOST, TOKEN_HEADER
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
     from pathlib import Path
 
     from PySide6.QtCore import QObject
 
 # Sites treat an unknown browser more warily than Chrome itself
 _WEB_ENGINE_TOKEN = re.compile(r"\s*QtWebEngine/\S+")
-
-
-@contextmanager
-def lock_profile(directory: Path) -> Generator[bool]:
-    """Claim a profile for this process, yielding False if another player has it.
-
-    Chromium can't share a profile between processes, and loses what the second writes.
-    """
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    descriptor = os.open(directory / "player.lock", os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            yield False
-        else:
-            yield True
-    finally:
-        os.close(descriptor)
 
 
 def create_profile(directory: Path, cache: Path, user_agent: str = "") -> QWebEngineProfile:

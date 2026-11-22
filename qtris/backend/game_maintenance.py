@@ -1,13 +1,14 @@
 """Move and uninstall library games without a frontend dependency."""
 
+from __future__ import annotations
+
 import asyncio
 import re
 import shutil
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from gettext import gettext as _
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -18,8 +19,11 @@ from qtris.database import sql
 from qtris.exceptions import QtrisError
 from qtris.game import GAME_UPDATED, Game
 from qtris.services.flathub import FlathubService
-from qtris.util import system
+from qtris.util import system, web_profiles
 from qtris.util.yaml import write_yaml_to_file
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 _EXTERNALLY_MANAGED_RUNNERS = {"steam", "flatpak", "web"}
 
@@ -29,6 +33,7 @@ class GameMaintenanceInfo:
     installed: bool
     directory: str
     files_unavailable_reason: str
+    web_profile: Path | None = None
 
 
 def _load_game(game_id: str) -> Game:
@@ -74,7 +79,20 @@ def _files_unavailable_reason(game: Game, directory: Path) -> str:
 def _describe_game(game: Game) -> GameMaintenanceInfo:
     directory = str(Path(game.directory).expanduser()) if game.directory else ""
     reason = _files_unavailable_reason(game, Path(directory)) if game.is_installed else ""
-    return GameMaintenanceInfo(game.is_installed, directory, reason)
+    profile = web_profiles.profile_directory(settings.DATA_DIR, game.id, game.installed_at)
+    return GameMaintenanceInfo(
+        game.is_installed, directory, reason, profile if _is_web_profile_directory(profile) else None
+    )
+
+
+def _is_web_profile_directory(path: Path) -> bool:
+    return (
+        path.is_absolute()
+        and not path.parent.is_symlink()
+        and not path.is_symlink()
+        and path.is_dir()
+        and not path.is_mount()
+    )
 
 
 async def get_maintenance_info(game_id: str) -> GameMaintenanceInfo:
@@ -179,14 +197,21 @@ def _move_game(game_id: str, expected_directory: str, destination_parent: str) -
 
 
 async def uninstall_game(
-    game_id: str, expected: GameMaintenanceInfo, *, trash_files: bool = False, remove_from_library: bool = False
+    game_id: str,
+    expected: GameMaintenanceInfo,
+    *,
+    trash_files: bool = False,
+    remove_from_library: bool = False,
+    trash_web_profile: bool = False,
 ) -> None:
-    """Clear the installation and optionally trash its folder or remove the library entry."""
-    await _run_maintenance(game_id, lambda: _uninstall_game(game_id, expected, trash_files, remove_from_library))
+    """Clear the installation and optionally remove the entry and trash its files."""
+    await _run_maintenance(
+        game_id, lambda: _uninstall_game(game_id, expected, trash_files, remove_from_library, trash_web_profile)
+    )
 
 
 async def _uninstall_game(
-    game_id: str, expected: GameMaintenanceInfo, trash_files: bool, remove_from_library: bool
+    game_id: str, expected: GameMaintenanceInfo, trash_files: bool, remove_from_library: bool, trash_web_profile: bool
 ) -> None:
     game = _load_game(game_id)
     current = await asyncio.to_thread(_describe_game, game)
@@ -199,6 +224,12 @@ async def _uninstall_game(
             raise QtrisError(_("This game is not installed."))
         if current.files_unavailable_reason:
             raise QtrisError(current.files_unavailable_reason)
+    if trash_web_profile:
+        profile = web_profiles.profile_directory(settings.DATA_DIR, game.id, game.installed_at)
+        if not remove_from_library or expected.web_profile != profile:
+            raise QtrisError(_("The web game profile is unavailable. Reopen this dialog before trying again."))
+        await _trash_web_profile_directory(profile)
+    if trash_files:
         await _trash_directory(current.directory)
     if not current.installed and not remove_from_library:
         return
@@ -218,3 +249,15 @@ async def _trash_directory(directory: str) -> None:
     done = asyncio.get_running_loop().create_future()
     system.remove_folder(directory, lambda: done.set_result(None), done.set_exception)
     await done
+
+
+async def _trash_web_profile_directory(profile: Path) -> None:
+    # A retry can reach this step after the profile has already moved to the Trash
+    if not profile.exists(follow_symlinks=False):
+        return
+    if not _is_web_profile_directory(profile):
+        raise QtrisError(_("The web game profile is no longer in its original folder."))
+    with web_profiles.lock_profile(profile, create=False) as locked:
+        if not locked:
+            raise QtrisError(_("Close the web game before moving its browser data to the Trash."))
+        await _trash_directory(str(profile))

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import shutil
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QImage, QWindow
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
+from PySide6.QtWebEngineQuick import QQuickWebEngineProfile
 
 from qtris import settings
 from qtris.backend import (
@@ -43,6 +45,7 @@ from qtris.runners.wine import wine
 from qtris.services.base import QtrisBanner, QtrisCoverart
 from qtris.services.gog import GOGService
 from qtris.util.test_config import setup_test_environment
+from qtris.util.web_profiles import profile_directory
 from qtris.util.yaml import read_yaml_from_file, write_yaml_to_file
 from tests.conftest import FakeMainLoop
 
@@ -1140,6 +1143,9 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
         # A blank page keeps the web view off the network
         return store_login.BrowserLogin("request", "GOG", "about:blank", "web")
 
+    async def cancel(request_id: str) -> None:
+        assert request_id == "request"
+
     def is_web_response(request_id: str, url: str) -> bool:
         assert request_id == "request"
         return url == redirect
@@ -1161,6 +1167,7 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
     monkeypatch.setattr(services, "get_source_status", status)
     monkeypatch.setattr(services, "sync_source", sync)
     monkeypatch.setattr(store_login, "begin", begin)
+    monkeypatch.setattr(store_login, "cancel", cancel)
     monkeypatch.setattr(store_login, "is_web_response", is_web_response)
     monkeypatch.setattr(store_login, "finish", finish)
     monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
@@ -1171,23 +1178,43 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
         try:
             await settle(window)
             window.controller.select_view(window.controller.sidebar.find_row({"service": "gog"}))
+            root = window.window
+            assert root is not None
             await wait_for_qml(
                 qt_application,
-                lambda: bool(
-                    (button := window.window.findChild(QObject, "storeSignIn")) and button.property("visible")
-                ),
+                lambda: bool((button := root.findChild(QObject, "storeSignIn")) and button.property("visible")),
             )
-            button = window.window.findChild(QObject, "storeSignIn")
+            button = root.findChild(QObject, "storeSignIn")
             assert button is not None and QMetaObject.invokeMethod(button, "clicked")
 
             def sign_in_view() -> QObject | None:
-                sign_in = window.window.findChild(QObject, "storeWebLoginWindow")
+                sign_in = root.findChild(QObject, "storeWebLoginWindow")
                 return sign_in.findChild(QQuickItem, "storeWebLoginView") if sign_in else None
+
+            def window_closed() -> bool:
+                # The Loader deletes the window later, which processEvents() alone doesn't do
+                QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+                return root.findChild(QObject, "storeWebLoginWindow") is None
+
+            await wait_for_qml(qt_application, lambda: sign_in_view() is not None)
+            first_view = sign_in_view()
+            assert first_view is not None
+            first_profile = first_view.property("profile")
+            assert isinstance(first_profile, QQuickWebEngineProfile)
+            assert first_profile.isOffTheRecord()
+            assert first_profile is not QQuickWebEngineProfile.defaultProfile()
+            sign_in = root.findChild(QWindow, "storeWebLoginWindow")
+            assert sign_in is not None and sign_in.close()
+            await wait_for_qml(qt_application, window_closed)
+            assert QMetaObject.invokeMethod(button, "clicked")
 
             await wait_for_qml(qt_application, lambda: sign_in_view() is not None)
             view = sign_in_view()
             assert view is not None
             profile = view.property("profile")
+            assert isinstance(profile, QQuickWebEngineProfile)
+            assert profile.isOffTheRecord()
+            assert profile is not first_profile and profile is not QQuickWebEngineProfile.defaultProfile()
             assert "QtWebEngine" not in profile.httpUserAgent()
             cookie = QNetworkCookie(b"gog-al", b"session")
             cookie.setDomain(".gog.com")
@@ -1202,11 +1229,6 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
             window.controller._store_sources.web_url_changed(QUrl(redirect))
             await wait_for_qml(qt_application, lambda: bool(finished) and not window.controller._store_sources.busy)
             assert finished == [(redirect, (store_login.WebCookie(".gog.com", "gog-al", "session", secure=True),))]
-
-            def window_closed() -> bool:
-                # The Loader deletes the window later, which processEvents() alone doesn't do
-                QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-                return window.window.findChild(QObject, "storeWebLoginWindow") is None
 
             await wait_for_qml(qt_application, window_closed)
             assert window.controller._store_sources.login == {}
@@ -1455,6 +1477,56 @@ def test_qml_move_uninstall_and_remove_from_library(
                 fake_main_loop.run_pending()
             await wait_for_qml(qt_application, lambda: window.controller.model.find_row(target) < 0)
             assert (destination / source.name / "play.sh").exists()
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("trash_profile", [False, True])
+def test_qml_web_profile_trash_is_opt_in_when_removing_a_game(
+    qt_application: QGuiApplication,
+    library: list[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    trash_profile: bool,
+) -> None:
+    target = library[0]
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path / "data"))
+    sql.db_update(settings.DB_PATH, "games", {"runner": "web", "configpath": "qt-web"}, {"id": target})
+    profile = profile_directory(settings.DATA_DIR, target, Game(target).installed_at)
+    profile.mkdir(parents=True)
+
+    def trash(path: str, done: Callable[[], None], _failed: Callable[[Exception], None]) -> None:
+        assert Path(path) == profile
+        shutil.move(path, tmp_path / "trash")
+        done()
+
+    monkeypatch.setattr(game_maintenance.system, "remove_folder", trash)
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        try:
+            await settle(window)
+            await open_game_action(window, qt_application, target, "uninstallGame")
+            root = window.window
+            assert root is not None
+            confirm = root.findChild(QObject, "confirmGameUninstall")
+            remove = root.findChild(QObject, "removeGameEntry")
+            browser_data = root.findChild(QObject, "trashWebGameProfile")
+            assert confirm is not None and remove is not None and browser_data is not None
+            await wait_for_qml(qt_application, lambda: bool(confirm.property("enabled")))
+            assert not browser_data.property("visible")
+            assert remove.setProperty("checked", True)
+            assert browser_data.property("visible") and not browser_data.property("checked")
+            assert browser_data.setProperty("checked", trash_profile)
+            assert QMetaObject.invokeMethod(confirm, "clicked")
+            await wait_for_qml(qt_application, lambda: not window.controller._maintenance.is_working)
+            assert games_db.get_game_by_field(target, "id") is None
+            assert profile.is_dir() is not trash_profile
+            assert (tmp_path / "trash").is_dir() is trash_profile
         finally:
             window.shutdown()
 

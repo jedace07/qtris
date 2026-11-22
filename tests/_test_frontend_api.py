@@ -19,6 +19,8 @@ FRONTEND_API = (
     "qtris.util.strings",
     # The web player is a process of its own, so it binds the translations itself
     "qtris.util.textdomain",
+    # The web player and game maintenance share the profile's process lock
+    "qtris.util.web_profiles",
 )
 
 

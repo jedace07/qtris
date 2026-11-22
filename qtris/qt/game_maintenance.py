@@ -1,15 +1,20 @@
 """Expose game maintenance state and operations to the library dialogs."""
 
+from __future__ import annotations
+
 import asyncio
-from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 
 from qtris.backend import game_maintenance
-from qtris.qt.delegates import PromptController
 from qtris.qt.tasks import start_task
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+    from qtris.qt.delegates import PromptController
 
 
 class GameMaintenanceController(QObject):
@@ -49,6 +54,10 @@ class GameMaintenanceController(QObject):
     def filesUnavailableReason(self) -> str:  # noqa: N802
         return self._info.files_unavailable_reason if self._info else ""
 
+    @Property(bool, notify=stateChanged)
+    def hasWebProfile(self) -> bool:  # noqa: N802
+        return self._info is not None and self._info.web_profile is not None
+
     @Property(str, notify=stateChanged)
     def moveTarget(self) -> str:  # noqa: N802
         if not self._info or not self._destination:
@@ -85,12 +94,16 @@ class GameMaintenanceController(QObject):
         if self._info and self._destination and not self._working:
             self._start(game_maintenance.move_game(self._game_id, self._info.directory, self._destination))
 
-    @Slot(bool, bool)
-    def uninstall(self, trash_files: bool, remove_from_library: bool) -> None:
+    @Slot(bool, bool, bool)
+    def uninstall(self, trash_files: bool, remove_from_library: bool, trash_web_profile: bool) -> None:
         if self._info and not self._working:
             self._start(
                 game_maintenance.uninstall_game(
-                    self._game_id, self._info, trash_files=trash_files, remove_from_library=remove_from_library
+                    self._game_id,
+                    self._info,
+                    trash_files=trash_files,
+                    remove_from_library=remove_from_library,
+                    trash_web_profile=trash_web_profile,
                 )
             )
 

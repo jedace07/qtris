@@ -15,7 +15,7 @@ from gi.repository import GLib
 from qtris import settings
 from qtris.exceptions import GameConfigError
 from qtris.runners.runner import GamePlayInfoDict, Runner
-from qtris.util import datapath, resources
+from qtris.util import datapath, resources, web_profiles
 from qtris.util.process import Process
 
 if TYPE_CHECKING:
@@ -160,16 +160,17 @@ class web(Runner):
         game_id = self.game_data.get("id")
         if not game_id:
             raise GameConfigError(_("Save the game before playing it."))
-        # SQLite reuses a deleted game's id, so the time it was added is part of the name
-        profile = f"{game_id}-{self.game_data.get('installed_at') or 0}"
+        installed_at = self.game_data.get("installed_at")
+        profile = web_profiles.profile_directory(settings.DATA_DIR, game_id, installed_at)
+        cache = web_profiles.profile_directory(settings.CACHE_DIR, game_id, installed_at)
         options = self.runner_config
         icon = resources.get_icon_path(self.game_data.get("slug") or "")
         if not os.path.isfile(icon):
             icon = os.path.join(datapath.get(), "media", "default_icon.png")
         command = [
             *self.get_command(),
-            f"--profile={os.path.join(settings.DATA_DIR, 'web-profiles', profile)}",
-            f"--cache={os.path.join(settings.CACHE_DIR, 'web-profiles', profile)}",
+            f"--profile={profile}",
+            f"--cache={cache}",
             f"--name={self.game_data.get('name') or self.human_name}",
             f"--icon={icon}",
             f"--window-mode={options.get('window_mode') or 'windowed'}",

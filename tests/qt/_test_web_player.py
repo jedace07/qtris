@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from qtris.qt.web_player.local_server import HOST, TOKEN_HEADER, LocalGameServer
-from qtris.qt.web_player.profile import lock_profile
+from qtris.util.web_profiles import lock_profile
 
 if TYPE_CHECKING:
     from collections.abc import Generator

@@ -262,11 +262,15 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
 
     def has_steam(self) -> bool:
         """Return whether Steam is installed locally"""
-        return (
-            system.can_find_executable("steam")
-            or flatpak.is_app_installed("com.valvesoftware.Steam")
-            or os.path.exists(os.path.expanduser("~/.steam/steam/ubuntu12_32/steam"))
-        )
+        if system.can_find_executable("steam") or os.path.exists(
+            os.path.expanduser("~/.steam/steam/ubuntu12_32/steam")
+        ):
+            return True
+        try:
+            return flatpak.is_app_installed("com.valvesoftware.Steam")
+        except flatpak.FlatpakError as error:
+            logger.warning("Could not detect Steam on the Flatpak host: %s", error)
+            return False
 
     @property
     def display_server(self) -> str:

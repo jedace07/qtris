@@ -21,8 +21,9 @@ from shiboken6 import delete
 
 from qtris import settings
 from qtris.qt.web_player.local_server import LocalGameServer
-from qtris.qt.web_player.profile import LocalGameInterceptor, create_profile, lock_profile
+from qtris.qt.web_player.profile import LocalGameInterceptor, create_profile
 from qtris.qt.web_player.window import WebWindow
+from qtris.util.web_profiles import lock_profile
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator

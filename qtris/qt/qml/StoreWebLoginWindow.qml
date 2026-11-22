@@ -126,12 +126,13 @@ ApplicationWindow {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            profile: profilePrototype.instance()
             onUrlChanged: signIn.controller.web_url_changed(url)
             // Sign-in pages that open a window, such as a third-party account's, stay in this one
             onNewWindowRequested: request => request.openIn(view)
 
             Component.onCompleted: {
+                // The prototype creates the private profile during component completion
+                view.profile = profilePrototype.instance()
                 // The controller sets the profile up before the first page loads
                 signIn.controller.attach_web_profile(view.profile)
                 view.url = signIn.controller.login.url ?? ""

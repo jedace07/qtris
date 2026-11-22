@@ -110,6 +110,7 @@ class Game:
         self.is_installed = bool(game_data.get("installed") and self.game_config_id)
         self.platform = game_data.get("platform") or ""
         self.year = game_data.get("year") or ""
+        self.installed_at: int | None = game_data.get("installed_at")
         self.lastplayed = game_data.get("lastplayed") or 0
         self.custom_images = set()
         if game_data.get("has_custom_banner"):

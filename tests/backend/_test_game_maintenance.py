@@ -14,7 +14,7 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.exceptions import QtrisError
 from qtris.game import Game
-from qtris.util import system
+from qtris.util import system, web_profiles
 from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
@@ -191,3 +191,55 @@ def test_uninstall_waits_for_trash_and_retains_the_entry(
     current = asyncio.run(game_maintenance.get_maintenance_info(game_id))
     asyncio.run(game_maintenance.uninstall_game(game_id, current, remove_from_library=True))
     assert asyncio.run(games.get_game(game_id)) is None
+
+
+def test_web_profile_can_be_trashed_after_uninstall(
+    installation: tuple[str, Path, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game_id, source, _config = installation
+    monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path / "data"))
+    sql.db_update(settings.DB_PATH, "games", {"runner": "web"}, {"id": game_id})
+    profile = web_profiles.profile_directory(settings.DATA_DIR, game_id, Game(game_id).installed_at)
+    profile.mkdir(parents=True)
+    (profile / "save").write_text("level 3", encoding="utf-8")
+
+    info = asyncio.run(game_maintenance.get_maintenance_info(game_id))
+    assert info.web_profile == profile
+    asyncio.run(game_maintenance.uninstall_game(game_id, info))
+    current = asyncio.run(game_maintenance.get_maintenance_info(game_id))
+    assert not current.installed and current.web_profile == profile
+
+    def refused(_path: str, _done: Callable[[], None], failed: Callable[[Exception], None]) -> None:
+        failed(OSError("Trash is unavailable"))
+
+    monkeypatch.setattr(system, "remove_folder", refused)
+    with web_profiles.lock_profile(profile) as locked:
+        assert locked
+        with pytest.raises(QtrisError, match="Close the web game"):
+            asyncio.run(
+                game_maintenance.uninstall_game(game_id, current, remove_from_library=True, trash_web_profile=True)
+            )
+    with pytest.raises(OSError, match="Trash is unavailable"):
+        asyncio.run(game_maintenance.uninstall_game(game_id, current, remove_from_library=True, trash_web_profile=True))
+    assert asyncio.run(games.get_game(game_id)) is not None
+    assert (profile / "save").is_file()
+
+    backup = profile.rename(tmp_path / "backup")
+    profile.symlink_to(source, target_is_directory=True)
+    with pytest.raises(QtrisError, match="original folder"):
+        asyncio.run(game_maintenance.uninstall_game(game_id, current, remove_from_library=True, trash_web_profile=True))
+    profile.unlink()
+    backup.rename(profile)
+
+    def trash(path: str, done: Callable[[], None], _failed: Callable[[Exception], None]) -> None:
+        assert Path(path) == profile
+        assert games_db.get_game_by_field(game_id, "id") is not None
+        shutil.move(path, tmp_path / "trash")
+        done()
+
+    monkeypatch.setattr(system, "remove_folder", trash)
+    asyncio.run(game_maintenance.uninstall_game(game_id, current, remove_from_library=True, trash_web_profile=True))
+    assert asyncio.run(games.get_game(game_id)) is None
+    assert not profile.exists()
+    assert (tmp_path / "trash" / "save").read_text(encoding="utf-8") == "level 3"
+    assert (source / "play.sh").is_file()

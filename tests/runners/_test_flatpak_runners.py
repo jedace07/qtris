@@ -13,7 +13,8 @@ import pytest
 from qtris.runners import get_user_runner_names
 from qtris.runners.flatpak import flatpak as FlatpakRunner
 from qtris.runners.runner import Runner
-from qtris.util import flatpak
+from qtris.services import get_services
+from qtris.util import flatpak, system
 
 
 @pytest.fixture
@@ -117,6 +118,25 @@ def test_flatpak_spawn_reaches_the_hosts_flatpak(monkeypatch: pytest.MonkeyPatch
         "run",
         APP_ID,
     ]
+
+
+def test_service_discovery_survives_an_unreachable_flatpak_host(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    command = ["/usr/bin/flatpak-spawn", "--host", "flatpak", "list", "--app", "--columns=application"]
+    read_output = MagicMock(side_effect=subprocess.CalledProcessError(1, command))
+    monkeypatch.setattr(flatpak, "get_executable", lambda: "/usr/bin/flatpak-spawn")
+    monkeypatch.setattr(flatpak, "read_process_output", read_output)
+    monkeypatch.setattr(system, "can_find_executable", lambda name: False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    sources = get_services()
+
+    assert "gog" in sources
+    assert "steam" not in sources
+    read_output.assert_called_once_with(command, timeout=10, error_result=None)
+    with pytest.raises(flatpak.FlatpakError, match="Could not list"):
+        flatpak.get_installed_apps()
 
 
 def test_system_folders_are_not_shared(tmp_path: Path) -> None:

@@ -130,7 +130,9 @@ Profiles
     ``DATA_DIR/web-profiles/<game id>-<time added>`` and its cache in the same
     folder under ``CACHE_DIR``. Renaming or moving the game keeps it. The time is
     there because SQLite reuses the ids of deleted games. A file lock keeps a
-    second player out of a profile. Removing a game leaves its profile on disk.
+    second player out of a profile. When removing a game from the library, the
+    user can move its persistent browser profile to the desktop Trash. Leaving
+    the option unchecked keeps its saved data on disk.
 
 Qt Widgets
     The player uses ``QWebEngineView``. Qt Quick's ``WebEngineView`` denies every
