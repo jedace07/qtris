@@ -1,5 +1,7 @@
 """Generic service utilities"""
 
+from __future__ import annotations
+
 import os
 import shutil
 from dataclasses import dataclass, field
@@ -17,13 +19,15 @@ from qtris.game import GAME_UPDATED, Game
 from qtris.services.service_media import BANNER_SIZE, ICON_SIZE, ServiceMedia, download_media
 from qtris.util import system
 from qtris.util.busy import BusyAsyncCall
-from qtris.util.cookies import WebkitCookieJar
+from qtris.util.cookies import load_cookie_file
 from qtris.util.jobs import AsyncCall
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import slugify
 
 if TYPE_CHECKING:
+    from requests.cookies import RequestsCookieJar
+
     from qtris.delegates import Delegate, ServiceLoginUIDelegate
 
 
@@ -481,11 +485,13 @@ class OnlineService(BaseService):
         logger.debug("logged out from %s", self.id)
         SERVICE_LOGOUT.fire(self)
 
-    def load_cookies(self):
+    def load_cookies(self) -> RequestsCookieJar | None:
         """Load cookies from disk"""
-        if not system.path_exists(self.cookies_path):
-            logger.warning("No cookies found in %s, please authenticate first", self.cookies_path)
-            return
-        cookiejar = WebkitCookieJar(self.cookies_path)
-        cookiejar.load(ignore_discard=True)
-        return cookiejar
+        cookie_path = self.cookies_path
+        if not isinstance(cookie_path, str) or not system.path_exists(cookie_path):
+            logger.warning("No cookies found in %s, please authenticate first", cookie_path)
+            return None
+        try:
+            return load_cookie_file(Path(cookie_path))
+        except OSError, ValueError:
+            raise QtrisError(_("Could not read saved cookies for %s. Sign in again.") % self.name) from None

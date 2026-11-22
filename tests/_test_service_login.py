@@ -1,5 +1,6 @@
 """Logging in to services, and runner actions, ask the user through delegates."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -79,13 +80,14 @@ def test_itch_io_logs_out_when_the_user_cancels(tmp_path, monkeypatch, fake_main
 def test_humble_bundle_uses_the_cookies_the_user_provides(tmp_path, monkeypatch, fake_main_loop, logins):
     service = HumbleBundleService()
     monkeypatch.setattr(service, "cookies_path", str(tmp_path / "cookies"))
-    delegate = RecordingLoginDelegate(answer=True, cookies="cookie data")
+    delegate = RecordingLoginDelegate(answer=True, cookies=".humblebundle.com\tTRUE\t/\tTRUE\t0\tsession\tfixture\n")
 
     service.login(delegate)
     fake_main_loop.run_pending()
 
     assert delegate.calls == ["ask_question", "ask_for_humble_bundle_cookies"]
-    assert (tmp_path / "cookies").read_text() == "cookie data"
+    (cookie,) = json.loads((tmp_path / "cookies").read_text(encoding="utf-8"))
+    assert (cookie["domain"], cookie["value"]) == (".humblebundle.com", "fixture")
     assert logins == [service]
 
 

@@ -11,6 +11,7 @@ import pytest
 from qtris import settings
 from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
+from qtris.services.gamejolt import GameJoltService
 from qtris.services.gog import GOGService
 from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.ubisoft import UbisoftConnectService
@@ -67,8 +68,10 @@ def test_gog_signs_in_from_its_web_view_and_keeps_only_gog_cookies(
     asyncio.run(run())
     assert responses == ["https://embed.gog.com/on_login_success?code=fixture"]
     assert token.stat().st_mode & 0o777 == 0o600
-    saved = cookie_path.read_text(encoding="utf-8")
-    assert "gog-al" in saved and "GalaxyLogin" in saved and "stolen" not in saved
+    saved = {entry["name"]: entry for entry in json.loads(cookie_path.read_text(encoding="utf-8"))}
+    assert set(saved) == {"gog-al", "GalaxyLogin"}
+    assert saved["gog-al"]["httpOnly"] and saved["gog-al"]["expirationDate"] == 4_000_000_000
+    assert saved["GalaxyLogin"]["hostOnly"] and saved["GalaxyLogin"]["session"]
     assert cookie_path.stat().st_mode & 0o777 == 0o600
 
 
@@ -84,6 +87,9 @@ def test_gog_signs_in_with_the_token_alone(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(GOGService, "token_path", str(token))
     monkeypatch.setattr(GOGService, "cookies_path", str(cookie_path))
     monkeypatch.setattr(GOGService, "request_token", exchange)
+
+    legacy = GOGService().load_cookies()
+    assert legacy is not None and [(cookie.name, cookie.value) for cookie in legacy] == [("stale", "session")]
 
     async def run() -> None:
         request = await store_login.begin("gog")
@@ -167,17 +173,43 @@ def test_epic_checks_for_legendary_before_opening_the_browser(tmp_path: Path, mo
         asyncio.run(store_login.begin("egs"))
 
 
+@pytest.mark.parametrize("format_name", ["json", "wrapped", "netscape"])
 def test_cookie_import_only_persists_the_selected_stores_cookies(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, format_name: str
 ) -> None:
     target = tmp_path / ".humblebundle.auth"
-    source = tmp_path / "cookies.txt"
-    source.write_text(
-        "# Netscape HTTP Cookie File\n"
-        "#HttpOnly_.humblebundle.com\tTRUE\t/\tTRUE\t0\tsession\thumble-session\n"
-        ".other.example\tTRUE\t/\tTRUE\t0\tsession\tunrelated-session\n",
-        encoding="utf-8",
-    )
+    if format_name == "netscape":
+        source = tmp_path / "cookies.txt"
+        source.write_text(
+            "# Netscape HTTP Cookie File\n"
+            "#HttpOnly_.humblebundle.com\tTRUE\t/library\tTRUE\t4000000000\tsession\thumble-session\n"
+            ".other.example\tTRUE\t/\tTRUE\t0\tsession\tunrelated-session\n"
+            ".humblebundle.com\tTRUE\t/\tTRUE\t1\texpired\told\n",
+            encoding="utf-8",
+        )
+    else:
+        source = tmp_path / "cookies.json"
+        records = [
+            {
+                "domain": "humblebundle.com",
+                "hostOnly": False,
+                "name": "session",
+                "value": "humble-session",
+                "path": "/library",
+                "secure": True,
+                "httpOnly": True,
+                "expirationDate": 4_000_000_000.5,
+            },
+            {"domain": ".humblebundle.com.example", "name": "session", "value": "unrelated-session"},
+            {"domain": ".humblebundle.com", "name": "expired", "value": "old", "expirationDate": 1},
+            {
+                "domain": ".humblebundle.com",
+                "name": "partitioned",
+                "value": "scoped",
+                "partitionKey": {"topLevelSite": "https://other.example"},
+            },
+        ]
+        source.write_text(json.dumps({"cookies": records} if format_name == "wrapped" else records), encoding="utf-8")
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(HumbleBundleService, "cookies_path", str(target))
 
@@ -189,9 +221,45 @@ def test_cookie_import_only_persists_the_selected_stores_cookies(
     asyncio.run(run())
     cookies = HumbleBundleService().load_cookies()
     assert cookies is not None
-    assert [(cookie.domain, cookie.name) for cookie in cookies] == [(".humblebundle.com", "session")]
-    assert "unrelated-session" not in target.read_text(encoding="utf-8")
+    (cookie,) = cookies
+    assert (cookie.domain, cookie.name, cookie.value) == (".humblebundle.com", "session", "humble-session")
+    assert cookie.secure and cookie.has_nonstandard_attr("HttpOnly")
+    assert cookie.path == "/library" and cookie.expires == 4_000_000_000
+    (saved,) = json.loads(target.read_text(encoding="utf-8"))
+    assert saved["name"] == "session" and saved["httpOnly"]
     assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_cookie_import_keeps_saved_session_if_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / ".gamejolt.auth"
+    legacy = ".gamejolt.com\tTRUE\t/\tTRUE\t0\tsession\tprevious\n"
+    target.write_text(legacy, encoding="utf-8")
+    source = tmp_path / "cookies.json"
+
+    def is_connected(service: GameJoltService) -> bool:
+        jar = service.load_cookies()
+        assert jar is not None
+        return any(cookie.value == "accepted" for cookie in jar)
+
+    monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(GameJoltService, "cookies_path", str(target))
+    monkeypatch.setattr(GameJoltService, "is_connected", is_connected)
+
+    async def run() -> None:
+        request = await store_login.begin("gamejolt")
+        source.write_text('{"cookies": [', encoding="utf-8")
+        with pytest.raises(QtrisError, match="Select a JSON or Netscape cookie export"):
+            await store_login.finish(request.id, str(source))
+        source.write_text('[{"domain": "gamejolt.com", "name": "session", "value": "rejected"}]', encoding="utf-8")
+        with pytest.raises(QtrisError, match="did not accept those cookies"):
+            await store_login.finish(request.id, str(source))
+        assert target.read_text(encoding="utf-8") == legacy
+        source.write_text('[{"domain": "gamejolt.com", "name": "session", "value": "accepted"}]', encoding="utf-8")
+        await store_login.finish(request.id, str(source))
+
+    asyncio.run(run())
+    (saved,) = json.loads(target.read_text(encoding="utf-8"))
+    assert saved["hostOnly"] and saved["session"] and saved["value"] == "accepted"
 
 
 def test_ubisoft_combines_storage_values_and_only_saves_verified_sessions(

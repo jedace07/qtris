@@ -15,7 +15,6 @@ import os
 import re
 from dataclasses import dataclass
 from gettext import gettext as _
-from http.cookiejar import Cookie
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Literal
@@ -32,11 +31,12 @@ from qtris.services.gog import GOGService
 from qtris.services.itchio import ItchIoService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.services.zoom import ZoomService
-from qtris.util.cookies import WebkitCookieJar
+from qtris.util.cookies import load_cookie_file, make_cookie, save_cookie_file, select_cookies
 from qtris.util.log import logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from http.cookiejar import CookieJar
 
 type LoginInput = Literal["web", "epic_code", "redirect", "api_key", "cookies", "ubisoft"]
 
@@ -48,8 +48,6 @@ _REDIRECTS = {
     "zoomplatform": (("https://www.zoom-platform.com/account",), "li_token"),
 }
 _WEB_LOGINS = frozenset({"gog", "amazon"})
-# GOG's library endpoint takes the web session's cookies as well as the API token
-_WEB_COOKIE_DOMAINS = {"gog": "gog.com"}
 _COOKIE_DOMAINS = {
     "humblebundle": "humblebundle.com",
     "ea_app": "ea.com",
@@ -200,7 +198,7 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
     try:
         service.is_login_in_progress = False
         if pending.request.input_kind == "cookies":
-            _store_cookies(service, _load_cookie_file(Path(value)), _COOKIE_DOMAINS[pending.service_id])
+            _store_cookies(service, _load_store_cookies(Path(value), _COOKIE_DOMAINS[pending.service_id]))
         elif isinstance(service, GOGService):
             _sign_in_to_gog(service, value, cookies)
         elif isinstance(service, EpicGamesStoreService):
@@ -262,72 +260,52 @@ def _redirect_response(service_id: str, value: str) -> str:
 
 
 def _sign_in_to_gog(service: GOGService, redirect: str, cookies: tuple[WebCookie, ...]) -> None:
-    jar = WebkitCookieJar()
-    for cookie in cookies:
-        jar.set_cookie(_to_cookie(cookie))
-    if _select_cookies(jar, _WEB_COOKIE_DOMAINS["gog"]):
-        _store_cookies(service, jar, _WEB_COOKIE_DOMAINS["gog"], gog_redirect=redirect)
-        return
-    # The API token is enough for GOG; a cookie file from an earlier sign-in is stale
-    Path(service.cookies_path).unlink(missing_ok=True)
-    service.login_callback(redirect)
-
-
-def _to_cookie(cookie: WebCookie) -> Cookie:
-    domain = cookie.domain.lower()
-    return Cookie(
-        version=0,
-        name=cookie.name,
-        value=cookie.value,
-        port=None,
-        port_specified=False,
-        domain=domain,
-        domain_specified=domain.startswith("."),
-        domain_initial_dot=domain.startswith("."),
-        path=cookie.path or "/",
-        path_specified=True,
-        secure=cookie.secure,
-        expires=cookie.expires,
-        discard=cookie.expires is None,
-        comment=None,
-        comment_url=None,
-        rest={"HttpOnly": ""} if cookie.http_only else {},
+    # GOG's library endpoint takes the web session's cookies as well as the API token
+    jar = select_cookies(
+        (
+            make_cookie(
+                cookie.domain,
+                cookie.name,
+                cookie.value,
+                path=cookie.path or "/",
+                secure=cookie.secure,
+                http_only=cookie.http_only,
+                expires=cookie.expires,
+            )
+            for cookie in cookies
+        ),
+        "gog.com",
     )
+    if jar:
+        _store_cookies(service, jar, gog_redirect=redirect)
+        return
+    service.login_callback(redirect)
+    if service.is_authenticated():
+        # The API token is enough for GOG and any earlier cookies belong to the previous session
+        Path(service.cookies_path).unlink(missing_ok=True)
 
 
-def _load_cookie_file(source: Path) -> WebkitCookieJar:
+def _load_store_cookies(source: Path, domain: str) -> CookieJar:
     try:
-        if not source.is_file() or source.stat().st_size > 2_000_000:
-            raise ValueError("Not a small cookie file")
-        cookies = WebkitCookieJar(str(source))
-        cookies.load(ignore_discard=True)
+        if not source.is_file():
+            raise ValueError("Expected a cookie export file")
+        cookies = load_cookie_file(source, max_size=2_000_000)
     except OSError, ValueError:
-        raise QtrisError(_("Select a Netscape-format cookies.txt export from the browser.")) from None
-    return cookies
-
-
-def _select_cookies(cookies: WebkitCookieJar, domain: str) -> WebkitCookieJar:
-    selected = WebkitCookieJar()
-    for cookie in cookies:
-        cookie_domain = cookie.domain.lstrip(".").lower()
-        if cookie_domain == domain or cookie_domain.endswith(f".{domain}"):
-            selected.set_cookie(cookie)
+        raise QtrisError(_("Select a JSON or Netscape cookie export from your browser.")) from None
+    selected = select_cookies(cookies, domain)
+    if not selected:
+        raise QtrisError(_("The file has no current cookies for %s.") % domain)
     return selected
 
 
-def _store_cookies(service: OnlineService, cookies: WebkitCookieJar, domain: str, *, gog_redirect: str = "") -> None:
-    selected = _select_cookies(cookies, domain)
-    if not len(selected):
-        raise QtrisError(_("The file has no current cookies for %s.") % domain)
-
+def _store_cookies(service: OnlineService, cookies: CookieJar, *, gog_redirect: str = "") -> None:
     if not isinstance(service.cookies_path, str):
         raise QtrisError(_("This store does not accept a cookie file."))
     target = Path(service.cookies_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=target.parent) as folder:
-        staged = Path(folder) / "cookies.txt"
-        selected.save(str(staged), ignore_discard=True)
-        staged.chmod(0o600)
+        staged = Path(folder) / "cookies.json"
+        save_cookie_file(staged, cookies)
         service.cookies_path = str(staged)
         try:
             if isinstance(service, EAAppService):

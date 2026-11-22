@@ -21,8 +21,8 @@ Dialog {
     NativeDialogs.FileDialog {
         id: cookiePicker
 
-        title: qsTr("Select the store’s cookies.txt export")
-        nameFilters: [qsTr("Text files (*.txt)"), qsTr("All files (*)")]
+        title: qsTr("Select the store’s cookie export")
+        nameFilters: [qsTr("Cookie exports (*.json *.txt)"), qsTr("All files (*)")]
         onAccepted: dialog.controller.submit_cookie_file(selectedFile)
     }
 
@@ -39,7 +39,7 @@ Dialog {
                 case "api_key":
                     return qsTr("Open the browser, create an API key for Qtris, and paste it here.");
                 case "cookies":
-                    return qsTr("Sign in in your browser. Export only this store’s cookies in Netscape cookies.txt format, then select the file.");
+                    return qsTr("Sign in through your browser, then export this store’s cookies as JSON and select the file. Netscape cookies.txt exports also work.");
                 case "ubisoft":
                     return qsTr("After signing in, open your browser’s developer tools and find local storage for connect.ubisoft.com. Paste PRODloginData here, or combine PRODloginData, PRODrememberMe and PRODlastProfile in a JSON array. Use null for missing values. Do not share these values.");
                 default:

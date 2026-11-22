@@ -1,13 +1,16 @@
 """Manage Humble Bundle libraries"""
 
+from __future__ import annotations
+
 import concurrent.futures
 import json
 import os
 from gettext import gettext as _
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from qtris import settings
-from qtris.exceptions import UnavailableGameError
+from qtris.exceptions import QtrisError, UnavailableGameError
 from qtris.installer import AUTO_ELF_EXE, AUTO_WIN32_EXE
 from qtris.installer.installer_file import InstallerFile
 from qtris.runners import get_runner_human_name
@@ -15,6 +18,7 @@ from qtris.services.base import SERVICE_LOGIN, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util import linux
+from qtris.util.cookies import parse_cookies, save_cookie_file, select_cookies
 from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 
@@ -103,8 +107,13 @@ class HumbleBundleService(OnlineService):
 
         cookies_content = ui_delegate.ask_for_humble_bundle_cookies()
         if cookies_content:
-            with open(self.cookies_path, "w", encoding="utf-8") as cookies_file:
-                cookies_file.write(cookies_content)
+            try:
+                cookies = select_cookies(parse_cookies(cookies_content), "humblebundle.com")
+            except ValueError:
+                raise QtrisError(_("Select a JSON or Netscape cookie export from your browser.")) from None
+            if not cookies:
+                raise QtrisError(_("The file has no current cookies for %s.") % "humblebundle.com")
+            save_cookie_file(Path(self.cookies_path), cookies)
             SERVICE_LOGIN.fire(self)
         else:
             self.logout()

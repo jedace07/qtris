@@ -414,9 +414,11 @@ Qtris passes the code to ``legendary auth --code`` to save the session.
 
 The other stores use the system default browser. ZOOM Platform accepts its
 redirect URL.
-itch.io uses a dedicated API key. EA App, Humble Bundle, Steam Families, Game
-Jolt and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
-keeps only cookies from the selected store's domain. ``store_login`` retains the service instance
+itch.io uses a dedicated API key. EA App, Humble Bundle, Game Jolt and DLsite
+accept a JSON cookie export from the browser. Qtris keeps current cookies for
+the selected store and its subdomains and saves them as JSON, using the same
+format for cookies captured by GOG's web view. Netscape ``cookies.txt`` exports
+and previously saved cookies still load. ``store_login`` retains the service instance
 until the handoff completes so it can keep transient login data such as
 the device registration Nile starts for Amazon. The frontend syncs the library on successful
 sign-in.
