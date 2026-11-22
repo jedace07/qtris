@@ -1,5 +1,4 @@
-import os
-
+from qtris.util import host_files
 from qtris.util.log import logger
 
 
@@ -29,22 +28,20 @@ class RetroConfig:
     def load_config(self):
         """Load the configuration from file"""
         self._config = []
-        if not os.path.isfile(self.config_path):
+        content = host_files.read_bytes(self.config_path)
+        if content is None:
             raise OSError("Specified config file {} does not exist".format(self.config_path))
-        with open(self.config_path, "r", encoding="utf-8") as config_file:
-            for line in config_file.readlines():
-                if not line:
+        for line in content.decode("utf-8").split("\n"):
+            line = line.strip()
+            if line == "" or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"')
+                if not key or not value:
                     continue
-                line = line.strip()
-                if line == "" or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, value = line.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip('"')
-                    if not key or not value:
-                        continue
-                    self._config.append((key, value))
+                self._config.append((key, value))
 
     def save(self):
         with open(self.config_path, "w", encoding="utf-8") as config_file:

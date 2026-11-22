@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from qtris import settings
 from qtris.exceptions import GameConfigError, MissingGameExecutableError
+from qtris.util import host_files
 from qtris.util.log import logger
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ def _get_main_file(game_config: Mapping[str, Any]) -> Path:
     if not main_file:
         raise GameConfigError(_("No game file specified"))
     path = Path(str(main_file)).expanduser()
-    if not path.exists():
+    if not host_files.exists(path):
         raise MissingGameExecutableError(filename=str(path))
     return path
 

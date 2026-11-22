@@ -48,10 +48,8 @@ Dialog {
             const path = dialog.controller.local_path(selectedFolder)
             if (setting === "game")
                 dialog.controller.set_game_path(path)
-            else if (setting === "cache")
-                dialog.controller.set_cache_path(path)
             else
-                dialog.controller.set_bios_path(path)
+                dialog.controller.set_cache_path(path)
         }
     }
 
@@ -207,10 +205,7 @@ Dialog {
                                   message: "", error: false },
                                 { setting: "cache", title: qsTr("Installer cache"), path: dialog.storage.cachePath ?? "",
                                   help: qsTr("If set, files downloaded during game installs are kept there. Otherwise they're discarded."),
-                                  message: dialog.storage.cacheMessage ?? "", error: !(dialog.storage.cacheValid ?? true) },
-                                { setting: "bios", title: qsTr("Emulator BIOS files location"), path: dialog.storage.biosPath ?? "",
-                                  help: qsTr("The folder Qtris searches for emulator BIOS files."),
-                                  message: dialog.storage.biosWarning ?? "", error: false }
+                                  message: dialog.storage.cacheMessage ?? "", error: !(dialog.storage.cacheValid ?? true) }
                             ]
 
                             SettingsRow {
@@ -236,10 +231,8 @@ Dialog {
                                                     return
                                                 if (pathSetting.modelData.setting === "game")
                                                     dialog.controller.set_game_path(text)
-                                                else if (pathSetting.modelData.setting === "cache")
-                                                    dialog.controller.set_cache_path(text)
                                                 else
-                                                    dialog.controller.set_bios_path(text)
+                                                    dialog.controller.set_cache_path(text)
                                             }
                                         }
 

@@ -106,7 +106,6 @@ ColumnLayout {
         activeFocusOnTab: true
         keyNavigationEnabled: false
         boundsBehavior: Flickable.StopAtBounds
-        synchronousDrag: true
         spacing: 2
         Accessible.name: qsTr("Game library")
 
@@ -124,14 +123,7 @@ ColumnLayout {
         Keys.onReturnPressed: list.controller.play()
         Keys.onEnterPressed: list.controller.play()
 
-        SmoothWheelScroll {
-            id: wheelScroll
-            view: rows
-        }
-
-        ScrollBar.vertical: ScrollBar {
-            wheelScrolling: wheelScroll.scrolling
-        }
+        ScrollBar.vertical: ScrollBar {}
 
         delegate: GameListRow {
             width: rows.width - rows.leftMargin - rows.rightMargin

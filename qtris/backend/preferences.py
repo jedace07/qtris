@@ -17,14 +17,8 @@ from qtris.services import SERVICES
 from qtris.util import linux, system
 from qtris.util.linux import gather_system_info, gather_system_info_dict
 from qtris.util.log import get_log_contents
-from qtris.util.retroarch.firmware import scan_firmware_directory
 from qtris.util.steam.config import STEAM_ACCOUNT_SETTING, get_steam_users
-from qtris.util.strings import human_size
 from qtris.util.wine import proton
-
-MAX_BIOS_FOLDER_SIZE = 8e9
-MAX_BIOS_FILES_IN_FOLDER = 5000
-MAX_BIOS_FOLDER_DEPTH = 3
 
 
 async def save_issue_report(filename: str, description: str) -> None:
@@ -77,42 +71,15 @@ async def set_source_in_games_view(source_id: str, shown: bool) -> None:
 # Storage
 
 
-def _bios_warning(bios_path: str) -> str:
-    """Return why scanning a BIOS folder would be slow, if it would be; the folder is
-    usable either way."""
-    if not bios_path or not os.path.isdir(bios_path):
-        return ""
-    size = 0
-    count = 0
-    depth = 0
-    for path, _dir_names, file_names in os.walk(bios_path):
-        for file_name in file_names:
-            file_path = os.path.join(path, file_name)
-            if os.access(file_path, os.R_OK):
-                size += os.path.getsize(file_path)
-                count += 1
-                depth = max(depth, path[len(bios_path) :].count(os.sep))
-    if size > MAX_BIOS_FOLDER_SIZE:
-        return _("Folder is large (%s); scanning it may be slow") % human_size(size)
-    if count > MAX_BIOS_FILES_IN_FOLDER:
-        return _("Folder contains many files (%s); scanning it may be slow") % count
-    if depth > MAX_BIOS_FOLDER_DEPTH:
-        return _("Folder is deeply nested; scanning it may be slow")
-    return ""
-
-
 def _storage_paths() -> StoragePaths:
     system_config = QtrisConfig().system_config
     cache_path = get_custom_cache_path() or ""
     valid, message = validate_custom_cache_path(cache_path) if cache_path else (True, None)
-    bios_path = str(system_config.get("bios_path") or "")
     return StoragePaths(
         game_path=str(system_config.get("game_path") or os.path.expanduser("~/Games")),
         installer_cache_path=cache_path,
         installer_cache_message=message or "",
         installer_cache_valid=valid,
-        bios_path=bios_path,
-        bios_warning=_bios_warning(bios_path),
     )
 
 
@@ -138,15 +105,6 @@ async def set_game_path(path: str) -> StoragePaths:
 async def set_installer_cache_path(path: str) -> StoragePaths:
     """Keep installers' downloads in a folder, or discard them when given none."""
     save_custom_cache_path(path.strip())
-    return await get_storage_paths()
-
-
-async def set_bios_path(path: str) -> StoragePaths:
-    """Set the folder emulators look for BIOS files in, and scan it for them."""
-    path = path.strip()
-    await asyncio.to_thread(_save_system_option, "bios_path", path)
-    if path:
-        await asyncio.to_thread(scan_firmware_directory, path)
     return await get_storage_paths()
 
 

@@ -4,8 +4,6 @@ import QtQuick.Templates as T
 T.ScrollBar {
     id: control
 
-    property bool wheelScrolling: false
-
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
                             implicitContentWidth + leftPadding + rightPadding)
     implicitHeight: Math.max(implicitBackgroundHeight + topInset + bottomInset,
@@ -26,7 +24,7 @@ T.ScrollBar {
 
         states: State {
             name: "active"
-            when: control.policy === T.ScrollBar.AlwaysOn || ((control.active || control.wheelScrolling) && control.size < 1.0)
+            when: control.policy === T.ScrollBar.AlwaysOn || (control.active && control.size < 1.0)
             PropertyChanges { control.contentItem.opacity: control.hovered || control.pressed ? 0.9 : 0.6 }
         }
 

@@ -23,7 +23,6 @@ RoundButton 6.0 RoundButton.qml
 ScrollBar 6.0 ScrollBar.qml
 ScrollIndicator 6.0 ScrollIndicator.qml
 ScrollView 6.0 ScrollView.qml
-SmoothWheelScroll 1.0 SmoothWheelScroll.qml
 SpinBox 6.0 SpinBox.qml
 SplitView 6.0 SplitView.qml
 Switch 6.0 Switch.qml

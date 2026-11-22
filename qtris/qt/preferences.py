@@ -122,8 +122,6 @@ class PreferencesController(QObject):
             "cachePath": paths.installer_cache_path,
             "cacheMessage": paths.installer_cache_message,
             "cacheValid": paths.installer_cache_valid,
-            "biosPath": paths.bios_path,
-            "biosWarning": paths.bios_warning,
         }
 
     @Property(list, notify=stateChanged)
@@ -175,10 +173,6 @@ class PreferencesController(QObject):
     @Slot(str)
     def set_cache_path(self, path: str) -> None:
         start_task(self._change_storage(preferences.set_installer_cache_path(path)), self._prompts.error)
-
-    @Slot(str)
-    def set_bios_path(self, path: str) -> None:
-        start_task(self._change_storage(preferences.set_bios_path(path)), self._prompts.error)
 
     async def _change_storage(self, change: Any) -> None:
         self._storage = await change

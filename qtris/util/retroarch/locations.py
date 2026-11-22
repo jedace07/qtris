@@ -15,7 +15,7 @@ CORE_INFO_DIR = Path(settings.CACHE_DIR) / "libretro" / "info"
 
 
 def get_flatpak_config_dir() -> Path:
-    """Return the folder that holds the RetroArch Flatpak's configuration, cores and BIOS files."""
+    """Return the folder that holds the RetroArch Flatpak's configuration and cores."""
     return get_app_dir(RETROARCH_FLATPAK_ID) / "config" / "retroarch"
 
 

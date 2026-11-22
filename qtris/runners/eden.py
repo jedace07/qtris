@@ -1,11 +1,9 @@
-import filecmp
 import os
 from gettext import gettext as _
-from shutil import copyfile
 
 from qtris.exceptions import MissingGameExecutableError
 from qtris.runners.runner import Runner
-from qtris.util import system
+from qtris.util import host_files, system
 from qtris.util.flatpak import get_app_dir
 from qtris.util.log import logger
 
@@ -53,7 +51,7 @@ class eden(Runner):
         candidates = (str(get_app_dir(FLATPAK_ID) / "data" / "eden"), os.path.expanduser("~/.local/share/eden"))
         for candidate in candidates:
             path = system.fix_path_case(os.path.join(candidate, "nand"))
-            if system.path_exists(path):
+            if host_files.exists(path):
                 return path[: -len("nand")]
 
     def play(self):
@@ -65,7 +63,7 @@ class eden(Runner):
             arguments.append("-f")
 
         rom = self.game_config.get("main_file") or ""
-        if not system.path_exists(rom):
+        if not host_files.exists(rom):
             raise MissingGameExecutableError(filename=rom)
         arguments += ["-g", rom]
         return {"command": arguments}
@@ -88,17 +86,13 @@ class eden(Runner):
         if not key:
             logger.debug("No %s file was set.", key_type)
             return
-        if not system.path_exists(key):
+        contents = host_files.read_bytes(key)
+        if contents is None:
             logger.warning("Keys file %s does not exist!", key)
             return
-
-        keys_dir = os.path.dirname(key_loc)
-        if not os.path.exists(keys_dir):
-            os.makedirs(keys_dir)
-        elif os.path.isfile(key_loc) and filecmp.cmp(key, key_loc):
-            # If the files are identical, don't do anything
-            return
-        copyfile(key, key_loc)
+        # If the files are identical, don't do anything
+        if contents != host_files.read_bytes(key_loc):
+            host_files.write_bytes(key_loc, contents)
 
     def prelaunch(self):
         for key in ["prod_keys", "title_keys"]:

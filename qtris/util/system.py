@@ -256,17 +256,6 @@ def get_md5_in_zip(filename: str) -> str | None:
     return _hash
 
 
-def get_md5_hash(filename: str) -> bool | str:
-    """Return the md5 hash of a file."""
-    try:
-        with open(filename, "rb") as _file:
-            _hash = read_file_md5(_file)
-    except IOError:
-        logger.warning("Error reading %s", filename)
-        return False
-    return _hash
-
-
 def read_file_md5(filedesc: IO[bytes]) -> str:
     md5 = hashlib.md5()
     for chunk in iter(lambda: filedesc.read(8192), b""):

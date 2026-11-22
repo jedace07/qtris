@@ -61,13 +61,6 @@ class GameConfigError(MisconfigurationError):
     running properly."""
 
 
-class MissingBiosError(GameConfigError):
-    """Throw this error when the game requires a BIOS, but none is configured."""
-
-    def __init__(self, message: str | None = None, *args: Any, **kwargs: Any):
-        super().__init__(message or _("A bios file is required to run this game"), *args, **kwargs)
-
-
 class AuthenticationError(QtrisError):
     """Raised when authentication to a service fails"""
 

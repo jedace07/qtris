@@ -15,16 +15,16 @@ from zipfile import BadZipFile, ZipFile
 
 import requests
 
+from qtris import settings
 from qtris.config import QtrisConfig
-from qtris.exceptions import GameConfigError, MissingBiosError, UnspecifiedVersionError
+from qtris.exceptions import GameConfigError, UnspecifiedVersionError
 from qtris.runners import RunnerInstallationError
 from qtris.runners.runner import Runner
-from qtris.util import async_choices, cache_single, system
+from qtris.util import async_choices, cache_single, host_files
 from qtris.util.libretro import RetroConfig
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.retroarch.content import GENERATED_CONTENT_DIR, get_content_path
-from qtris.util.retroarch.firmware import get_firmware, scan_firmware_directory
 from qtris.util.retroarch.locations import (
     CORE_INFO_DIR,
     RETROARCH_FLATPAK_ID,
@@ -311,7 +311,7 @@ class libretro(Runner):
 
     def _get_config_directory(self, key: str, default: str) -> str:
         config_file = self.get_config_file()
-        if system.path_exists(config_file):
+        if host_files.exists(config_file):
             value = RetroConfig(config_file).get(key)
             if value and value != "default":
                 return _resolve_config_path(value, config_file)
@@ -320,10 +320,6 @@ class libretro(Runner):
     def get_cores_directory(self) -> str:
         """Return the directory RetroArch loads cores from, as its configuration sets it."""
         return self._get_config_directory("libretro_directory", "cores")
-
-    def get_system_directory(self) -> str:
-        """Return the directory RetroArch looks for BIOS and firmware files in."""
-        return self._get_config_directory("system_directory", "system")
 
     def get_core_path(self, core: str) -> str:
         """Return the path of a core within the configured cores directory."""
@@ -337,7 +333,7 @@ class libretro(Runner):
             core = self.game_config["core"]
         if not super().is_installed(flatpak_allowed=flatpak_allowed):
             return False
-        return not core or system.path_exists(self.get_core_path(core))
+        return not core or host_files.exists(self.get_core_path(core))
 
     def is_installed_for(self, interpreter: ScriptInterpreter) -> bool:
         core = interpreter.installer.script["game"].get("core")
@@ -359,7 +355,7 @@ class libretro(Runner):
         if not super().is_installed():
             super().install(install_ui_delegate)
         core = version or self.get_version(use_default=False)
-        if not core or system.path_exists(self.get_core_path(core)):
+        if not core or host_files.exists(self.get_core_path(core)):
             if callback:
                 callback()
             return
@@ -368,7 +364,17 @@ class libretro(Runner):
             raise RunnerInstallationError(_("No upstream Libretro build for core '%s' on this architecture.") % core)
         executable = f"{core}_libretro.so"
         url = f"https://buildbot.libretro.com/nightly/linux/{platform_dir}/latest/{executable}.zip"
-        self.download_and_extract(url, install_ui_delegate, self.get_cores_directory(), executable, callback)
+        os.makedirs(settings.CACHE_DIR, exist_ok=True)
+        # The sandbox can't unpack into RetroArch's folder, so unpack here and copy the core in
+        with TemporaryDirectory(dir=settings.CACHE_DIR) as folder:
+            build = Path(folder) / "core"
+            self.download_and_extract(url, install_ui_delegate, str(build), executable)
+            # A cancelled download unpacks nothing
+            if not (build / executable).is_file():
+                return
+            host_files.write_bytes(self.get_core_path(core), (build / executable).read_bytes())
+        if callback:
+            callback()
 
     def get_flatpak_filesystems(self) -> list[str]:
         return [*super().get_flatpak_filesystems(), str(GENERATED_CONTENT_DIR)]
@@ -378,59 +384,6 @@ class libretro(Runner):
             "command": self.get_command() + self.get_runner_parameters(),
             "env": self.get_env(),
         }
-
-    def prelaunch(self) -> None:
-        super().prelaunch()
-        core = self.game_config.get("core")
-        info_file = CORE_INFO_DIR / f"{core}_libretro.info"
-        if not core or not info_file.is_file():
-            return
-        core_info = RetroConfig(str(info_file))
-        try:
-            firmware_count = int(core_info["firmware_count"])
-            mandatory_firmware_count = sum(1 for i in range(firmware_count) if not core_info.get("firmware%d_opt" % i))
-        except ValueError, TypeError:
-            firmware_count = 0
-            mandatory_firmware_count = 0
-        system_path = self.get_system_directory()
-        notes = str(core_info["notes"] or "")
-        checksums = {}
-        if notes.startswith("(!)"):
-            for part in notes.split("|"):
-                try:
-                    filename, checksum = part.split(" (md5): ")
-                except ValueError:
-                    logger.warning("Unable to parse firmware info: %s", notes)
-                    continue
-                checksums[filename.replace("(!) ", "")] = checksum
-
-        # If this requires firmware, confirm we have the firmware folder configured in the first place
-        # then rescan it in case the user added anything since the last time they changed it
-        if mandatory_firmware_count > 0:
-            firmware_directory = QtrisConfig().raw_system_config.get("bios_path")
-            if not firmware_directory:
-                raise MissingBiosError(
-                    _("The emulator files BIOS location must be configured in the Preferences dialog.")
-                )
-            scan_firmware_directory(firmware_directory)
-
-        for index in range(firmware_count):
-            optional_prefix = "Optional firmware" if core_info.get("firmware%d_opt" % index) else "Firmware"
-            firmware_filename = core_info["firmware%d_path" % index]
-            firmware_path = os.path.join(system_path, firmware_filename)
-            firmware_name = firmware_filename.split("/")[-1]
-            firmware_checksum = checksums.get(firmware_name)
-            if system.path_exists(firmware_path):
-                if firmware_checksum:
-                    checksum = system.get_md5_hash(firmware_path)
-                    checksum_status = "Checksum good" if checksum == firmware_checksum else "Checksum failed"
-                else:
-                    checksum_status = "No checksum info"
-                logger.info("%s '%s' found (%s)", optional_prefix, firmware_filename, checksum_status)
-            else:
-                logger.warning("%s '%s' not found!", optional_prefix, firmware_filename)
-                if firmware_checksum:
-                    get_firmware(firmware_name, firmware_checksum, os.path.dirname(firmware_path))
 
     def get_runner_parameters(self) -> list[str]:
         parameters = []

@@ -1,12 +1,10 @@
-import filecmp
 import os
 from gettext import gettext as _
 from pathlib import Path
-from shutil import copyfile
 
 from qtris.exceptions import MissingGameExecutableError
 from qtris.runners.runner import Runner
-from qtris.util import system
+from qtris.util import host_files
 from qtris.util.flatpak import get_app_dir
 from qtris.util.log import logger
 
@@ -65,7 +63,7 @@ class ryubing(Runner):
         """Run the game."""
         arguments = self.get_command()
         rom = self.game_config.get("main_file") or ""
-        if not system.path_exists(rom):
+        if not host_files.exists(rom):
             raise MissingGameExecutableError(filename=rom)
 
         if app_id := self.game_config.get("application_id"):
@@ -78,15 +76,14 @@ class ryubing(Runner):
         key = self.runner_config.get(key_type)
         if not key:
             return
-        if not system.path_exists(key):
+        contents = host_files.read_bytes(key)
+        if contents is None:
             logger.warning("Keys file %s does not exist", key)
             return
 
         key_loc = self.ryubing_data_dir / "system" / key_type.replace("_", ".")
-        if key_loc.is_file() and filecmp.cmp(key, key_loc):
-            return
-        key_loc.parent.mkdir(parents=True, exist_ok=True)
-        copyfile(key, key_loc)
+        if contents != host_files.read_bytes(key_loc):
+            host_files.write_bytes(key_loc, contents)
 
     def prelaunch(self) -> None:
         for key in ["prod_keys", "title_keys"]:

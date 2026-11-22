@@ -117,6 +117,18 @@ Models instead of widgets
     changes quickly should pass a snapshot of its state with each one rather
     than have handlers read its current state (the downloads do).
 
+Other apps' folders
+-------------------
+
+Inside the Flatpak, ``~/.var/app`` is a tmpfs: other apps' folders look empty,
+and writes to them succeed and are lost, whatever access the sandbox has to the
+home folder. The manifest grants no emulator's folder. Code that works on a path
+that may be in one (RetroArch's cores and configuration, emulators' keys) uses
+``qtris.util.host_files``, which goes through
+``flatpak-spawn --host`` for those paths alone, rather than ``open``,
+``os.path`` or ``system.path_exists``. Steam's folder is still granted read-only,
+as library scans read too many of its files to spawn a process for each.
+
 Web games
 ---------
 

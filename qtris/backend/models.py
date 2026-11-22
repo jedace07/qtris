@@ -386,8 +386,6 @@ class StoragePaths:
     installer_cache_path: str
     installer_cache_message: str
     installer_cache_valid: bool
-    bios_path: str
-    bios_warning: str
 
 
 @dataclass(frozen=True)
