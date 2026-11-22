@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtrisStyle
 
 GridView {
     id: grid
@@ -24,6 +25,7 @@ GridView {
     currentIndex: controller.selectedRow
     clip: true
     boundsBehavior: Flickable.StopAtBounds
+    synchronousDrag: true
     keyNavigationEnabled: false
     activeFocusOnTab: true
     Accessible.name: qsTr("Game library")
@@ -44,7 +46,14 @@ GridView {
     Keys.onReturnPressed: controller.play()
     Keys.onEnterPressed: controller.play()
 
-    ScrollBar.vertical: ScrollBar {}
+    SmoothWheelScroll {
+        id: wheelScroll
+        view: grid
+    }
+
+    ScrollBar.vertical: ScrollBar {
+        wheelScrolling: wheelScroll.scrolling
+    }
 
     delegate: GameCard {
         width: grid.cellWidth

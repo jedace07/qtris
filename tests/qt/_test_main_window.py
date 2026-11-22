@@ -1,13 +1,28 @@
 """Render the Qt Quick library from seeded backend data."""
 
+from __future__ import annotations
+
 import asyncio
 import json
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Q_ARG, QCoreApplication, QEvent, QMetaObject, QMimeData, QObject, QPointF, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QGuiApplication, QImage
+from PySide6.QtCore import (
+    Q_ARG,
+    QCoreApplication,
+    QEvent,
+    QMetaObject,
+    QMimeData,
+    QObject,
+    QPoint,
+    QPointF,
+    Qt,
+    QTimer,
+    QUrl,
+)
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QGuiApplication, QImage, QWheelEvent
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
@@ -265,6 +280,69 @@ def test_grid_reloads_artwork_and_keeps_selection_across_layouts(
             window.shutdown()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("layout", "view_name"),
+    [("covers", "libraryGrid"), ("banners", "libraryGrid"), ("list", "libraryList")],
+)
+def test_library_wheel_ticks_accumulate(
+    qt_application: QGuiApplication, layout: str, view_name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "SHOW_MEDIA", True)
+    monkeypatch.setattr(settings, "write_setting", lambda *_args: None)
+    game_ids = [
+        games_db.add_game(name=f"{PREFIX}Scroll {index:02d}", runner="linux", installed=1) for index in range(64)
+    ]
+
+    async def run() -> None:
+        window = MainWindow()
+        try:
+            controller = window.controller
+            window.window.resize(960, 640)
+            window.show()
+            controller.set_layout(layout)
+            await settle(window)
+            await wait_for_qml(qt_application, window.window.isExposed)
+            view = window.window.findChild(QQuickItem, view_name)
+            assert view is not None
+            step = qt_application.styleHints().wheelScrollLines() * 36
+            await wait_for_qml(qt_application, lambda: view.property("contentHeight") > view.height() + 4 * step)
+
+            position = view.mapToScene(QPointF(view.width() / 2, view.height() / 2))
+
+            def scroll(delta: int) -> None:
+                event = QWheelEvent(
+                    position,
+                    window.window.mapToGlobal(position),
+                    QPoint(),
+                    QPoint(0, delta),
+                    Qt.MouseButton.NoButton,
+                    Qt.KeyboardModifier.NoModifier,
+                    Qt.ScrollPhase.NoScrollPhase,
+                    False,
+                )
+                event.setTimestamp(time.monotonic_ns() // 1_000_000)
+                QCoreApplication.sendEvent(window.window, event)
+                assert event.isAccepted()
+
+            start = view.property("contentY")
+            for _ in range(4):
+                scroll(-120)
+            assert view.property("contentY") == start
+            await wait_for_qml(qt_application, lambda: view.property("contentY") == pytest.approx(start + 4 * step))
+
+            scroll(1200)
+            await wait_for_qml(qt_application, lambda: view.property("atYBeginning"))
+            assert view.property("contentY") == pytest.approx(start)
+        finally:
+            window.shutdown()
+
+    try:
+        asyncio.run(run())
+    finally:
+        for game_id in game_ids:
+            games_db.delete_game(game_id)
 
 
 def test_qml_dialog_answers_a_launch_question(qt_application: QGuiApplication, library: list[str]) -> None:

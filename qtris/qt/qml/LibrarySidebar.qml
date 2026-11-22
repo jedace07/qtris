@@ -111,6 +111,7 @@ Rectangle {
             model: sidebar.controller.sidebarModel
             currentIndex: sidebar.controller.sidebarRow
             boundsBehavior: Flickable.StopAtBounds
+            synchronousDrag: true
             spacing: 1
 
             Keys.onUpPressed: sidebar.controller.select_view(currentIndex - 1)
@@ -122,7 +123,14 @@ Rectangle {
                 }
             }
 
-            ScrollBar.vertical: ScrollBar {}
+            SmoothWheelScroll {
+                id: wheelScroll
+                view: views
+            }
+
+            ScrollBar.vertical: ScrollBar {
+                wheelScrolling: wheelScroll.scrolling
+            }
 
             section.property: "sectionTitle"
             section.delegate: Label {
