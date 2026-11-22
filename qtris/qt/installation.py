@@ -140,7 +140,15 @@ class InstallationController(QObject):
     def menuShortcutDefault(self) -> bool:  # noqa: N802
         return "menu" in self._default_shortcuts
 
-    def start(self, catalog_id: str, choice_id: str, directory: str, shortcut_kinds: tuple[str, ...] | None) -> None:
+    def start(
+        self,
+        catalog_id: str,
+        choice_id: str,
+        directory: str,
+        shortcut_kinds: tuple[str, ...] | None,
+        *,
+        include_extras: bool,
+    ) -> None:
         if self.active:
             return
         self._starting = True
@@ -152,17 +160,24 @@ class InstallationController(QObject):
         self.stateChanged.emit()
         self.logChanged.emit()
         self._start_task = start_task(
-            self._start(catalog_id, choice_id, directory, shortcut_kinds), self._prompts.error
+            self._start(catalog_id, choice_id, directory, shortcut_kinds, include_extras), self._prompts.error
         )
 
     async def _start(
-        self, catalog_id: str, choice_id: str, directory: str, shortcut_kinds: tuple[str, ...] | None
+        self,
+        catalog_id: str,
+        choice_id: str,
+        directory: str,
+        shortcut_kinds: tuple[str, ...] | None,
+        include_extras: bool,
     ) -> None:
         try:
             if shortcut_kinds is not None:
                 await installations.set_default_shortcuts(shortcut_kinds)
                 self._default_shortcuts = shortcut_kinds
-            info = await installations.start_installation(catalog_id, choice_id, directory, shortcut_kinds or ())
+            info = await installations.start_installation(
+                catalog_id, choice_id, directory, shortcut_kinds or (), include_extras=include_extras
+            )
         except BaseException:
             self._unregister()
             raise

@@ -21,6 +21,7 @@ DATABASE: dict[str, DBSchema] = {
         {"name": "runner", "type": "TEXT"},
         {"name": "executable", "type": "TEXT"},
         {"name": "directory", "type": "TEXT"},
+        {"name": "external_files", "type": "INTEGER"},
         {"name": "updated", "type": "DATETIME"},
         {"name": "lastplayed", "type": "INTEGER"},
         {"name": "installed", "type": "INTEGER"},

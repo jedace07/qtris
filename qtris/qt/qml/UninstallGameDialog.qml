@@ -11,12 +11,14 @@ Dialog {
     required property QtObject controller
     required property string gameName
     required property bool installed
+    property bool externalFiles: false
     readonly property bool targetInstalled: controller.ready ? controller.installed : installed
 
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(500, parent.width - 32)
-    title: targetInstalled ? qsTr("Uninstall %1").arg(gameName) : qsTr("Remove %1").arg(gameName)
+    title: externalFiles ? qsTr("Unlink %1").arg(gameName)
+                         : targetInstalled ? qsTr("Uninstall %1").arg(gameName) : qsTr("Remove %1").arg(gameName)
     modal: true
     closePolicy: controller.working ? Popup.NoAutoClose : Popup.CloseOnEscape
 
@@ -29,6 +31,7 @@ Dialog {
         Label {
             Layout.fillWidth: true
             text: !dialog.controller.ready ? qsTr("Checking installation…")
+                    : dialog.externalFiles ? qsTr("Your game files will stay on disk.")
                     : dialog.controller.installed ? qsTr("Qtris will remove this game's configuration and shortcuts.")
                     : qsTr("This game will no longer appear in your library.")
             textFormat: Text.PlainText
@@ -38,7 +41,7 @@ Dialog {
         CheckBox {
             id: trashFiles
             objectName: "trashGameFiles"
-            visible: dialog.controller.installed
+            visible: dialog.controller.installed && !dialog.externalFiles
             text: qsTr("Move the installation folder to the Trash")
             enabled: !dialog.controller.working && dialog.controller.filesUnavailableReason.length === 0
         }
@@ -64,7 +67,8 @@ Dialog {
             Layout.fillWidth: true
             visible: dialog.controller.working
             indeterminate: visible
-            Accessible.name: dialog.targetInstalled ? qsTr("Uninstalling game…") : qsTr("Removing game…")
+            Accessible.name: dialog.externalFiles ? qsTr("Unlinking game…")
+                             : dialog.targetInstalled ? qsTr("Uninstalling game…") : qsTr("Removing game…")
         }
     }
 
@@ -78,10 +82,11 @@ Dialog {
         Button {
             objectName: "confirmGameUninstall"
             highlighted: true
-            text: dialog.targetInstalled ? qsTr("Uninstall") : qsTr("Remove")
+            text: dialog.externalFiles ? qsTr("Unlink") : dialog.targetInstalled ? qsTr("Uninstall") : qsTr("Remove")
             enabled: dialog.controller.ready && !dialog.controller.working
             DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
-            onClicked: dialog.controller.uninstall(trashFiles.checked, !dialog.controller.installed || removeEntry.checked)
+            onClicked: dialog.controller.uninstall(!dialog.externalFiles && trashFiles.checked,
+                                                   !dialog.controller.installed || removeEntry.checked)
         }
     }
 }

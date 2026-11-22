@@ -1,25 +1,35 @@
 """Expose store installers and local Windows setup to Qt Quick."""
 
+from __future__ import annotations
+
 import asyncio
-from collections.abc import Coroutine
+from functools import partial
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 
-from qtris.backend import installers
+from qtris.backend import installers, local_games
 from qtris.backend.errors import QtrisError
 from qtris.backend.installers import InstallationKind
-from qtris.backend.models import InstallerCatalog, InstallerSelection
-from qtris.qt.delegates import PromptController
 from qtris.qt.installation import InstallationController
 from qtris.qt.tasks import start_task
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+    from typing import Any
+
+    from qtris.backend.models import InstallerCatalog, InstallerSelection
+    from qtris.qt.delegates import PromptController
 
 
 class InstallerController(QObject):
     requested = Signal()
     stateChanged = Signal()
+    catalogChanged = Signal()
     closeRequested = Signal()
+    existingStateChanged = Signal()
+    existingGameImported = Signal(str)
 
     def __init__(self, prompts: PromptController, parent: QObject) -> None:
         super().__init__(parent)
@@ -27,9 +37,14 @@ class InstallerController(QObject):
         self._game_name = ""
         self._catalog: InstallerCatalog | None = None
         self._selection: InstallerSelection | None = None
+        self._choice_index = -1
         self._directory = ""
+        self._error = ''
         self._kind = InstallationKind.INSTALL
         self._task: asyncio.Task[None] | None = None
+        self._gog_target: tuple[str, str] | None = None
+        self._importing = False
+        self._import_error = ''
         self.installation_controller = InstallationController(prompts, self)
 
     @Property(QObject, constant=True)
@@ -44,18 +59,15 @@ class InstallerController(QObject):
     def gameName(self) -> str:  # noqa: N802
         return self._catalog.game_name if self._catalog else self._game_name
 
-    @Property(list, notify=stateChanged)
+    @Property(list, notify=catalogChanged)
     def choices(self) -> list[dict[str, str]]:
         if not self._catalog:
             return []
         return [
             {
-                "id": choice.id,
                 "version": choice.version,
-                "runnerName": choice.runner_name,
                 "description": choice.description,
                 "notes": choice.notes,
-                "credits": choice.credits,
             }
             for choice in self._catalog.choices
         ]
@@ -64,9 +76,25 @@ class InstallerController(QObject):
     def selected(self) -> bool:
         return self._selection is not None
 
+    @Property(int, notify=stateChanged)
+    def choiceIndex(self) -> int:  # noqa: N802
+        return self._choice_index
+
     @Property(str, notify=stateChanged)
-    def selectedVersion(self) -> str:  # noqa: N802
-        return self._selection.version if self._selection else ""
+    def error(self) -> str:
+        return self._error
+
+    @Property(bool, notify=existingStateChanged)
+    def canImportExisting(self) -> bool:  # noqa: N802
+        return self._gog_target is not None
+
+    @Property(bool, notify=existingStateChanged)
+    def importing(self) -> bool:
+        return self._importing
+
+    @Property(str, notify=existingStateChanged)
+    def importError(self) -> str:  # noqa: N802
+        return self._import_error
 
     @Property(bool, notify=stateChanged)
     def createsGameFolder(self) -> bool:  # noqa: N802
@@ -88,6 +116,10 @@ class InstallerController(QObject):
     def createsShortcuts(self) -> bool:  # noqa: N802
         return self._kind == InstallationKind.INSTALL
 
+    @Property(bool, notify=stateChanged)
+    def offersExtras(self) -> bool:  # noqa: N802
+        return bool(self._selection and self._selection.offers_extras)
+
     @Property(str, notify=stateChanged)
     def title(self) -> str:
         if self._kind == InstallationKind.UPDATE:
@@ -96,14 +128,26 @@ class InstallerController(QObject):
             return _("Install DLC for %s") % self._game_name
         return _("Install %s") % self.gameName
 
+    @Property(str, notify=stateChanged)
+    def startLabel(self) -> str:  # noqa: N802
+        if self._kind == InstallationKind.UPDATE:
+            return _('Apply')
+        if self._kind == InstallationKind.DLC:
+            return _('Install DLC')
+        return _('Install')
+
     @Slot(str, str, str, str, str)
     def open_installers(self, service: str, appid: str, game_id: str, game_name: str, operation: str) -> None:
-        if self.installation_controller.active:
+        if self.installation_controller.active or self._importing:
             return
         kind = InstallationKind[operation.upper()]
         self._reset(game_name)
         self._kind = kind
-        self._start(self._load(installers.find_store_installers(service, appid, game_id, kind)))
+        if service == 'gog' and appid and kind == InstallationKind.INSTALL:
+            self._gog_target = (appid, game_id)
+            self.existingStateChanged.emit()
+        request = partial(installers.find_store_installers, service, appid, game_id, kind)
+        self._start(partial(self._load, request))
         self.requested.emit()
 
     @Property(list, constant=True)
@@ -116,37 +160,55 @@ class InstallerController(QObject):
 
     @Slot(str, QUrl, str, str)
     def open_windows_setup(self, game_name: str, executable: QUrl, windows_version: str, locale: str) -> None:
-        if self.installation_controller.active:
+        if self.installation_controller.active or self._importing:
             return
         self._reset(game_name)
-        self._start(
-            self._load(installers.prepare_windows_setup(game_name, executable.toLocalFile(), windows_version, locale))
+        request = partial(
+            installers.prepare_windows_setup, game_name, executable.toLocalFile(), windows_version, locale
         )
+        self._start(partial(self._load, request))
         self.requested.emit()
 
     async def open_store_uri(self, service: str, appid: str) -> None:
-        if self.installation_controller.active:
+        name = await installers.get_store_game_name(service, appid)
+        if self.installation_controller.active or self._importing:
             raise QtrisError(_("Finish the current installation first."))
-        catalog = await installers.find_store_installers(service, appid)
-        if self.installation_controller.active:
-            await installers.close_catalog(catalog.id)
-            raise QtrisError(_("Finish the current installation first."))
-        self._reset(catalog.game_name)
-        self._catalog = catalog
-        self.stateChanged.emit()
-        self.requested.emit()
+        self.open_installers(service, appid, '', name, 'install')
 
-    @Slot(str)
-    def select(self, choice_id: str) -> None:
-        if self._catalog and not self._task:
-            self._start(self._select(self._catalog.id, choice_id))
+    @Slot(int)
+    def select(self, index: int) -> None:
+        if self._catalog and not self._task and 0 <= index < len(self._catalog.choices):
+            self._start(partial(self._select, self._catalog, index))
 
-    @Slot()
-    def back(self) -> None:
-        if not self._task:
-            self._selection = None
-            self._directory = ""
-            self.stateChanged.emit()
+    @Slot(QUrl, result=str)
+    def local_path(self, url: QUrl) -> str:
+        return url.toLocalFile()
+
+    @Slot(str, result=QUrl)
+    def folder_url(self, directory: str) -> QUrl:
+        return QUrl.fromLocalFile(directory)
+
+    @Slot(str, str)
+    def import_existing(self, directory: str, executable: str) -> None:
+        if self._gog_target is None or self._importing or self.installation_controller.active:
+            return
+        self._importing = True
+        self._import_error = ''
+        self.existingStateChanged.emit()
+        appid, game_id = self._gog_target
+        start_task(self._import_gog(appid, game_id, directory.strip(), executable.strip()), self._prompts.error)
+
+    async def _import_gog(self, appid: str, game_id: str, directory: str, executable: str) -> None:
+        try:
+            game = await local_games.register_gog_game(appid, directory, executable, game_id=game_id)
+        except QtrisError as error:
+            self._import_error = str(error)
+            return
+        finally:
+            self._importing = False
+            self.existingStateChanged.emit()
+        self.existingGameImported.emit(game.name)
+        self.closeRequested.emit()
 
     @Slot(QUrl)
     def choose_directory(self, url: QUrl) -> None:
@@ -158,17 +220,21 @@ class InstallerController(QObject):
             self._directory = directory
             self.stateChanged.emit()
 
-    @Slot(bool, bool)
-    def install(self, desktop_shortcut: bool, menu_shortcut: bool) -> None:
+    @Slot(bool, bool, bool)
+    def install(self, desktop_shortcut: bool, menu_shortcut: bool, include_extras: bool) -> None:
         """Start installing with the selected script, into the chosen folder."""
         selection = self._selection
-        if not selection or selection.required_game_slug or self._task:
+        if not selection or selection.required_game_slug or self._task or self._importing:
             return
         if selection.creates_game_folder and not self._directory.strip():
             return
         kinds = tuple(kind for kind, chosen in (("desktop", desktop_shortcut), ("menu", menu_shortcut)) if chosen)
         self.installation_controller.start(
-            selection.catalog_id, selection.choice_id, self._directory.strip(), kinds if self.createsShortcuts else None
+            selection.catalog_id,
+            selection.choice_id,
+            self._directory.strip(),
+            kinds if self.createsShortcuts else None,
+            include_extras=include_extras and selection.offers_extras,
         )
 
     @Slot()
@@ -184,35 +250,45 @@ class InstallerController(QObject):
             start_task(installers.close_catalog(self._catalog.id), self._prompts.error)
         self._game_name = game_name
         self._catalog = None
+        self.catalogChanged.emit()
         self._selection = None
+        self._choice_index = -1
         self._directory = ""
+        self._error = ''
         self._kind = InstallationKind.INSTALL
+        self._gog_target = None
+        self._import_error = ''
+        self.existingStateChanged.emit()
         self.stateChanged.emit()
 
-    def _start(self, operation: Coroutine[Any, Any, None]) -> None:
-        self._task = start_task(operation, self._prompts.error)
+    def _start(self, operation: Callable[[], Coroutine[Any, Any, None]]) -> None:
+        self._task = start_task(self._prepare(operation), self._prompts.error)
         self.stateChanged.emit()
 
-    def _finish(self) -> None:
-        # A cancelled task must not clear the task that replaced it
-        if self._task is asyncio.current_task():
-            self._task = None
-            self.stateChanged.emit()
-
-    async def _load(self, request: Coroutine[Any, Any, InstallerCatalog]) -> None:
+    async def _prepare(self, operation: Callable[[], Coroutine[Any, Any, None]]) -> None:
         try:
-            self._catalog = await request
-        except asyncio.CancelledError:
-            raise
+            await operation()
+        except QtrisError as error:
+            self._error = str(error)
         except Exception:
-            self.closeRequested.emit()
+            self._error = _('Could not prepare the installation.')
             raise
         finally:
-            self._finish()
+            # A cancelled task must not clear the task that replaced it
+            if self._task is asyncio.current_task():
+                self._task = None
+                self.stateChanged.emit()
 
-    async def _select(self, catalog_id: str, choice_id: str) -> None:
-        try:
-            self._selection = await installers.select_installer(catalog_id, choice_id)
-            self._directory = self._selection.default_directory
-        finally:
-            self._finish()
+    async def _load(self, request: Callable[[], Coroutine[Any, Any, InstallerCatalog]]) -> None:
+        self._catalog = catalog = await request()
+        self.catalogChanged.emit()
+        await self._select(catalog, 0)
+
+    async def _select(self, catalog: InstallerCatalog, index: int) -> None:
+        self._choice_index = index
+        self._selection = None
+        self._directory = ''
+        self._error = ''
+        self.stateChanged.emit()
+        self._selection = await installers.select_installer(catalog.id, catalog.choices[index].id)
+        self._directory = self._selection.default_directory

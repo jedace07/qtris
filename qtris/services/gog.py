@@ -16,7 +16,6 @@ from qtris.exceptions import AuthenticationError, UnavailableGameError
 from qtris.installer import AUTO_ELF_EXE, AUTO_WIN32_EXE
 from qtris.installer.installer_file import InstallerFile
 from qtris.installer.installer_file_collection import InstallerFileCollection
-from qtris.runners import get_runner_human_name
 from qtris.services.base import SERVICE_LOGIN, AuthTokenExpiredError, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
@@ -671,25 +670,10 @@ class GOGService(OnlineService):
         slug = details["slug"]
         platforms = [platform.casefold() for platform, is_supported in details["worksOn"].items() if is_supported]
 
-        installers = []
-
-        # Depot-based installers (preferred)
         runners = self._get_runners(platforms)
-        for runner in runners:
-            installers.append(self._generate_depot_installer(slug, runner, db_game))
-
-        # Offline installer fallback
-        for runner in runners:
-            inst = self._generate_installer(slug, runner, db_game)
-            inst["version"] += " (offline installer)"
-            installers.append(inst)
-
-        if len(runners) > 1:
-            for installer in installers:
-                runner_human_name = get_runner_human_name(installer["runner"])
-                installer["version"] += " " + (runner_human_name or installer["runner"])
-
-        return installers
+        return [self._generate_depot_installer(slug, runner, db_game) for runner in runners] + [
+            self._generate_installer(slug, runner, db_game) for runner in runners
+        ]
 
     @staticmethod
     def _get_runners(platforms: list[str]) -> list[str]:
@@ -711,7 +695,7 @@ class GOGService(OnlineService):
             game_config["prefix"] = "$GAMEDIR/pfx"
         return {
             "name": db_game["name"],
-            "version": "GOG",
+            "version": _('Linux download') if runner == 'linux' else _('Windows download'),
             "slug": slug,
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,
@@ -744,7 +728,7 @@ class GOGService(OnlineService):
             ]
         return {
             "name": db_game["name"],
-            "version": "GOG",
+            "version": _('Linux offline installer') if runner == 'linux' else _('Windows offline installer'),
             "slug": slug,
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,

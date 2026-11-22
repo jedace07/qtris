@@ -105,6 +105,7 @@ class Game:
         self.slug = game_data.get("slug") or ""
         self._runner_name = game_data.get("runner") or ""
         self.directory = game_data.get("directory") or ""
+        self.external_files = bool(game_data.get('external_files'))
         self.name = game_data.get("name") or ""
         self.sortname = game_data.get("sortname") or ""
         self.is_installed = bool(game_data.get("installed") and self.game_config_id)
@@ -421,6 +422,8 @@ class Game:
             game.launch(launch_ui_delegate)
 
     def install_updates(self, install_ui_delegate: "LaunchUIDelegate") -> bool:
+        if self.external_files:
+            return False
         service = install_ui_delegate.get_service(self.service)
         db_game = games_db.get_game_by_field(self.id, "id")
         if not db_game:
@@ -442,6 +445,8 @@ class Game:
         return True
 
     def install_dlc(self, install_ui_delegate: "LaunchUIDelegate") -> bool:
+        if self.external_files:
+            return False
         service = install_ui_delegate.get_service(self.service)
         db_game = games_db.get_game_by_field(self.id, "id")
         if not db_game:
@@ -466,12 +471,12 @@ class Game:
         Params:
             delete_files (bool): Delete the game files
         """
-        sql.db_update(settings.DB_PATH, "games", {"installed": 0, "runner": ""}, {"id": self.id})
+        sql.db_update(settings.DB_PATH, 'games', {'installed': 0, 'runner': '', 'external_files': 0}, {'id': self.id})
         if self.config:
             self.config.remove()
         xdgshortcuts.remove_launcher(self.slug, self.id, desktop=True, menu=True)
         remove_steam_shortcut(self)
-        if delete_files and self.has_runner:
+        if delete_files and not self.external_files and self.has_runner:
             # self.directory here, not self.resolve_game_path; no guessing at
             # directories when we delete them
             self.runner.remove_game_data(app_id=self.appid, game_path=self.directory)
@@ -481,6 +486,7 @@ class Game:
             except Exception as ex:  # The game is uninstalled for Qtris either way
                 logger.warning("%s could not forget %s: %s", service.name, self, ex)
         self.is_installed = False
+        self.external_files = False
         self._config = None
         self._runner = None
 

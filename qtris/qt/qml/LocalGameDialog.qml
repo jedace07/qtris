@@ -15,11 +15,11 @@ Dialog {
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(500, parent.width - 32)
-    title: controller.linking ? qsTr("Locate %1").arg(controller.gameName) : qsTr("Add a locally installed game")
+    title: qsTr("Locate %1").arg(controller.gameName)
     modal: true
     closePolicy: controller.working ? Popup.NoAutoClose : Popup.CloseOnEscape
 
-    onOpened: (controller.linking ? executable : gameName).forceActiveFocus()
+    onOpened: executable.forceActiveFocus()
 
     Connections {
         target: dialog.controller
@@ -37,20 +37,6 @@ Dialog {
             Layout.fillWidth: true
             text: qsTr("Choose the executable for an existing Linux game. Qtris will not move or copy its files.")
             wrapMode: Text.WordWrap
-        }
-
-        Label {
-            visible: gameName.visible
-            text: qsTr("Name")
-        }
-
-        TextField {
-            id: gameName
-            objectName: "localGameName"
-            Layout.fillWidth: true
-            visible: !dialog.controller.linking
-            enabled: !dialog.controller.working
-            Accessible.name: qsTr("Name")
         }
 
         Label { text: qsTr("Executable") }
@@ -103,11 +89,10 @@ Dialog {
         Button {
             objectName: "confirmLocalGame"
             highlighted: true
-            text: dialog.controller.linking ? qsTr("Link Game") : qsTr("Add Game")
+            text: qsTr("Link Game")
             enabled: !dialog.controller.working && executable.text.trim().length > 0
-                     && (dialog.controller.linking || gameName.text.trim().length > 0)
             DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
-            onClicked: dialog.controller.register(gameName.text, executable.text, gameArguments.text)
+            onClicked: dialog.controller.register(executable.text, gameArguments.text)
         }
     }
 }

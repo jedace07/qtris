@@ -51,7 +51,7 @@ def _overlaps_installation(game_id: str, directory: Path) -> bool:
 
 
 def _files_unavailable_reason(game: Game, directory: Path) -> str:
-    if game.runner_name in _EXTERNALLY_MANAGED_RUNNERS:
+    if game.external_files or game.runner_name in _EXTERNALLY_MANAGED_RUNNERS:
         return _("This installation is managed outside Qtris.")
     if not directory.is_absolute() or not directory.is_dir():
         return _("This game has no existing installation folder.")

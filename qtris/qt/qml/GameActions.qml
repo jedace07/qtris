@@ -15,6 +15,7 @@ ToolButton {
     property string targetAppId: ""
     property bool targetCanPlay: false
     property bool targetInstalled: false
+    property bool targetExternalFiles: false
     property bool targetCanMaintain: false
     property bool targetCanLinkLocalGame: false
     property bool targetCanInstall: false
@@ -38,6 +39,7 @@ ToolButton {
         targetAppId = controller.selectedGameAppId
         targetCanPlay = controller.canPlay
         targetInstalled = controller.selectedGameInstalled
+        targetExternalFiles = controller.selectedGameUsesExternalFiles
         targetCanMaintain = controller.canMaintain
         targetCanLinkLocalGame = controller.canLinkLocalGame
         targetCanInstall = controller.canInstall
@@ -164,6 +166,7 @@ ToolButton {
             objectName: "moveGame"
             icon.source: Theme.icon("folder")
             text: qsTr("Move Game…")
+            visible: !actions.targetExternalFiles
             enabled: actions.targetInstalled && actions.targetCanMaintain
             onTriggered: {
                 actions.controller.gameMaintenance.open_maintenance(actions.targetGameId)
@@ -174,7 +177,8 @@ ToolButton {
         MenuItem {
             objectName: "uninstallGame"
             icon.source: Theme.icon("trash")
-            text: actions.targetInstalled ? qsTr("Uninstall Game…") : qsTr("Remove from Library…")
+            text: actions.targetExternalFiles ? qsTr("Unlink Game…")
+                  : actions.targetInstalled ? qsTr("Uninstall Game…") : qsTr("Remove from Library…")
             enabled: actions.targetCanMaintain
             onTriggered: {
                 actions.controller.gameMaintenance.open_maintenance(actions.targetGameId)
@@ -204,6 +208,7 @@ ToolButton {
             controller: actions.controller.gameMaintenance
             gameName: actions.targetGameName
             installed: actions.targetInstalled
+            externalFiles: actions.targetExternalFiles
             onClosed: {
                 controller.close_maintenance()
                 uninstallLoader.active = false

@@ -1,6 +1,7 @@
 """Render the Qt Quick library from seeded backend data."""
 
 import asyncio
+import json
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from qtris.backend import (
     configuration,
     events,
     game_actions,
+    game_maintenance,
     games,
     imports,
     installations,
@@ -377,7 +379,7 @@ def store_appid(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
         games_db.delete_game(row["id"])
 
 
-def test_qml_lists_and_selects_installers_without_running_them(
+def test_qml_opens_install_options_with_the_default_selected(
     qt_application: QGuiApplication, library: list[str], store_appid: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     base_slug = PREFIX + "base"
@@ -420,34 +422,23 @@ def test_qml_lists_and_selects_installers_without_running_them(
             await open_game_action(window, qt_application, library[1], "installGame")
 
             dialog = window.window.findChild(QObject, "installerDialog")
-            choices = window.window.findChild(QQuickItem, "installerChoices")
-            assert dialog is not None and choices is not None
-            await wait_for_qml(qt_application, lambda: len(dialog_controller.property("choices")) == 2)
-            assert dialog.property("title") == "Install " + PREFIX + "Uninstalled"
+            options = window.window.findChild(QQuickItem, 'installerOptions')
+            assert dialog is not None and options is not None
+            await wait_for_qml(qt_application, lambda: bool(dialog_controller.property('selected')))
+            assert dialog.property('title') == 'Install ' + PREFIX + 'Uninstalled'
+            assert options.property('count') == 2 and options.property('currentIndex') == 0
 
-            async def choose(choice_id: str) -> None:
-                await wait_for_qml(
-                    qt_application, lambda: find_item(choices, "chooseInstaller" + choice_id) is not None
-                )
-                button = find_item(choices, "chooseInstaller" + choice_id)
-                assert button is not None and QMetaObject.invokeMethod(button, "clicked")
-                await wait_for_qml(qt_application, lambda: bool(dialog_controller.property("selected")))
+            directory = window.window.findChild(QObject, 'installerDirectory')
+            assert directory is not None and directory.property('visible')
+            target = str(directory.property('text'))
+            assert target.endswith('/' + PREFIX + 'uninstalled') and not Path(target).exists()
+            assert dialog_controller.property('requiredGame') == ''
 
-            await choose("0")
-            directory = window.window.findChild(QObject, "installerDirectory")
-            assert directory is not None
-            target = str(directory.property("text"))
-            assert target.endswith("/" + PREFIX + "uninstalled") and not Path(target).exists()
-            assert dialog_controller.property("requiredGame") == ""
-
-            back = window.window.findChild(QObject, "installerBack")
-            assert back is not None and QMetaObject.invokeMethod(back, "clicked")
-            await wait_for_qml(qt_application, lambda: not dialog_controller.property("selected"))
-
-            await choose("1")
-            assert dialog_controller.property("requiredGame") == base_slug
-            start = window.window.findChild(QObject, "installerStart")
-            assert start is not None and not start.property("visible")
+            assert QMetaObject.invokeMethod(options, 'activated', Q_ARG(int, 1))
+            await wait_for_qml(qt_application, lambda: dialog_controller.property('requiredGame') == base_slug)
+            assert options.property('currentIndex') == 1
+            start = window.window.findChild(QObject, 'installerStart')
+            assert start is not None and not start.property('visible')
 
             catalog = dialog_controller._catalog
             assert catalog is not None and catalog.id in installers._catalogs
@@ -488,6 +479,12 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
         },
     }
     monkeypatch.setattr(GOGService, "generate_installers", lambda self, row: [script])
+    monkeypatch.setattr(GOGService, 'has_extras', True)
+
+    def unexpected_bonus_request(_service: GOGService, _product_id: str) -> None:
+        pytest.fail('Bonus downloads should be opt-in')
+
+    monkeypatch.setattr(GOGService, 'get_extras', unexpected_bonus_request)
 
     async def run() -> None:
         window = MainWindow()
@@ -504,12 +501,9 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
             game = controller.model.game_at(controller.model.find_row(store_appid))
             assert game is not None and game.game_id is None
             await open_game_action(window, qt_application, store_appid, "installGame")
-            choices = window.window.findChild(QQuickItem, "installerChoices")
-            assert choices is not None
-            await wait_for_qml(qt_application, lambda: find_item(choices, "chooseInstaller0") is not None)
-            choose = find_item(choices, "chooseInstaller0")
-            assert choose is not None and QMetaObject.invokeMethod(choose, "clicked")
-            await wait_for_qml(qt_application, lambda: bool(controller._installers.property("selected")))
+            await wait_for_qml(qt_application, lambda: bool(controller._installers.property('selected')))
+            options = window.window.findChild(QQuickItem, 'installerOptions')
+            assert options is not None and not options.property('visible')
             controller._installers.set_directory(str(target))
 
             def reached(stage: str) -> Callable[[], bool]:
@@ -555,6 +549,120 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
 
     asyncio.run(run())
     assert (target / "setup.txt").read_text(encoding="utf-8") == "game data"
+
+
+@pytest.mark.parametrize('use_manifest', [True, False])
+def test_qml_links_gog_game_files_in_place(
+    qt_application: QGuiApplication,
+    library: list[str],
+    store_appid: str,
+    fake_main_loop: FakeMainLoop,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    use_manifest: bool,
+) -> None:
+    monkeypatch.setattr(settings, 'CONFIG_DIR', str(tmp_path / 'config'))
+    monkeypatch.setattr(settings, 'DATA_DIR', str(tmp_path / 'data'))
+    if use_manifest:
+        details = json.dumps({'slug': PREFIX + 'uninstalled', 'worksOn': {'Windows': True}})
+        sql.db_update(settings.DB_PATH, 'service_games', {'details': details}, {'service': 'gog', 'appid': store_appid})
+    else:
+        monkeypatch.setattr(GOGService, 'is_authenticated', lambda self: False)
+        games_db.update_existing(id=library[1], service='gog', service_id=store_appid, playtime=1.5)
+    folder = tmp_path / 'Other drive' / 'Existing game'
+    executable = folder / 'Bin' / 'Play.exe'
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b'MZ')
+    manifest = folder / f'goggame-{store_appid}.info'
+    metadata = json.dumps({
+        'playTasks': [
+            {'isPrimary': True, 'path': r'bin\play.exe', 'workingDir': 'bin', 'arguments': '--windowed'},
+        ],
+    })
+    if use_manifest:
+        manifest.write_text(metadata, encoding='utf-8')
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        controller = window.controller
+        try:
+            controller.set_installed_only(False)
+            await settle(window)
+            view_id = library[1]
+            if use_manifest:
+                source_row = controller.sidebar.find_row({'service': 'gog'})
+                assert source_row >= 0
+                controller.select_view(source_row)
+                await settle(window)
+                view_id = store_appid
+                game = controller.model.game_at(controller.model.find_row(view_id))
+                assert game is not None and game.game_id is None
+            await open_game_action(window, qt_application, view_id, 'installGame')
+            if use_manifest:
+                await wait_for_qml(qt_application, lambda: bool(controller._installers.property('selected')))
+            else:
+                await wait_for_qml(qt_application, lambda: 'Sign in' in str(controller._installers.property('error')))
+            dialog = window.window.findChild(QObject, 'installerDialog')
+            assert dialog is not None
+            locate = window.window.findChild(QObject, 'useExistingGame')
+            assert locate is not None and locate.property('visible') and QMetaObject.invokeMethod(locate, 'clicked')
+            folder_field = window.window.findChild(QObject, 'existingGameFolder')
+            exe_field = window.window.findChild(QObject, 'existingGameExecutable')
+            link = window.window.findChild(QObject, 'importExistingGame')
+            assert folder_field is not None and exe_field is not None and link is not None
+            assert folder_field.property('visible') and link.property('visible') and not link.property('enabled')
+            folder_field.setProperty('text', str(folder))
+            if not use_manifest:
+                assert QMetaObject.invokeMethod(link, 'clicked')
+                error = window.window.findChild(QObject, 'existingGameError')
+                assert error is not None
+                await wait_for_qml(qt_application, lambda: 'Could not detect' in str(error.property('text')))
+                exe_field.setProperty('text', str(executable))
+            assert link.property('enabled') and QMetaObject.invokeMethod(link, 'clicked')
+            await wait_for_qml(qt_application, lambda: not dialog.property('visible'))
+
+            row = games_db.get_game_for_service('gog', store_appid)
+            assert row is not None
+            game_id = row['id']
+            assert row['runner'] == 'wine' and row['directory'] == str(folder)
+            if not use_manifest:
+                assert game_id == library[1] and row['playtime'] == 1.5
+            config = Game(game_id).config
+            assert config is not None
+            options = config.game_level['game']
+            assert options['exe'] == str(executable) and options['working_dir'] == str(executable.parent)
+            assert options.get('args') == ('--windowed' if use_manifest else None)
+            prefix = tmp_path / 'data' / 'prefixes' / f'gog-{store_appid}'
+            assert options['prefix'] == str(prefix) and prefix.parent.is_dir()
+            assert await game_actions.get_installation_directory(game_id) == str(folder)
+            maintenance = await game_maintenance.get_maintenance_info(game_id)
+            with pytest.raises(QtrisError, match='managed outside Qtris'):
+                await game_maintenance.uninstall_game(game_id, maintenance, trash_files=True)
+
+            fake_main_loop.run_pending()
+            model = controller.model
+
+            def installed_in_library() -> bool:
+                game = model.game_at(model.find_row(view_id))
+                return bool(game and game.installed)
+
+            await wait_for_qml(qt_application, installed_in_library)
+            await open_game_action(window, qt_application, view_id, 'uninstallGame')
+            unlink = window.window.findChild(QObject, 'confirmGameUninstall')
+            trash = window.window.findChild(QObject, 'trashGameFiles')
+            assert unlink is not None and trash is not None
+            await wait_for_qml(qt_application, lambda: bool(unlink.property('enabled')))
+            assert unlink.property('text') == 'Unlink' and not trash.property('visible')
+            assert QMetaObject.invokeMethod(unlink, 'clicked')
+            await wait_for_qml(qt_application, lambda: not Game(game_id).is_installed)
+            assert executable.read_bytes() == b'MZ'
+            if use_manifest:
+                assert manifest.read_text(encoding='utf-8') == metadata
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
 
 
 def test_qml_configures_a_game_and_the_global_options(
@@ -1201,20 +1309,17 @@ def test_qml_signs_in_to_epic_in_the_host_browser(
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("link_existing", [False, True])
-def test_qml_registers_a_local_game(
+def test_qml_links_a_local_linux_game(
     qt_application: QGuiApplication,
     library: list[str],
     fake_main_loop: FakeMainLoop,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    link_existing: bool,
 ) -> None:
-    executable = tmp_path / "play game"
-    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable = tmp_path / 'play game'
+    executable.write_text('#!/bin/sh\nexit 0\n', encoding='utf-8')
     executable.chmod(0o700)
-    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
-    new_game_name = PREFIX + "Local Linux Game"
+    monkeypatch.setattr(settings, 'CONFIG_DIR', str(tmp_path / 'config'))
 
     async def run() -> None:
         window = MainWindow()
@@ -1222,48 +1327,35 @@ def test_qml_registers_a_local_game(
         try:
             window.controller.set_installed_only(False)
             await settle(window)
-            if link_existing:
-                await open_game_action(window, qt_application, library[1], "locateLocalGame")
-            else:
-                action = window.window.findChild(QObject, "addLocalGame")
-                assert action is not None and QMetaObject.invokeMethod(action, "triggered")
+            assert window.window.findChild(QObject, 'addGame') is not None
+            assert window.window.findChild(QObject, 'addLocalGame') is None
+            game_id = library[1]
+            await open_game_action(window, qt_application, game_id, 'locateLocalGame')
 
-            dialog = window.window.findChild(QObject, "localGameDialog")
+            dialog = window.window.findChild(QObject, 'localGameDialog')
             assert dialog is not None
-            path = dialog.findChild(QObject, "localGameExecutable")
-            arguments = dialog.findChild(QObject, "localGameArguments")
-            name = dialog.findChild(QObject, "localGameName")
-            confirm = dialog.findChild(QObject, "confirmLocalGame")
-            assert path is not None and arguments is not None and name is not None and confirm is not None
-            await wait_for_qml(qt_application, lambda: bool(dialog.property("opened")))
-            assert not confirm.property("enabled")
-            assert name.property("visible") != link_existing
-            path.setProperty("text", str(executable))
-            arguments.setProperty("text", "--windowed")
-            if not link_existing:
-                name.setProperty("text", new_game_name)
-            assert confirm.property("enabled") and QMetaObject.invokeMethod(confirm, "clicked")
-            await wait_for_qml(qt_application, lambda: not dialog.property("visible"))
-
-            row = games_db.get_game_by_field(
-                library[1] if link_existing else new_game_name, "id" if link_existing else "name"
-            )
-            assert row is not None and row["installed"] == 1
-            installed_id = row["id"]
+            path = dialog.findChild(QObject, 'localGameExecutable')
+            arguments = dialog.findChild(QObject, 'localGameArguments')
+            confirm = dialog.findChild(QObject, 'confirmLocalGame')
+            assert path is not None and arguments is not None and confirm is not None
+            await wait_for_qml(qt_application, lambda: bool(dialog.property('opened')))
+            assert not confirm.property('enabled')
+            path.setProperty('text', str(executable))
+            arguments.setProperty('text', '--windowed')
+            assert confirm.property('enabled') and QMetaObject.invokeMethod(confirm, 'clicked')
+            await wait_for_qml(qt_application, lambda: not dialog.property('visible'))
             fake_main_loop.run_pending()
 
             def installed_in_library() -> bool:
                 model = window.controller.model
-                game = model.game_at(model.find_row(installed_id))
+                game = model.game_at(model.find_row(game_id))
                 return bool(game and game.installed)
 
             await wait_for_qml(qt_application, installed_in_library)
-            config = Game(installed_id).config
-            assert config is not None and config.game_level["game"] == {"exe": str(executable), "args": "--windowed"}
+            config = Game(game_id).config
+            assert config is not None and config.game_level['game'] == {'exe': str(executable), 'args': '--windowed'}
         finally:
             window.shutdown()
-            if not link_existing and (new_row := games_db.get_game_by_field(new_game_name, "name")):
-                games_db.delete_game(new_row["id"])
 
     asyncio.run(run())
 

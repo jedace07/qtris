@@ -90,6 +90,17 @@ def get_store_install_target(uri: str) -> tuple[str, str] | None:
     raise QtrisError(_("Choose a game from one of your library sources to install."))
 
 
+async def get_store_game_name(service_id: str, appid: str) -> str:
+    """Look up the synced title without contacting the store."""
+    source = SERVICES.get(service_id)
+    if not source or not appid:
+        raise QtrisError(_('This game source is unavailable.'))
+    row = await asyncio.to_thread(ServiceGameCollection.get_game, service_id, appid)
+    if row is None:
+        raise QtrisError(_('Sync %s to find this game in your library.') % source.name)
+    return str(row['name'])
+
+
 async def find_store_installers(
     service_id: str,
     appid: str,
@@ -137,6 +148,8 @@ def _installed_game(game_id: str, service_id: str, appid: str) -> games_db.DbGam
     row = games_db.get_game_by_field(game_id, "id") if game_id else None
     if not row or not row["installed"] or row["service"] != service_id or str(row["service_id"]) != appid:
         raise QtrisError(_("This game must be installed from this source first."))
+    if row.get('external_files'):
+        raise QtrisError(_('This installation is managed outside Qtris.'))
     if not row["directory"] or not Path(row["directory"]).is_dir():
         raise QtrisError(_("The installed game's folder could not be found."))
     return row
@@ -318,4 +331,5 @@ def _check_script(catalog_id: str, choice_id: str, script: _Script, origin: _Ori
         creates_game_folder=installer.creates_game_folder,
         default_directory=interpreter.target_path or "",
         runners_to_install=tuple(runner.human_name for runner in runners),
+        offers_extras=bool(origin.kind == InstallationKind.INSTALL and origin.service and origin.service.has_extras),
     )

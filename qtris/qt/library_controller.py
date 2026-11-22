@@ -64,6 +64,7 @@ class LibraryController(QObject):
         self._local_games.registered.connect(self._on_local_game_registered)
         self._imports = ImportController(prompts, self)
         self._installers = InstallerController(prompts, self)
+        self._installers.existingGameImported.connect(self._on_local_game_registered)
         self._configuration = ConfigController(prompts, self)
         self._artwork_settings = ArtworkSettingsController(prompts, self)
         # A new key can find artwork that stores didn't have
@@ -273,6 +274,11 @@ class LibraryController(QObject):
         return bool(game and game.installed)
 
     @Property(bool, notify=selectionChanged)
+    def selectedGameUsesExternalFiles(self) -> bool:  # noqa: N802
+        game = self.selected_game
+        return bool(game and game.installed and game.external_files)
+
+    @Property(bool, notify=selectionChanged)
     def canLinkLocalGame(self) -> bool:  # noqa: N802
         game = self.selected_game
         return bool(
@@ -295,6 +301,7 @@ class LibraryController(QObject):
         game = self.selected_game
         return bool(
             game
+            and not game.external_files
             and self._can_maintain(game.game_id)
             and installers.can_update_game(game.installed, game.service, game.appid or game.service_id)
         )
@@ -304,6 +311,7 @@ class LibraryController(QObject):
         game = self.selected_game
         return bool(
             game
+            and not game.external_files
             and self._can_maintain(game.game_id)
             and installers.can_install_dlc(game.installed, game.service, game.appid or game.service_id)
         )

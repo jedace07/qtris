@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
-import QtQuick.Layouts
 import QtrisStyle
 
 ApplicationWindow {
@@ -40,13 +39,6 @@ ApplicationWindow {
             text: qsTr("Add Game…")
             icon.source: Theme.icon("plus")
             onTriggered: window.controller.configuration.open_new_game()
-        }
-
-        MenuItem {
-            objectName: "addLocalGame"
-            text: qsTr("Add Locally Installed Game…")
-            icon.source: Theme.icon("folder")
-            onTriggered: window.controller.localGames.open_registration("", "")
         }
 
         MenuItem {

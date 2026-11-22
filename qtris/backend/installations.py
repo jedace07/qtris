@@ -342,7 +342,7 @@ class _Installation:
 
     # The stages, in order
 
-    async def prepare(self) -> None:
+    async def prepare(self, *, include_extras: bool) -> None:
         interpreter = self.interpreter
         runners = await asyncio.to_thread(interpreter.get_runners_to_install)
         for runner in runners:
@@ -361,7 +361,7 @@ class _Installation:
 
         if not self.active:
             return
-        if self.kind != InstallationKind.INSTALL:
+        if self.kind != InstallationKind.INSTALL or not include_extras:
             await self.prepare_files([])
             return
         self.set_status(_("Looking for extra content"))
@@ -648,7 +648,12 @@ def _get(installation_id: str) -> _Installation:
 
 
 async def start_installation(
-    catalog_id: str, choice_id: str, directory: str = "", shortcut_kinds: tuple[str, ...] = ()
+    catalog_id: str,
+    choice_id: str,
+    directory: str = '',
+    shortcut_kinds: tuple[str, ...] = (),
+    *,
+    include_extras: bool = True,
 ) -> InstallationInfo:
     """Start installing with a catalog's script into a folder, if the script creates one.
 
@@ -661,7 +666,7 @@ async def start_installation(
     interpreter, kind = await installers.build_interpreter(catalog_id, choice_id, delegate)
     installation = _Installation(interpreter, delegate, directory, shortcut_kinds, kind)
     _installations[installation.id] = installation
-    installation.start(installation.prepare())
+    installation.start(installation.prepare(include_extras=include_extras))
     return installation.info()
 
 

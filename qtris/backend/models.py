@@ -93,6 +93,7 @@ class LibraryGame:
     icon: str | None
     # Resolved only when the query requests artwork
     artwork: LibraryArtwork | None = None
+    external_files: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +165,7 @@ class InstallerSelection:
     # Set when the script needs another game installed first, which must happen
     # before this script can be used
     required_game_slug: str | None = None
+    offers_extras: bool = False
 
 
 @dataclass(frozen=True)

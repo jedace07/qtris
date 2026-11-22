@@ -201,13 +201,13 @@ class EpicGamesStoreService(OnlineService):
         }
 
     def get_update_installers(self, db_game: dict[str, Any]) -> list[dict[str, Any]]:
-        def installer(command: str, description: str) -> dict[str, Any]:
+        def installer(command: str, version: str, description: str) -> dict[str, Any]:
             return {
                 "name": db_game["name"],
                 "description": description,
                 "slug": db_game["installer_slug"],
                 "game_slug": db_game["slug"],
-                "version": self.name,
+                "version": version,
                 "runner": db_game.get("runner") or self.runner,
                 "script": {
                     "extends": db_game["installer_slug"],
@@ -216,8 +216,8 @@ class EpicGamesStoreService(OnlineService):
             }
 
         return [
-            installer("update", _("Update the game with legendary")),
-            installer("repair", _("Verify game files and re-download any that are damaged")),
+            installer('update', _('Update'), _('Download the latest game files.')),
+            installer('repair', _('Verify files'), _('Verify game files and re-download any that are damaged.')),
         ]
 
     def get_installed_runner_name(self, db_game: dict[str, Any]) -> str:
