@@ -61,7 +61,7 @@ ColumnLayout {
     Label {
         Layout.fillWidth: true
         visible: !page.controller.proton
-        text: qsTr("Runners that are turned off aren't listed in the sidebar or offered for new games. Turning on an emulator installs it from Flathub.")
+        text: qsTr("Runners that are turned off aren't listed in the sidebar or offered for new games.")
         wrapMode: Text.WordWrap
         font.pointSize: Theme.smallSize
         color: Theme.textMuted

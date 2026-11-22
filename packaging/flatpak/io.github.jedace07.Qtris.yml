@@ -48,9 +48,7 @@ finish-args:
   - --env=GST_PLUGIN_SYSTEM_PATH=/app/lib/gstreamer-1.0:/app/lib32/gstreamer-1.0:/app/lib/i386-linux-gnu/codecs-extra/lib/gstreamer-1.0:/app/lib/i386-linux-gnu/gstreamer-1.0:/usr/lib/extensions/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/codecs-extra/lib/gstreamer-1.0:/usr/lib/i386-linux-gnu/codecs-extra/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0:/usr/lib/i386-linux-gnu/gstreamer-1.0
   # System tray icon
   - --talk-name=org.kde.StatusNotifierWatcher
-  # flatpak-spawn --host, which launches the host's apps from Flathub and reaches
-  # their folders in ~/.var/app, so those need no filesystem permissions
-  # (see qtris/util/host_files.py)
+  # flatpak-spawn --host, which launches the host's apps from Flathub
   - --talk-name=org.freedesktop.Flatpak
   # Disable access to xdg-data/flatpak as it's causing a finish-args-unnecessary-xdg-data-access error.
   # Flatpak talk API might be enough but this might break features like Steam games detection.
@@ -519,34 +517,6 @@ modules:
       - type: archive
         url: https://downloads.sourceforge.net/psmisc/psmisc-23.4.tar.xz
         sha256: 7f0cceeace2050c525f3ebb35f3ba01d618b8d690620580bdb8cd8269a0c1679
-
-  # Required by some 8/16-bit emulators
-  - name: fluidsynth
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-    cleanup:
-      - /bin
-      - /include
-      - /lib/cmake
-      - /lib/pkgconfig
-      - /share/man
-      - "*.so"
-    sources:
-      - type: archive
-        url: https://github.com/FluidSynth/fluidsynth/archive/v2.3.5.tar.gz
-        sha256: f89e8e983ecfb4a5b4f5d8c2b9157ed18d15ed2e36246fa782f18abaea550e0d
-      - type: patch
-        path: patches/fluidsynth-cmake-policy.patch
-
-  - name: fluid-soundfont
-    buildsystem: simple
-    build-commands:
-      - install -Dm644 FluidR3_GS.sf2 -t /app/share/sounds/sf2/
-    sources:
-      - type: archive
-        url: http://deb.debian.org/debian/pool/main/f/fluid-soundfont/fluid-soundfont_3.1.orig.tar.gz
-        sha256: 2621acaa1c78e4abdb24bdd163230cc577e61276936d6aa6e3180582142f0343
 
   # Required by electron and some proprietary game launchers
 

@@ -82,9 +82,9 @@ Runtime requirements, the libraries Qtris loads through GObject introspection
 and the tools it runs. The desktop application uses Qt Quick and QtWebEngine
 (PySide6 from ``uv.lock``); it does not require GTK introspection packages:
 
-* Fedora: ``glib-networking file-libs psmisc cabextract unzip 7zip curl xrandr mesa-demos vulkan-tools fluid-soundfont-gs``
-* Debian/Ubuntu: ``glib-networking libmagic1 psmisc cabextract unzip p7zip-full curl x11-xserver-utils mesa-utils vulkan-tools fluid-soundfont-gs``
-* Arch: ``glib-networking file psmisc cabextract unzip p7zip curl xorg-xrandr mesa-utils vulkan-tools soundfont-fluid``
+* Fedora: ``glib-networking file-libs psmisc cabextract unzip 7zip curl xrandr mesa-demos vulkan-tools``
+* Debian/Ubuntu: ``glib-networking libmagic1 psmisc cabextract unzip p7zip-full curl x11-xserver-utils mesa-utils vulkan-tools``
+* Arch: ``glib-networking file psmisc cabextract unzip p7zip curl xorg-xrandr mesa-utils vulkan-tools``
 
 QtWebEngine, which shows the stores' sign-in pages and runs web games, also
 loads these libraries.

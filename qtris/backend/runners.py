@@ -1,4 +1,4 @@
-"""Calls about runners, the programs (emulators, Wine, ...) that run games.
+"""Calls about runners, the programs (Proton, Steam, ...) that run games.
 
 Errors are QtrisError subclasses, such as InvalidRunnerError for a name no
 runner has, and RunnerInstallationError.
@@ -44,7 +44,6 @@ class RunnerCatalogEntry:
     description: str
     enabled: bool
     installed: bool
-    can_install: bool
     can_remove: bool
 
 
@@ -122,14 +121,9 @@ async def list_enabled_runners() -> list[RunnerInfo]:
     return sorted((RunnerInfo(r.name, r.human_name) for r in enabled), key=lambda r: r.human_name.casefold())
 
 
-async def set_runner_enabled(name: str, enabled: bool, *, interaction: RunnerInstallInteraction | None = None) -> None:
-    """Turn a runner on or off; turning on one Qtris can install, such as a Flathub
-    emulator, installs it. Turning one off hides it, and leaves it installed."""
+async def set_runner_enabled(name: str, enabled: bool) -> None:
+    """Turn a runner on or off. Turning one off hides it, and leaves it installed."""
     _save_runner_enabled(name, enabled)
-    if enabled:
-        runner = import_runner(name)()
-        if runner.can_install and not await asyncio.to_thread(runner.is_installed):
-            await install_runner(name, interaction=interaction)
 
 
 async def list_runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
@@ -150,7 +144,6 @@ def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
                 str(getattr(runner, "description", "")),
                 is_runner_enabled(name),
                 installed,
-                not installed and runner.can_install,
                 name != "wine" and runner.can_uninstall(),
             )
         )

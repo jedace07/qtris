@@ -12,11 +12,8 @@ setup_test_environment()
 
 class ImportRunnerTest(DatabaseTester):
     def test_runner_modules(self):
-        runner_list = runners.__all__
-        self.assertIn("linux", runner_list)
-        self.assertIn("wine", runner_list)
-        self.assertIn("libretro", runner_list)
-        self.assertIn("eden", runner_list)
+        self.assertEqual(set(runners.get_runner_names()), {"flatpak", "linux", "steam", "web", "wine"})
+        self.assertEqual(set(runners.get_user_runner_names()), {"linux", "web", "wine"})
 
     def test_import_module(self):
         for runner_name in runners.__all__:

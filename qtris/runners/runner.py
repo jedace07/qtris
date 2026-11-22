@@ -10,7 +10,6 @@ from gettext import gettext as _
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
-from urllib.parse import unquote, urlsplit
 
 from qtris import settings
 from qtris.config import QtrisConfig
@@ -64,7 +63,7 @@ class Runner:  # pylint: disable=too-many-public-methods
     require_libs = []
     # A program found on PATH; runners with a Flatpak use it before the Flatpak
     system_executable: str | None = None
-    # The Flathub app this runner launches, and installs when it's missing
+    # The Flathub app this runner launches
     flatpak_id: str | None = None
     entry_point_option = "main_file"
     arch = None  # If the runner is only available for an architecture that isn't x86_64
@@ -190,16 +189,6 @@ class Runner:  # pylint: disable=too-many-public-methods
 
     def get_runner_options(self) -> list[RunnerOptionDict]:
         runner_options = self.runner_options[:]
-        if self.system_executable or self.flatpak_id:
-            runner_options.append(
-                {
-                    "option": "runner_executable",
-                    "type": "file",
-                    "label": _("Custom executable for the runner"),
-                    "advanced": True,
-                }
-            )
-
         runner_options.append(
             {
                 "section": _("Side Panel"),
@@ -239,10 +228,7 @@ class Runner:  # pylint: disable=too-many-public-methods
             raise MissingExecutableError(
                 _("%s is not installed. Install %s from Flathub.") % (self.human_name, self.flatpak_id)
             )
-        raise MissingExecutableError(
-            _("The %s executable could not be found. Install it, or set its executable in the runner options.")
-            % self.human_name
-        )
+        raise MissingExecutableError(_("The %s executable could not be found.") % self.human_name)
 
     def get_flatpak_filesystems(self) -> list[str]:
         """Return the paths the runner's Flatpak needs access to: the game's folder and every
@@ -534,49 +520,14 @@ class Runner:  # pylint: disable=too-many-public-methods
         the confliguration before it is saved. This method should modify the dict given."""
         return None
 
-    @property
-    def can_install(self) -> bool:
-        """True if Qtris can offer installation for the runner."""
-        return bool(self.flatpak_id) and flatpak.is_installed()
-
     def install(
         self,
         install_ui_delegate: InstallUIDelegate,
         version: str | None = None,
         callback: Callable[[], None] | None = None,
     ) -> None:
-        """Hand off a missing emulator to the host app store without resuming setup."""
-        if not self.flatpak_id or not self.can_install:
-            raise NonInstallableRunnerError(
-                _("Qtris can't install %s. Install it yourself, or set its executable in the runner options.")
-                % self.human_name,
-            )
-        try:
-            flatpak.open_app_store(self.flatpak_id)
-        except flatpak.FlatpakError as ex:
-            raise RunnerInstallationError(ex.message) from ex
-        raise RunnerInstallationError(_("Finish installing %s in your app store, then try again.") % self.human_name)
-
-    def download_and_extract(
-        self,
-        url: str,
-        install_ui_delegate: InstallUIDelegate,
-        dest: str,
-        executable: str,
-        callback: Callable[[], None] | None = None,
-    ) -> None:
-        filename = unquote(urlsplit(url).path.rsplit("/", 1)[-1])
-        if filename in {"", ".", ".."} or os.path.basename(filename) != filename:
-            raise RunnerInstallationError(_("The upstream download has an invalid filename."))
-        os.makedirs(settings.CACHE_DIR, exist_ok=True)
-        with TemporaryDirectory(dir=settings.CACHE_DIR) as download_dir:
-            archive = os.path.join(download_dir, filename)
-            if not install_ui_delegate.download_install_file(url, archive):
-                logger.info("Download canceled by the user.")
-                return
-            self.extract(archive, dest, executable=executable)
-        if callback:
-            callback()
+        """Install the runner; the ones that can't be installed say so."""
+        raise NonInstallableRunnerError(_("Qtris can't install %s. Install it yourself.") % self.human_name)
 
     def extract(
         self,

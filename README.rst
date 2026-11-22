@@ -3,8 +3,8 @@ Qtris
 *****
 
 Qtris helps you install and play video games from all eras and from most
-gaming systems. By leveraging and combining existing emulators, engine
-re-implementations and compatibility layers, it gives you a central interface
+gaming systems. By combining native builds, compatibility layers, web games
+and apps from Flathub, emulators included, it gives you a central interface
 to launch all your games.
 
 The client can connect with existing services like Humble Bundle, GOG and Steam
@@ -12,8 +12,8 @@ to make your game libraries easily available. Connected stores supply the game
 files and installation options.
 
 Qtris began as a fork of `Lutris <https://github.com/lutris/lutris>`_. It has a
-Qt Quick interface, runs its emulators through RetroArch and their Flathub
-builds, and keeps your library entirely on your computer.
+Qt Quick interface, leaves emulators to Flathub, and keeps your library
+entirely on your computer.
 
 Running Qtris
 =============
@@ -40,9 +40,6 @@ On systems with Flatpak, select **Flathub** under **Sources** and choose
 selected app in your desktop's default app store through AppStream. Qtris does
 not add remotes or install Flatpaks itself; it detects installed apps and makes
 them playable when you return to Qtris.
-
-Existing ROM shortcuts still use their configured emulators. The Libretro
-runner remains available for per-game RetroArch and core configuration.
 
 Game library
 ============

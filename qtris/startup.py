@@ -6,11 +6,10 @@ import sqlite3
 import threading
 from gettext import gettext as _
 
-from qtris import runners, settings
+from qtris import settings
 from qtris.database.games import get_games
 from qtris.database.schema import syncdb
 from qtris.game import Game
-from qtris.runners.json import load_json_runners
 from qtris.services import DEFAULT_SERVICES
 from qtris.services.steam import update_steam_platforms
 from qtris.util.graphics import vkquery
@@ -18,7 +17,6 @@ from qtris.util.graphics.gpu import preload_gpus
 from qtris.util.graphics.vkquery import REQUIRED_VULKAN_API_VERSION
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
-from qtris.util.path_cache import build_path_cache
 from qtris.util.system import create_folder
 
 
@@ -141,12 +139,10 @@ def run_all_checks(async_ops: bool = True) -> None:
     check_vulkan()
     fill_missing_platforms()
     update_steam_platforms()
-    build_path_cache()
 
 
 def init_qtris():
     """Run full initialization of Qtris"""
-    runners.inject_runners(load_json_runners())
     init_dirs()
     try:
         syncdb()

@@ -11,7 +11,7 @@ body:
         *DO NOT REPORT BUGS FOR OLD QTRIS VERSIONS. MAKE SURE YOU UP TO DATE AND ARE USING THE LATEST VERSION AVAILABLE.
         *BUGS REPORTS SUBMITTED ON OLD VERSIONS WILL BE CLOSED WITHOUT FURTHER CONSIDERATION.
         *If you have issues installing a game or launching it*, make sure your graphics drivers, including their 32-bit Vulkan libraries, are installed and up to date.
-        *If a game fails in an emulator or in Wine or Proton*, check that it works there outside of Qtris before reporting it here.
+        *If a game fails in a Flathub app or in Proton*, check that it works there outside of Qtris before reporting it here.
         *If you think Qtris is missing an important feature*, try opening a *Feature Request* instead.
   - type: textarea
     id: description

@@ -4,7 +4,6 @@ import glob
 import json
 import multiprocessing
 import os
-import shlex
 import shutil
 from gettext import gettext as _
 from pathlib import Path
@@ -18,11 +17,10 @@ from qtris.monitored_command import MonitoredCommand
 from qtris.runners import InvalidRunnerError, import_runner, import_task
 from qtris.runners.wine import wine
 from qtris.util import extract, legendary, nile, selective_merge, system
-from qtris.util.gog import apply_gog_config, find_gog_config_dir
+from qtris.util.gog import apply_gog_config, convert_gog_config_to_qtris, find_gog_config_dir, get_gog_config
 from qtris.util.gogdl import clear_stale_manifest, run_gogdl
 from qtris.util.jobs import schedule_repeating_at_idle
 from qtris.util.log import logger
-from qtris.util.retroarch.substitutes import translate_game_config, translate_runner
 from qtris.util.store_cli import StoreClientError
 from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_proton_version_or_default, get_wine_path_for_version
 
@@ -347,25 +345,18 @@ class CommandsMixin:
         if system.path_exists(support_path):
             self.merge({"src": support_path, "dst": self.target_path})
 
-    def _use_substitute_core(self, runner: str, game_config: dict) -> None:
-        """Install the game for the libretro core that replaced a standalone emulator."""
-        self.installer.script["game"] = translate_game_config(runner, game_config)
-        self.installer.runner = translate_runner(runner)
+    def _use_bundled_engine(self, launch: dict) -> None:
+        """Set up a DOS or ScummVM game to run with the Windows DOSBox or ScummVM it bundles."""
+        self.installer.script["game"] = {"prefix": "$GAMEDIR/pfx", **launch}
 
-    def _get_scummvm_arguments(self, gog_config_path):
-        """Return a ScummVM configuration from the GOG config files"""
-        with open(gog_config_path, encoding="utf-8") as gog_config_file:
-            gog_config = json.loads(gog_config_file.read())
-        game_tasks = [task for task in gog_config["playTasks"] if task["category"] == "game"]
-        arguments = game_tasks[0]["arguments"]
-        game_id = arguments.split()[-1]
-        arguments = " ".join(arguments.split()[:-1])
-        base_dir = os.path.dirname(gog_config_path)
-        return {"game_id": game_id, "path": base_dir, "args": arguments}
+    def _find_bundled_engine(self, filename: str) -> str:
+        if found := sorted(Path(self.target_path).rglob(filename, case_sensitive=False)):
+            return str(found[0])
+        raise ScriptingError(_("The installer is missing %s.") % filename)
 
     def autosetup_gog_game(self, file_id, silent=False):
         """Automatically guess the best way to install a GOG game by inspecting its contents.
-        This chooses the right runner (DOSBox, Wine) for Windows game files.
+        DOS and ScummVM games are extracted, as Proton runs the engine they bundle.
         Linux setup files don't use innosetup, they can be unzipped instead.
         """
         file_path = self.game_files[file_id]
@@ -382,41 +373,14 @@ class CommandsMixin:
                 # There's not a good way to handle exceptions without extracting the .info file
                 # before extracting the game. Added for Quake but GlQuake.exe doesn't run on modern wine
                 windows_override_found = True
-        if dosbox_found and not windows_override_found:
+        if scummvm_found or (dosbox_found and not windows_override_found):
             self._extract_innosetup(file_id)
-            if "DOSBOX" in os.listdir(self.target_path):
-                dosbox_config = {
-                    "working_dir": "$GAMEDIR/DOSBOX",
-                }
-            else:
-                dosbox_config = {}
-            single_conf = None
-            config_file = None
-            for filename in os.listdir(self.target_path):
-                if filename == "dosbox.conf":
-                    dosbox_config["main_file"] = filename
-                elif filename.endswith("_single.conf"):
-                    single_conf = filename
-                elif filename.endswith(".conf"):
-                    config_file = filename
-            if single_conf:
-                dosbox_config["main_file"] = single_conf
-            if config_file:
-                if dosbox_config.get("main_file"):
-                    dosbox_config["config_file"] = config_file
-                else:
-                    dosbox_config["main_file"] = config_file
-            self._use_substitute_core("dosbox", dosbox_config)
-        elif scummvm_found:
-            self._extract_innosetup(file_id)
-            arguments = None
-            for filename in os.listdir(self.target_path):
-                if filename.startswith("goggame") and filename.endswith(".info"):
-                    arguments = self._get_scummvm_arguments(os.path.join(self.target_path, filename))
-            if not arguments:
-                raise RuntimeError("Unable to get ScummVM arguments")
-            logger.info("ScummVM config: %s", arguments)
-            self._use_substitute_core("scummvm", arguments)
+            config_dir = find_gog_config_dir(self.target_path)
+            gog_config = get_gog_config(config_dir) if config_dir else None
+            launch = convert_gog_config_to_qtris(gog_config, config_dir) if gog_config else {}
+            if not launch.get("exe"):
+                raise ScriptingError(_("The installer doesn't say how to start this game."))
+            self._use_bundled_engine(launch)
         else:
             args = "/SP- /NOCANCEL"
             if silent:
@@ -430,19 +394,23 @@ class CommandsMixin:
             zoom_bat = zoom_bat_file.read()
 
         # Find the line that starts with ".\DOSBOX\dosbox.exe" and extract the arguments
-        lines = zoom_bat.splitlines()
-        arguments = []
-        for line in lines:
+        for line in zoom_bat.splitlines():
             if line.startswith(".\\DOSBOX\\dosbox.exe"):
-                # Extract the arguments from the line
-                arguments = line.split(" ", 1)[1].strip()
-                break
+                # Batch files don't escape with backslashes, which splitting arguments would drop
+                return line.partition(" ")[2].strip().replace("\\", "/")
+        return ""
 
-        return arguments
+    def _get_dosbox_config_arguments(self) -> str:
+        # The file that starts the game goes last, as its [autoexec] section mounts the drives
+        configs = sorted(
+            (name for name in os.listdir(self.target_path) if name.endswith(".conf")),
+            key=lambda name: (name.endswith("_single.conf"), name == "dosbox.conf", name),
+        )
+        return " ".join(f'-conf "{name}"' for name in configs)
 
     def autosetup_zoom_platform(self, file_id, silent=False):
         """Automatically guess the best way to install a ZOOM Platofrm game by inspecting its contents.
-        This chooses the right runner (DOSBox, Wine) for Windows game files.
+        DOS and ScummVM games are extracted, as Proton runs the engine they bundle.
         Linux setup files don't use innosetup, they can be unzipped instead.
         """
         file_path = self.game_files[file_id]
@@ -456,41 +424,26 @@ class CommandsMixin:
                 scummvm_found = True
         if dosbox_found:
             self._extract_innosetup(file_id)
-            dosbox_config = {}
-            single_conf = None
-            config_file = None
-            for filename in os.listdir(self.target_path):
-                if filename == "dosbox.conf":
-                    dosbox_config["main_file"] = filename
-                elif filename.endswith("_single.conf"):
-                    single_conf = filename
-                elif filename.endswith(".conf"):
-                    config_file = filename
-            if single_conf:
-                dosbox_config["main_file"] = single_conf
-            if config_file:
-                if dosbox_config.get("main_file"):
-                    dosbox_config["config_file"] = config_file
-                else:
-                    dosbox_config["main_file"] = config_file
-
-            arguments = []
+            arguments = ""
             for filename in os.listdir(self.target_path):
                 if filename.startswith("Launch") and filename.endswith(".bat"):
                     arguments = self._get_dosbox_arguments(os.path.join(self.target_path, filename))
-
-            if len(arguments) > 0:
-                # Add the arguments to the dosbox config
-                dosbox_config["args"] = arguments
-                # Remove "config_file" from the dosbox config
-                dosbox_config.pop("config_file", None)
-
-            self._use_substitute_core("dosbox", dosbox_config)
+            self._use_bundled_engine(
+                {
+                    "exe": self._find_bundled_engine("dosbox.exe"),
+                    "args": arguments or self._get_dosbox_config_arguments(),
+                    "working_dir": self.target_path,
+                }
+            )
         elif scummvm_found:
             self._extract_innosetup(file_id)
-            arguments = {"path": os.path.join(self.target_path, "Data"), "args": "--auto-detect"}
-            logger.info("ScummVM config: %s", arguments)
-            self._use_substitute_core("scummvm", arguments)
+            self._use_bundled_engine(
+                {
+                    "exe": self._find_bundled_engine("scummvm.exe"),
+                    "args": "--path=Data --auto-detect",
+                    "working_dir": self.target_path,
+                }
+            )
         else:
             args = "/SP- /NOCANCEL"
             if silent:
@@ -693,8 +646,6 @@ class CommandsMixin:
 
     def _apply_gogdl_post_install(self, install_path, platform):
         """Detect game configuration from goggame-*.info after a depot download."""
-        from qtris.util.gog import convert_gog_config_to_qtris, get_gog_config
-
         config_path = find_gog_config_dir(install_path)
         if not config_path:
             return
@@ -707,15 +658,8 @@ class CommandsMixin:
         if not play_tasks:
             return
 
-        # Detect DOSBox/ScummVM games from playTasks
-        for task in play_tasks:
-            task_path = task.get("path", "").casefold()
-            if "dosbox" in task_path:
-                self._configure_dosbox_from_depot(install_path, gog_config)
-                return
-            if "scummvm" in task_path:
-                self._configure_scummvm_from_depot(install_path, gog_config)
-                return
+        if any(engine in task.get("path", "").casefold() for task in play_tasks for engine in ("dosbox", "scummvm")):
+            self._place_gog_support_files(config_path)
 
         # Normal game — apply config from goggame-*.info
         qtris_config = convert_gog_config_to_qtris(gog_config, config_path)
@@ -736,73 +680,18 @@ class CommandsMixin:
             for key, value in qtris_config.items():
                 game_config.setdefault(key, value)
 
-    def _configure_dosbox_from_depot(self, install_path, gog_config):
-        """Configure a DOSBox game from depot download using playTasks args.
+    def _place_gog_support_files(self, game_path: str) -> None:
+        """Copy in the settings that bundled DOSBox and ScummVM builds are started with.
 
-        In depot layouts, the -conf paths in goggame-*.info are relative to
-        the GOG Galaxy working dir and may not resolve directly. The actual
-        conf files are typically in gog-support/{id}/app/. We parse the
-        conf filenames from the arguments and search the install tree for them.
+        gogdl leaves them in gog-support, and GOG's setup would copy them into the game's
+        folder. Files already there are the user's, so they're kept.
         """
-        game_task = next(
-            (t for t in gog_config.get("playTasks", []) if t.get("category") == "game"),
-            None,
-        )
-        if not game_task:
-            logger.warning("No game playTask found in goggame info for DOSBox game")
-            return
-
-        arguments = game_task.get("arguments", "")
-
-        # Parse -conf arguments to get the config filenames
-        try:
-            args = shlex.split(arguments)
-        except ValueError:
-            args = arguments.split()
-
-        conf_names = []
-        i = 0
-        while i < len(args):
-            if args[i] == "-conf" and i + 1 < len(args):
-                conf_name = os.path.basename(args[i + 1].replace("\\", "/"))
-                conf_names.append(conf_name)
-                i += 2
-            else:
-                i += 1
-
-        # Search install tree for the actual conf files
-        conf_files = []
-        for conf_name in conf_names:
-            for dirpath, _dirnames, filenames in os.walk(install_path):
-                if conf_name in filenames:
-                    conf_files.append(os.path.join(dirpath, conf_name))
-                    break
-
-        dosbox_config = {}
-
-        if conf_files:
-            single = next((c for c in conf_files if "_single" in c), None)
-            dosbox_config["main_file"] = single or conf_files[0]
-            remaining = [c for c in conf_files if c != dosbox_config["main_file"]]
-            if remaining:
-                dosbox_config["config_file"] = remaining[0]
-
-        self._use_substitute_core("dosbox", dosbox_config)
-
-    def _configure_scummvm_from_depot(self, install_path, gog_config):
-        """Configure a ScummVM game from depot download using playTasks args."""
-        game_task = next(
-            (t for t in gog_config.get("playTasks", []) if t.get("category") == "game"),
-            None,
-        )
-        if not game_task:
-            return
-        arguments = game_task.get("arguments", "")
-        parts = arguments.split()
-        if parts:
-            game_id = parts[-1]
-            args = " ".join(parts[:-1])
-            self._use_substitute_core("scummvm", {"game_id": game_id, "path": install_path, "args": args})
+        for app in sorted(Path(game_path).glob("gog-support/*/app")):
+            for source in app.rglob("*"):
+                target = Path(system.fix_path_case(os.path.join(game_path, source.relative_to(app))))
+                if source.is_file() and not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(source, target)
 
     def install_or_extract(self, file_id):
         """Runs if file is executable or extracts if file is archive"""

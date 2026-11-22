@@ -24,10 +24,6 @@ class flatpak(Runner):
         appid = self.game_config.get("appid")
         return appid if isinstance(appid, str) and host_flatpak.is_app_id(appid) else None
 
-    @property
-    def can_install(self) -> bool:
-        return False
-
     def is_installed(self, flatpak_allowed: bool = True) -> bool:
         return flatpak_allowed and host_flatpak.is_app_installed(self.appid)
 

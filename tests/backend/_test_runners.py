@@ -11,7 +11,7 @@ import pytest
 from qtris import runners as runner_registry
 from qtris import settings
 from qtris.backend import runners
-from qtris.runners import InvalidRunnerError, runner
+from qtris.runners import InvalidRunnerError
 from qtris.util.test_config import setup_test_environment
 from qtris.util.wine import proton
 
@@ -55,27 +55,16 @@ def test_steam_is_not_offered_as_a_runner(saved: dict[tuple[str, str], str]) -> 
         asyncio.run(runners.set_runner_enabled("steam", True))
 
 
-def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], monkeypatch: pytest.MonkeyPatch) -> None:
-    installs: list[str] = []
-
-    async def install_runner(name: str, version: str | None = None, **_kwargs: Any) -> None:
-        installs.append(name)
-
-    monkeypatch.setattr(runners, "install_runner", install_runner)
-    monkeypatch.setattr(runner.Runner, "can_install", property(lambda self: True))
-    monkeypatch.setattr(runner.Runner, "is_installed", lambda self, flatpak_allowed=True: self.name == "web")
-
+def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str]) -> None:
     async def change() -> None:
-        await runners.set_runner_enabled("web", True)
-        await runners.set_runner_enabled("pico8", True)
+        await runners.set_runner_enabled("web", False)
         await runners.set_runner_enabled("linux", False)
+        await runners.set_runner_enabled("web", True)
 
     asyncio.run(change())
-    # Only the runner that wasn't installed yet is installed
-    assert installs == ["pico8"]
     assert saved[("runners", "linux")] == "False"
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["pico8", "wine", "web"]
+    assert [item.name for item in enabled] == ["wine", "web"]
 
     with pytest.raises(InvalidRunnerError):
         asyncio.run(runners.set_runner_enabled("no-such-runner", True))
@@ -86,7 +75,7 @@ def test_the_catalog_says_which_runners_are_on(saved: dict[tuple[str, str], str]
     assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "web", "wine"}
     assert catalog["wine"].label == "Proton"
     # The runner downloads Proton builds when a game needs them
-    assert catalog["wine"].installed and not catalog["wine"].can_install
+    assert catalog["wine"].installed
 
 
 def test_protonplus_builds_are_not_qtris_to_list_or_remove(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

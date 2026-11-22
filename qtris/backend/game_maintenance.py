@@ -19,8 +19,6 @@ from qtris.exceptions import QtrisError
 from qtris.game import GAME_UPDATED, Game
 from qtris.services.flathub import FlathubService
 from qtris.util import system
-from qtris.util.log import logger
-from qtris.util.path_cache import remove_from_path_cache
 from qtris.util.yaml import write_yaml_to_file
 
 _EXTERNALLY_MANAGED_RUNNERS = {"steam", "flatpak", "web"}
@@ -113,7 +111,6 @@ async def move_game(game_id: str, expected_directory: str, destination_parent: s
 async def _move_game_and_notify(game_id: str, expected_directory: str, destination_parent: str) -> str:
     directory = await asyncio.to_thread(_move_game, game_id, expected_directory, destination_parent)
     game = _load_game(game_id)
-    _forget_cached_path(game)
     GAME_UPDATED.fire(game)
     return str(directory)
 
@@ -208,7 +205,6 @@ async def _uninstall_game(
     try:
         if game.is_installed:
             await asyncio.to_thread(game.uninstall)
-            _forget_cached_path(game)
         if remove_from_library:
             await asyncio.to_thread(game.delete)
     finally:
@@ -216,13 +212,6 @@ async def _uninstall_game(
             events.GAME_REMOVED.fire(game_id)
         else:
             GAME_UPDATED.fire(_load_game(game_id))
-
-
-def _forget_cached_path(game: Game) -> None:
-    try:
-        remove_from_path_cache(game)
-    except OSError:
-        logger.exception("Could not clear the cached path for %s", game)
 
 
 async def _trash_directory(directory: str) -> None:

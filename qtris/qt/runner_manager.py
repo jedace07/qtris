@@ -64,7 +64,7 @@ class RunnerManagerController(QObject):
                 "canToggle": True,
                 "enabled": entry.enabled,
                 "installed": entry.installed,
-                "canInstall": entry.enabled and entry.can_install,
+                "canInstall": False,
                 "canUpdate": False,
                 "canRemove": entry.can_remove,
                 "canConfigure": entry.enabled,
@@ -160,8 +160,7 @@ class RunnerManagerController(QObject):
     def set_enabled(self, key: str, enabled: bool) -> None:
         entry = next((item for item in self._runners if item.name == key), None)
         if self._task is None and not self._proton and entry and entry.enabled != enabled:
-            message = _("Installing %s…") % entry.label if enabled and entry.can_install else ""
-            self._start(self._set_enabled(key, enabled), message)
+            self._start(self._set_enabled(key, enabled), "")
 
     @Slot(str)
     def install(self, key: str) -> None:
@@ -219,9 +218,8 @@ class RunnerManagerController(QObject):
             await self._refresh_after_change()
 
     async def _set_enabled(self, key: str, enabled: bool) -> None:
-        interaction = runners.RunnerInstallInteraction(self._set_progress, self._ask, self._choose_file)
         try:
-            await runners.set_runner_enabled(key, enabled, interaction=interaction)
+            await runners.set_runner_enabled(key, enabled)
         finally:
             await self._refresh_after_change()
 

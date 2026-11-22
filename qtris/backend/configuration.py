@@ -38,13 +38,8 @@ from qtris.runners import (
     is_valid_runner_name,
 )
 from qtris.util.log import logger
-from qtris.util.notifications import NotificationSource
 from qtris.util.strings import get_formatted_playtime, parse_playtime, slugify
 from qtris.util.wine.wine import clear_wine_version_cache
-
-# Fired with a form's id when its options change on their own, such as choices that
-# finished loading in the background; get_config_form returns the new state
-CONFIG_FORM_CHANGED = NotificationSource()
 
 # How many forms are kept for frontends that never close theirs
 _FORM_LIMIT = 8
@@ -284,11 +279,7 @@ class _Form:
         )
 
     def choices(self, option: Option, default: Any) -> tuple[tuple[ConfigChoice, ...], str]:
-        source = option.get("choices")
         evaluated = self.attribute(option, "choices", [])
-        if callable(source) and hasattr(source, "register_reload_callback") and not evaluated:
-            # Choices that load in the background announce themselves when ready
-            source.register_reload_callback(lambda: CONFIG_FORM_CHANGED.fire(self.id))
         pairs: list[tuple[Any, Any]]
         if isinstance(evaluated, Mapping):
             pairs = list(evaluated.items())

@@ -38,9 +38,7 @@ SYSTEM_COMPONENTS = {
         "ldconfig",
     ],
     "OPTIONAL_COMMANDS": [
-        "fluidsynth",
         "nvidia-smi",
-        "fluidsynth",
     ],
     "TERMINALS": [
         "xterm",
@@ -106,11 +104,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
         ("/usr/i686-pc-linux-gnu/lib", "/usr/x86_64-pc-linux-gnu/lib"),
     ]
 
-    soundfont_folders = [
-        "/usr/share/sounds/sf2",
-        "/usr/share/soundfonts",
-    ]
-
     required_components = ["OPENGL", "VULKAN", "GNUTLS"]
     optional_components = ["WINE"]
 
@@ -131,7 +124,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
         # Detect if system is 64bit capable
         self.is_64_bit = sys.maxsize > 2**32
         self.arch = self.get_arch()
-        self.populate_sound_fonts()
 
         # Expensive fields are lazy; see properties below.
         self._shared_libraries: dict[str, list[SharedLibrary]] | None = None
@@ -356,10 +348,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
         """Return list of installed terminals"""
         return list(self._cache["TERMINALS"].values())
 
-    def get_soundfonts(self) -> list[str]:
-        """Return path of available soundfonts"""
-        return cast(list[str], self._cache["SOUNDFONTS"])
-
     def get_lib_folders(self) -> list[str]:
         """Return shared library folders, sorted by most used to least used"""
         lib_folder_counter = Counter(lib.dirname for lib_list in self.shared_libraries.values() for lib in lib_list)
@@ -425,15 +413,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
             for lib in SYSTEM_COMPONENTS["LIBRARIES"][req]:  # type: ignore
                 for shared_lib in self.shared_libraries[lib]:
                     self._cache["LIBRARIES"][shared_lib.arch][req].append(lib)
-
-    def populate_sound_fonts(self) -> None:
-        """Populates the soundfont cache"""
-        self._cache["SOUNDFONTS"] = []
-        for folder in self.soundfont_folders:
-            if not os.path.exists(folder):
-                continue
-            for soundfont in os.listdir(folder):
-                self._cache["SOUNDFONTS"].append(soundfont)
 
     def get_missing_requirement_libs(self, req: str) -> list[list[str]]:
         """Return a list of sets of missing libraries for each supported architecture"""

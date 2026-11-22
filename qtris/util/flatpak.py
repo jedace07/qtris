@@ -90,11 +90,6 @@ def is_app_id(appid: str) -> bool:
     return not appid.startswith("-") and _APP_ID.fullmatch(appid) is not None
 
 
-def get_app_dir(appid: str) -> Path:
-    """Return the folder that holds an app's own configuration and data, as the host sees it."""
-    return Path.home() / ".var" / "app" / appid
-
-
 def get_shareable_paths(paths: Iterable[str]) -> list[str]:
     """Return the existing folders that hold the paths, in the order given, for sharing with an app."""
     folders: list[str] = []

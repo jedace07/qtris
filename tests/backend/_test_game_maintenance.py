@@ -14,7 +14,7 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.exceptions import QtrisError
 from qtris.game import Game
-from qtris.util import path_cache, system
+from qtris.util import system
 from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
@@ -40,7 +40,6 @@ def installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tu
         encoding="utf-8",
     )
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
-    monkeypatch.setattr(path_cache, "GAME_PATH_CACHE_PATH", str(tmp_path / "path-cache.json"))
     monkeypatch.setattr(settings, "read_bool_setting", lambda *_args: False)
     game_id = str(
         games_db.add_game(

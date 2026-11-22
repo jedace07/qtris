@@ -16,7 +16,6 @@ from qtris.qt.delegates import PromptController
 from qtris.qt.game_artwork import GameArtworkController
 from qtris.qt.game_maintenance import GameMaintenanceController
 from qtris.qt.tasks import start_task
-from qtris.util.notifications import NotificationRegistration
 
 
 class ConfigController(QObject):
@@ -35,7 +34,6 @@ class ConfigController(QObject):
         self._busy = False
         self._title = ""
         self._game_id = ""
-        self._registration: NotificationRegistration | None = None
         self.model = ConfigOptionModel()
         self.model.setParent(self)
         self.artwork_controller = GameArtworkController(prompts, self)
@@ -190,7 +188,6 @@ class ConfigController(QObject):
         self.close()
         self._title = title
         self._busy = True
-        self._registration = configuration.CONFIG_FORM_CHANGED.register(self._on_form_changed)
         self.stateChanged.emit()
         self.requested.emit()
         start_task(self._load(request), self._prompts.error)
@@ -206,10 +203,6 @@ class ConfigController(QObject):
         self._show_advanced = form.show_advanced
         self._apply(form)
         self.artwork_controller.open_game(self._game_id)
-
-    def _on_form_changed(self, form_id: str) -> None:
-        if self._form and form_id == self._form.id:
-            self._run(configuration.get_config_form(form_id))
 
     @Slot(int)
     def select_page(self, page: int) -> None:
@@ -290,9 +283,6 @@ class ConfigController(QObject):
     @Slot()
     def close(self) -> None:
         """Forget the form, discarding unsaved changes."""
-        if self._registration:
-            self._registration.unregister()
-            self._registration = None
         if self._form:
             start_task(configuration.close_config(self._form.id), self._prompts.error)
         self._form = None

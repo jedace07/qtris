@@ -7,7 +7,6 @@ import shutil
 import stat
 import string
 import subprocess
-import zipfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from gettext import gettext as _
 from pathlib import Path
@@ -240,27 +239,6 @@ def read_process_output(
         if error_result is None:
             raise
         return error_result
-
-
-def get_md5_in_zip(filename: str) -> str | None:
-    """Return the md5 hash of a file in a zip"""
-    with zipfile.ZipFile(filename, "r") as archive:
-        files = [info.filename for info in archive.infolist() if not info.is_dir()]
-        if not files:
-            logger.warning("No file found in archive %s", filename)
-            return None
-        if len(files) > 1:
-            logger.warning("More than 1 file in archive %s, reading 1st one: %s", filename, files[0])
-        with archive.open(files[0]) as file_in_zip:
-            _hash = read_file_md5(file_in_zip)
-    return _hash
-
-
-def read_file_md5(filedesc: IO[bytes]) -> str:
-    md5 = hashlib.md5()
-    for chunk in iter(lambda: filedesc.read(8192), b""):
-        md5.update(chunk)
-    return md5.hexdigest()
 
 
 def get_file_checksum(filename: str, hash_type: str) -> str:

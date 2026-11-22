@@ -20,7 +20,7 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.exceptions import GameConfigError, InvalidGameMoveError, MissingExecutableError
 from qtris.game_errors import watch_game_errors
-from qtris.installer import InstallationKind, get_entry_point_path
+from qtris.installer import InstallationKind
 from qtris.monitored_command import MonitoredCommand
 from qtris.runner_interpreter import export_bash_script, get_launch_parameters
 from qtris.runners import import_runner, is_valid_runner_name
@@ -39,7 +39,6 @@ from qtris.util.log import logger
 from qtris.util.log_buffer import LogBuffer
 from qtris.util.notifications import NotificationSource
 from qtris.util.steam.shortcut import remove_shortcut as remove_steam_shortcut
-from qtris.util.system import fix_path_case
 from qtris.util.timer import Timer
 from qtris.util.yaml import write_yaml_to_file
 
@@ -706,34 +705,6 @@ class Game:
         service = self.get_service()
         return service.get_store_launch(self) if service else None
 
-    def get_path_from_config(self) -> str:
-        """Return the path of the main entry point for a game"""
-        if not self.config:
-            logger.warning("%s has no configuration", self)
-            return ""
-        game_config = self.config.game_config
-
-        # Skip MAME roms referenced by their ID
-        if self.runner_name == "libretro" and game_config.get("core") == "mame":
-            if "main_file" in game_config and "." not in game_config["main_file"]:
-                return ""
-
-        path = get_entry_point_path(game_config)
-        if not path:
-            logger.warning("No path found in %s", self.config)
-            return ""
-
-        path = os.path.expanduser(path)
-        if not path.startswith("/"):
-            path = os.path.join(self.directory, path)
-
-        # The Wine runner fixes case mismatches automatically,
-        # sort of like Windows, so we need to do the same.
-        if self.runner_name == "wine":
-            path = fix_path_case(path)
-
-        return path
-
     def get_store_name(self) -> str:
         store = self.service
         if not store:
@@ -1224,9 +1195,6 @@ class Game:
 def export_game(slug: str, dest_dir: str) -> None:
     """Export a full game folder along with some qtris metadata"""
     # List of runner where we know for sure that 1 folder = 1 game.
-    # For runners that handle ROMs, we have to handle this more finely.
-    # There is likely more than one game in a ROM folder but a ROM
-    # might have several files (like a bin/cue, or a multi-disk game)
     exportable_runners = [
         "linux",
         "wine",

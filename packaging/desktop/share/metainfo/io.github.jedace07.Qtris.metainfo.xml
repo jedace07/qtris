@@ -12,7 +12,7 @@
   <summary>Video game preservation platform</summary>
   <description>
     <p>Qtris helps you install and play video games from all eras and from most gaming systems. By leveraging and combining existing emulators, engine re-implementations and compatibility layers, it gives you a central interface to launch all your games.</p>
-    <p>Qtris began as a fork of Lutris, with a Qt Quick interface. Its emulators run through RetroArch and Flathub.</p>
+    <p>Qtris began as a fork of Lutris, with a Qt Quick interface. It lists and launches emulators as Flathub apps.</p>
   </description>
   <url type="homepage">https://github.com/jedace07/qtris</url>
   <url type="bugtracker">https://github.com/jedace07/qtris/issues</url>

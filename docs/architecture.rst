@@ -117,18 +117,6 @@ Models instead of widgets
     changes quickly should pass a snapshot of its state with each one rather
     than have handlers read its current state (the downloads do).
 
-Other apps' folders
--------------------
-
-Inside the Flatpak, ``~/.var/app`` is a tmpfs: other apps' folders look empty,
-and writes to them succeed and are lost, whatever access the sandbox has to the
-home folder. The manifest grants no emulator's folder. Code that works on a path
-that may be in one (RetroArch's cores and configuration, emulators' keys) uses
-``qtris.util.host_files``, which goes through
-``flatpak-spawn --host`` for those paths alone, rather than ``open``,
-``os.path`` or ``system.path_exists``. Steam's folder is still granted read-only,
-as library scans read too many of its files to spawn a process for each.
-
 Web games
 ---------
 
@@ -345,8 +333,7 @@ the option key and the configuration, so visibility, conditions,
 ``set_option`` and ``reset_option`` change the raw config at the form's level,
 checked against the option's type, and return the form evaluated again.
 ``save_config`` runs the options' validators, writes the file and fires
-``GAME_CHANGED`` for a game. Choices loaded in the background (``async_choices``)
-fire ``CONFIG_FORM_CHANGED``. A game's form also carries its ``GameDetails``
+``GAME_CHANGED`` for a game. A game's form also carries its ``GameDetails``
 (name, sort name, slug, runner, year, playtime), changed with
 ``set_game_details`` and written by ``save_config``, which validates them and
 renames the config file when the slug changes.
@@ -412,10 +399,15 @@ available; otherwise the conflict is skipped rather than silently overwritten.
 
 Library → Preferences includes the interface theme, tray, game card labels and
 badges and minimize-on-launch options. The tray is available
-only on desktops that provide one. Library also offers ROM registration, by
-file extension, from a selected folder or files dropped onto the window, without
-moving or owning the ROM files. It also offers Playtron import and a local JSON
-issue report exporter shared with ``--submit-issue``.
+only on desktops that provide one. Library also offers Playtron import and a
+local JSON issue report exporter shared with ``--submit-issue``.
+
+Qtris has three runners, Proton (``wine``), Linux and Web, and two internal
+ones for their sources' games, Steam and Flatpak. It has no emulator runners:
+emulators are Flathub apps, which the Flathub source lists and launches. GOG's
+and ZOOM's DOS and ScummVM games run the Windows DOSBox or ScummVM they bundle
+through Proton. For GOG's depot downloads the installer copies their settings
+from ``gog-support/<id>/app``, where gogdl leaves them, into the game's folder.
 
 Preferences → Runners uses ``qtris.backend.runners`` to configure, install
 and remove runners. Downloads and runner file prompts pass progress and plain

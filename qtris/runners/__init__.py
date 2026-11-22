@@ -1,13 +1,8 @@
 """Runner loaders"""
 
 __all__ = [
-    "eden",
     "flatpak",
-    "libretro",
     "linux",
-    "pico8",
-    "ryubing",
-    "shadps4",
     "steam",
     "web",
     "wine",
@@ -25,10 +20,9 @@ if TYPE_CHECKING:
 
 # The runners a new profile starts with turned on; the others are opt-in
 DEFAULT_RUNNERS = ("linux", "web", "wine")
-# Source runners and legacy emulator integrations needed by existing game configurations
-INTERNAL_RUNNERS = ("steam", "flatpak", "eden", "ryubing", "shadps4", "86box", "basiliskii", "gargoyle", "ruffle")
+# The runners of the Steam and Flathub sources' games, which aren't offered as runners
+INTERNAL_RUNNERS = ("steam", "flatpak")
 
-ADDON_RUNNERS: dict[str, type["Runner"]] = {}
 _cached_runner_human_names: dict[str, str] = {}
 
 
@@ -57,9 +51,6 @@ def get_runner_module(runner_name: str) -> ModuleType:
 
 def import_runner(runner_name: str) -> type["Runner"]:
     """Dynamically import a runner class."""
-    if runner_name in ADDON_RUNNERS:
-        return ADDON_RUNNERS[runner_name]
-
     runner_module = get_runner_module(runner_name)
     return cast(type["Runner"], getattr(runner_module, runner_name))
 
@@ -92,14 +83,6 @@ def set_runner_enabled(runner_name: str, enabled: bool) -> None:
 def get_enabled() -> list["Runner"]:
     """Return the runners offered to the user that are turned on (class instances)."""
     return [import_runner(runner_name)() for runner_name in get_user_runner_names() if is_runner_enabled(runner_name)]
-
-
-def inject_runners(runners: dict[str, type["Runner"]]) -> None:
-    for runner_name in runners:
-        if runner_name not in __all__:
-            ADDON_RUNNERS[runner_name] = runners[runner_name]
-            __all__.append(runner_name)
-    _cached_runner_human_names.clear()
 
 
 def get_runner_names() -> list[str]:

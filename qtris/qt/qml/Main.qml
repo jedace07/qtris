@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs as NativeDialogs
 import QtrisStyle
 
 ApplicationWindow {
@@ -51,18 +50,10 @@ ApplicationWindow {
         MenuSeparator {}
 
         MenuItem {
-            text: qsTr("Import ROMs…")
-            icon.source: Theme.icon("download")
-            enabled: !window.controller.gameImports.busy
-            onTriggered: romFolder.open()
-        }
-
-        MenuItem {
             text: qsTr("Import from Playtron…")
             icon.source: Theme.icon("download")
             enabled: !window.controller.gameImports.busy
             onTriggered: {
-                importDialog.scanningRoms = false
                 window.controller.gameImports.import_playtron()
                 importDialog.open()
             }
@@ -111,39 +102,6 @@ ApplicationWindow {
         }
     }
 
-    DropArea {
-        anchors.fill: parent
-        enabled: !window.controller.gameImports.busy && !importDialog.visible
-
-        onEntered: drag => { drag.accepted = drag.hasUrls }
-        onDropped: drop => {
-            if (drop.hasUrls && window.controller.gameImports.import_rom_files(drop.urls)) {
-                drop.acceptProposedAction()
-                importDialog.scanningRoms = true
-                importDialog.open()
-            }
-        }
-
-        // Shows where ROMs dropped on the window go
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 10
-            visible: parent.containsDrag
-            radius: 16
-            color: Theme.accentSubtle
-            border.width: 2
-            border.color: Theme.accent
-
-            Label {
-                anchors.centerIn: parent
-                text: qsTr("Drop ROMs to import them")
-                font.pointSize: Theme.titleSize
-                font.weight: Font.DemiBold
-                color: Theme.accentText
-            }
-        }
-    }
-
     PromptHost { prompts: window.prompts }
 
     Shortcut {
@@ -160,16 +118,6 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Preferences]
         onActivated: window.controller.preferences.open_preferences()
-    }
-
-    NativeDialogs.FolderDialog {
-        id: romFolder
-        title: qsTr("Select a folder containing ROMs")
-        onAccepted: {
-            importDialog.scanningRoms = true
-            window.controller.gameImports.import_roms(selectedFolder)
-            importDialog.open()
-        }
     }
 
     ImportDialog {

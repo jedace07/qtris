@@ -8,13 +8,12 @@ Dialog {
     id: dialog
 
     required property QtObject controller
-    property bool scanningRoms: false
 
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(600, parent.width - 32)
     height: Math.min(460, parent.height - 32)
-    title: scanningRoms ? qsTr("Import ROMs") : qsTr("Import from Playtron")
+    title: qsTr("Import from Playtron")
     closePolicy: controller.busy ? Popup.NoAutoClose : Popup.CloseOnEscape
     modal: true
 
@@ -46,9 +45,9 @@ Dialog {
 
         Button {
             Layout.alignment: Qt.AlignRight
-            enabled: dialog.scanningRoms || !dialog.controller.busy
-            text: dialog.controller.busy ? qsTr("Stop after current file") : qsTr("Close")
-            onClicked: dialog.controller.busy ? dialog.controller.stop() : dialog.close()
+            enabled: !dialog.controller.busy
+            text: qsTr("Close")
+            onClicked: dialog.close()
         }
     }
 }

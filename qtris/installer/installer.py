@@ -160,11 +160,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
             if not hasattr(self, field) or not getattr(self, field):
                 errors.append("Missing field '%s'" % field)
 
-        # Check that libretro installers have a core specified
-        if self.runner == "libretro":
-            if "game" not in self.script or "core" not in self.script["game"]:
-                errors.append("Missing libretro core in game section")
-
         # Check that Steam games have an AppID
         if self.runner == "steam":
             if not self.script.get("game", {}).get("appid"):
