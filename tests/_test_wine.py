@@ -43,6 +43,7 @@ class TestProtonGraphics(TestCase):
 
     def get_env(self, vulkan: bool) -> dict[str, str]:
         runner = wine.wine()
+        runner.system_config["env"] = {}
         with (
             patch.object(wine.LINUX_SYSTEM, "is_vulkan_supported", return_value=vulkan),
             patch.object(runner, "get_executable", return_value=GE_LATEST_WINE),
@@ -53,6 +54,12 @@ class TestProtonGraphics(TestCase):
     def test_wined3d_only_without_vulkan(self):
         self.assertNotIn("PROTON_USE_WINED3D", self.get_env(vulkan=True))
         self.assertEqual(self.get_env(vulkan=False)["PROTON_USE_WINED3D"], "1")
+
+    def test_proton_leaves_shader_cache_to_driver(self) -> None:
+        env = self.get_env(vulkan=False)
+
+        self.assertNotIn("__GL_SHADER_DISK_CACHE", env)
+        self.assertNotIn("__GL_SHADER_DISK_CACHE_PATH", env)
 
     def test_no_dxvk_or_vkd3d_options(self):
         option_names = {option["option"] for option in wine.wine().runner_options}

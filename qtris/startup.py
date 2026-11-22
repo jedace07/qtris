@@ -35,7 +35,6 @@ def init_dirs():
         settings.RUNNER_DIR,
         settings.RUNTIME_DIR,
         settings.CACHE_DIR,
-        settings.SHADER_CACHE_DIR,
         settings.INSTALLER_CACHE_DIR,
         settings.TMP_DIR,
     ]

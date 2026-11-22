@@ -94,3 +94,22 @@ def test_none_runs_against_no_library_overrides(tmp_path: Path) -> None:
     command, env = get_launch_parameters(runner, runner.play())
     assert command == ["./game"]
     assert "LD_LIBRARY_PATH" not in env
+
+
+def test_native_launch_leaves_shader_cache_to_driver(tmp_path: Path) -> None:
+    runner = linux()
+    runner.game_data["directory"] = str(tmp_path)
+    runner.game_config["exe"] = str(make_launcher(tmp_path / "game"))
+    runner.system_config["env"] = {}
+
+    info = runner.play()
+    _, env = get_launch_parameters(runner, info)
+
+    assert "__GL_SHADER_DISK_CACHE" not in env
+    assert "__GL_SHADER_DISK_CACHE_PATH" not in env
+
+    cache_path = str(tmp_path / "custom-cache")
+    runner.system_config["env"] = {"__GL_SHADER_DISK_CACHE_PATH": cache_path}
+    _, env = get_launch_parameters(runner, info)
+
+    assert env["__GL_SHADER_DISK_CACHE_PATH"] == cache_path

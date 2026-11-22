@@ -41,7 +41,6 @@ PROTON_DIR: str = os.path.join(RUNNER_DIR, "proton")
 # Where umu keeps the Steam Linux Runtime and its other folders, instead of the host's data folder
 UMU_DATA_DIR: str = os.path.join(RUNTIME_DIR, "umu-data")
 
-SHADER_CACHE_DIR = os.path.join(CACHE_DIR, "shaders")
 INSTALLER_CACHE_DIR = os.path.join(CACHE_DIR, "installer")
 BANNER_PATH = os.path.join(DATA_DIR, "banners")
 COVERART_PATH = os.path.join(DATA_DIR, "coverart")

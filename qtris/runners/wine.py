@@ -466,11 +466,6 @@ class wine(Runner):
         return None
 
     @property
-    def nvidia_shader_cache_path(self):
-        """WINE should give each game its own shader cache if possible."""
-        return self.game_path or self.shader_cache_dir
-
-    @property
     def wine_arch(self) -> str:
         """Return the prefix architecture, which is always 64-bit with Proton."""
         return WINE_DEFAULT_ARCH

@@ -155,21 +155,6 @@ class Runner:  # pylint: disable=too-many-public-methods
         """Return the working directory to use when running the game."""
         return self.game_path or os.path.expanduser("~/")
 
-    @property
-    def shader_cache_dir(self) -> str:
-        """Return the cache directory for this runner to use. We create
-        this if it does not exist."""
-        path = os.path.join(settings.SHADER_CACHE_DIR, self.name)
-        if not os.path.isdir(path):
-            os.mkdir(path)
-        return path
-
-    @property
-    def nvidia_shader_cache_path(self) -> str:
-        """The path to place in __GL_SHADER_DISK_CACHE_PATH; NVidia
-        will place its cache cache in a subdirectory here."""
-        return self.shader_cache_dir
-
     @staticmethod
     def to_platform_dict(platform_list: list[str]) -> dict[str, str]:
         """
@@ -301,11 +286,6 @@ class Runner:  # pylint: disable=too-many-public-methods
         locale = self.system_config.get("locale")
         if locale:
             env["LC_ALL"] = locale
-
-        # By default, we'll set NVidia's shader disk cache to be
-        # per-game, so it overflows less readily.
-        env["__GL_SHADER_DISK_CACHE"] = "1"
-        env["__GL_SHADER_DISK_CACHE_PATH"] = self.nvidia_shader_cache_path
 
         # Override SDL2 controller configuration
         sdl_gamecontrollerconfig = self.system_config.get("sdl_gamecontrollerconfig")
