@@ -16,7 +16,7 @@ from qtris.database import games as games_db
 from qtris.database import saved_searches as saved_searches_db
 from qtris.database.services import ServiceGameCollection
 from qtris.exceptions import InvalidSearchTermError
-from qtris.runners import get_runner_human_name
+from qtris.runners import LOCAL_RUNNERS, get_runner_human_name
 from qtris.search import GameSearch
 from qtris.search_predicate import NotPredicate
 from qtris.services import SERVICES
@@ -66,7 +66,7 @@ class LibraryQuery:
 
     @property
     def is_local_runner_view(self) -> bool:
-        return self.runner in ("linux", "wine")
+        return self.runner in LOCAL_RUNNERS
 
 
 async def query_games(query: LibraryQuery) -> list[LibraryGame]:

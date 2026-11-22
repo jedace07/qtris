@@ -155,7 +155,7 @@ def _get_wine_version_choices() -> list[tuple[str, str]]:
 
 
 class wine(Runner):
-    description: str = _("Runs Windows games")
+    description: str = _("Runs Windows games with Proton")
     human_name = _("Proton")
     platform_dict = Runner.to_platform_dict([_("Windows")])
     multiple_versions = True

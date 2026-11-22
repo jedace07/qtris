@@ -103,7 +103,7 @@ def get_store_install_target(uri: str) -> tuple[str, str] | None:
         return None
     if request["service"] and request["appid"] and request["action"] in (None, "install"):
         return request["service"], request["appid"]
-    raise QtrisError(_("Choose a game from one of your library sources to install."))
+    raise QtrisError(_("Choose a game from one of your stores to install."))
 
 
 async def get_store_game_name(service_id: str, appid: str) -> str:

@@ -187,22 +187,6 @@ class Runner:  # pylint: disable=too-many-public-methods
                 return qtris_platform
         return next(iter(self.platform_dict.keys()))
 
-    def get_runner_options(self) -> list[RunnerOptionDict]:
-        runner_options = self.runner_options[:]
-        runner_options.append(
-            {
-                "section": _("Side Panel"),
-                "option": "visible_in_side_panel",
-                "type": "bool",
-                "label": _("Visible in Side Panel"),
-                "default": True,
-                "advanced": True,
-                "scope": ["runner"],
-                "help": _("Show this runner in the side panel if it is installed or available through Flatpak."),
-            }
-        )
-        return runner_options
-
     def play(self) -> dict[str, Any]:
         """Return the information needed to launch the game: at minimum a 'command' key
         with the command list. Subclasses must override this."""

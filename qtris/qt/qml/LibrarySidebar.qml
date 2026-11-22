@@ -59,7 +59,7 @@ Rectangle {
 
             MenuItem {
                 objectName: "configureRunner"
-                text: qsTr("Configure Runner…")
+                text: qsTr("Configure %1…").arg(view.viewTitle)
                 icon.source: Theme.icon("configure")
                 onTriggered: sidebar.controller.configuration.open_runner(view.runnerName, view.viewTitle)
             }

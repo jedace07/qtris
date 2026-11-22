@@ -12,6 +12,8 @@ another runner starts the game's configuration afresh. A form for a new game
 creates the game when saved.
 """
 
+from __future__ import annotations
+
 import asyncio
 import html
 import re
@@ -32,9 +34,9 @@ from qtris.exceptions import QtrisError
 from qtris.game import Game
 from qtris.runners import (
     InvalidRunnerError,
+    get_runner_platform_name,
     get_user_runner_names,
     import_runner,
-    is_runner_enabled,
     is_valid_runner_name,
 )
 from qtris.util.log import logger
@@ -43,7 +45,7 @@ from qtris.util.wine.wine import clear_wine_version_cache
 
 # How many forms are kept for frontends that never close theirs
 _FORM_LIMIT = 8
-_SECTION_TITLES = {"game": _("Game options"), "runner": _("Runner options"), "system": _("System options")}
+_SECTION_TITLES = {"game": _("Game options"), "runner": _("Platform options"), "system": _("System options")}
 _SHOW_ADVANCED_SETTING = "show_advanced_options"
 
 type Option = dict[str, Any]
@@ -104,7 +106,7 @@ class _Form:
         if section == "game":
             return list(self.runner.game_options) if self.runner else []
         if section == "runner":
-            return list(self.runner.get_runner_options()) if self.runner else []
+            return list(self.runner.runner_options) if self.runner else []
         if self.config.runner_slug:
             return sysoptions.with_runner_overrides(self.config.runner_slug)
         return sysoptions.system_options
@@ -184,12 +186,9 @@ class _Form:
 
     def page(self, section: str) -> ConfigPage:
         if section == "runner" and self.level == "game":
-            description = _("If modified, these options supersede the same options from the base runner configuration.")
+            description = _("These options override the platform defaults for this game.")
         elif section == "system" and self.level == "game":
-            description = _(
-                "If modified, these options supersede the same options from the base runner configuration, "
-                "which themselves supersede the global preferences."
-            )
+            description = _("These options override the platform defaults and global preferences for this game.")
         elif section == "system" and self.level == "runner":
             description = _("If modified, these options supersede the same options from the global preferences.")
         else:
@@ -333,14 +332,14 @@ class _Form:
     def set_runner(self, runner_name: str) -> None:
         """Start the game's configuration afresh for another runner."""
         if self.level != "game" or self.details is None:
-            raise QtrisError(_("Only a game's runner can be changed."))
+            raise QtrisError(_("Only a game's type can be changed."))
         if runner_name == (self.config.runner_slug or ""):
             return
         if runner_name:
             try:
                 import_runner(runner_name)
             except InvalidRunnerError as error:
-                raise QtrisError(_("There is no runner called '%s'.") % runner_name) from error
+                raise QtrisError(_("Unknown game type '%s'.") % runner_name) from error
         clear_wine_version_cache()
         self.use_config(QtrisConfig(runner_slug=runner_name or None, level="game"))
         self.details = replace(self.details, runner=runner_name, config_path="")
@@ -352,7 +351,7 @@ class _Form:
         name = details.name.strip()
         runner_name = self.config.runner_slug or ""
         if not runner_name:
-            raise QtrisError(_("Runner not provided"))
+            raise QtrisError(_("Choose a game type."))
         if not name:
             raise QtrisError(_("Please fill in the name"))
         if runner_name == "steam" and not self.config.game_config.get("appid"):
@@ -448,16 +447,11 @@ def _checked_value(option: Option, value: Any) -> Any:
 
 
 def _runner_choices(current: str) -> tuple[ConfigChoice, ...]:
-    """The runners a game can use: those offered to the user that are turned on, and the
-    one it already has, which may be an internal runner such as Steam's."""
-    names = [name for name in get_user_runner_names() if name == current or is_runner_enabled(name)]
+    """Offer the local platforms and keep the game's current store runner available."""
+    names = get_user_runner_names()
     if current and current not in names and is_valid_runner_name(current):
         names.append(current)
-    runners = sorted((import_runner(name)() for name in names), key=lambda runner: runner.human_name.casefold())
-    return tuple(
-        ConfigChoice(label=f"{runner.human_name} ({getattr(runner, 'description', '')})", value=runner.name)
-        for runner in runners
-    )
+    return tuple(ConfigChoice(label=get_runner_platform_name(name), value=name) for name in names)
 
 
 def _details(row: Mapping[str, Any], config: QtrisConfig | None) -> GameDetails:
@@ -556,13 +550,13 @@ async def set_game_details(form_id: str, details: GameDetails) -> ConfigForm:
 async def open_runner_config(runner_name: str) -> ConfigForm:
     """Open a runner's options, with the system's at runner level."""
     try:
-        runner = import_runner(runner_name)()
+        label = get_runner_platform_name(runner_name)
     except InvalidRunnerError as error:
-        raise QtrisError(_("There is no runner called '%s'.") % runner_name) from error
+        raise QtrisError(_("Unknown game type '%s'.") % runner_name) from error
 
     def build() -> _Form:
         clear_wine_version_cache()
-        return _Form("runner", _("Configure %s") % runner.human_name, QtrisConfig(runner_slug=runner_name))
+        return _Form("runner", _("Configure %s") % label, QtrisConfig(runner_slug=runner_name))
 
     return await _open(build)
 

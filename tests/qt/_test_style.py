@@ -61,6 +61,7 @@ def sidebar_views() -> list[dict[str, str]]:
         {"service": "gog"},
         {"runner": "linux"},
         {"runner": "wine"},
+        {"runner": "web"},
         {"runner": "steam"},
     ]
 
@@ -75,10 +76,10 @@ def sidebar_views() -> list[dict[str, str]]:
         ({"category": "missing"}, "category"),
         ({"saved_search": "Unplayed"}, "saved-search"),
         ({"service": "gog"}, "store"),
-        ({"runner": "linux"}, "linux"),
-        ({"runner": "wine"}, "proton"),
+        ({"runner": "linux"}, "platform"),
+        ({"runner": "wine"}, "windows"),
         ({"runner": "steam"}, "steam"),
-        ({"runner": "web"}, "runner"),
+        ({"runner": "web"}, "web"),
     ],
 )
 def test_sidebar_views_have_icons(view: dict[str, str], icon: str) -> None:

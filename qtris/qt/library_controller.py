@@ -75,7 +75,6 @@ class LibraryController(QObject):
         self._store_sources.gamesChanged.connect(self.refresh)
         self._store_sources.launcherRequested.connect(lambda game_id: self.launch(game_id, False))
         self._runner_manager = RunnerManagerController(prompts, self)
-        self._runner_manager.runnersChanged.connect(self.refresh_sidebar)
         self.runtime_updates_controller = RuntimeUpdatesController(prompts, self)
         self._installers.installation_controller.launchRequested.connect(lambda game_id: self.launch(game_id, False))
         self.model.setParent(self)
@@ -463,7 +462,7 @@ class LibraryController(QObject):
         if query.category == ".hidden":
             return _("No games are hidden.")
         if query.is_local_runner_view:
-            return _("No locally installed games found.")
+            return _("No local games found.")
         if query.installed_only and await library.has_uninstalled_games():
             return _("No installed games found. Uncheck 'Installed only' to show the others.")
         return _("No games found")

@@ -54,6 +54,9 @@ source-exclude = ["qtris/locale/*.pot"]
 [tool.uv.build-backend.data]
 data = "packaging/desktop"
 
+[tool.pyside6-project]
+files = ["qtris/launcher.py", "qtris/qt/qml/Main.qml"]
+
 [dependency-groups]
 # Split so CI jobs can install only what they run (`uv sync --only-group lint`
 # needs no native headers); `dev` is everything and is what `uv sync` installs

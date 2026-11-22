@@ -1,26 +1,31 @@
 """Expose runner management to Qt Quick."""
 
-import asyncio
-from collections.abc import Callable, Coroutine
+from __future__ import annotations
+
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 
 from qtris.backend import runners
-from qtris.qt.delegates import PromptController
 from qtris.qt.tasks import start_task
+
+if TYPE_CHECKING:
+    import asyncio
+    from collections.abc import Callable, Coroutine
+    from typing import Any
+
+    from qtris.qt.delegates import PromptController
 
 
 class RunnerManagerController(QObject):
     stateChanged = Signal()
     progressChanged = Signal()
-    runnersChanged = Signal()
 
     def __init__(self, prompts: PromptController, parent: QObject) -> None:
         super().__init__(parent)
         self._prompts = prompts
-        self._runners: tuple[runners.RunnerCatalogEntry, ...] = ()
+        self._platforms: tuple[runners.LocalGamePlatform, ...] = ()
         self._builds: tuple[runners.ProtonBuild, ...] = ()
         self._family = 0
         self._releases: dict[str, tuple[str, ...]] = {}
@@ -44,14 +49,10 @@ class RunnerManagerController(QObject):
                         "key": build.version,
                         "label": build.label or build.version,
                         "description": "",
-                        "canToggle": False,
-                        "enabled": True,
                         "installed": build.installed,
                         "canInstall": not build.installed,
                         "canUpdate": False,
                         "canRemove": build.can_remove,
-                        "canConfigure": False,
-                        "manageProton": False,
                     }
                     for build in self._builds
                 ),
@@ -61,16 +62,9 @@ class RunnerManagerController(QObject):
                 "key": entry.name,
                 "label": entry.label,
                 "description": entry.description,
-                "canToggle": True,
-                "enabled": entry.enabled,
-                "installed": entry.installed,
-                "canInstall": False,
-                "canUpdate": False,
-                "canRemove": entry.can_remove,
-                "canConfigure": entry.enabled,
-                "manageProton": entry.enabled and entry.name == "wine",
+                "manageProton": entry.name == "wine",
             }
-            for entry in self._runners
+            for entry in self._platforms
         ]
 
     def _latest_entry(self, latest: runners.LatestProton) -> dict[str, str | bool]:
@@ -87,14 +81,10 @@ class RunnerManagerController(QObject):
             "key": latest.version,
             "label": latest.label,
             "description": description,
-            "canToggle": False,
-            "enabled": True,
             "installed": installed,
             "canInstall": not installed,
             "canUpdate": can_update,
             "canRemove": installed,
-            "canConfigure": False,
-            "manageProton": False,
         }
 
     @property
@@ -142,7 +132,7 @@ class RunnerManagerController(QObject):
     def open(self) -> None:
         if self._task is None:
             self._proton = False
-            self._start(self._load_runners(), _("Checking runners…"))
+            self._start(self._load_platforms(), "")
 
     @Slot()
     def show_proton(self) -> None:
@@ -156,27 +146,21 @@ class RunnerManagerController(QObject):
             self._family = index
             self.show_proton()
 
-    @Slot(str, bool)
-    def set_enabled(self, key: str, enabled: bool) -> None:
-        entry = next((item for item in self._runners if item.name == key), None)
-        if self._task is None and not self._proton and entry and entry.enabled != enabled:
-            self._start(self._set_enabled(key, enabled), "")
-
     @Slot(str)
     def install(self, key: str) -> None:
-        entry = next((item for item in self._entries() if item["key"] == key and item["canInstall"]), None)
+        entry = next((item for item in self._entries() if item["key"] == key and item.get("canInstall")), None)
         if self._task is None and entry:
             self._start(self._install(key), _("Installing %s…") % entry["label"])
 
     @Slot(str)
     def update(self, key: str) -> None:
-        entry = next((item for item in self._entries() if item["key"] == key and item["canUpdate"]), None)
+        entry = next((item for item in self._entries() if item["key"] == key and item.get("canUpdate")), None)
         if self._task is None and entry:
             self._start(self._install(key), _("Updating %s…") % entry["label"])
 
     @Slot(str)
     def remove(self, key: str) -> None:
-        entry = next((item for item in self._entries() if item["key"] == key and item["canRemove"]), None)
+        entry = next((item for item in self._entries() if item["key"] == key and item.get("canRemove")), None)
         if self._task is None and entry:
             self._start(self._remove(key, str(entry["label"])), _("Removing %s…") % entry["label"])
 
@@ -198,8 +182,8 @@ class RunnerManagerController(QObject):
         self._fraction = fraction if fraction is not None else -1.0
         self.progressChanged.emit()
 
-    async def _load_runners(self) -> None:
-        self._runners = await runners.list_runner_catalog()
+    async def _load_platforms(self) -> None:
+        self._platforms = await runners.list_local_game_platforms()
 
     async def _load_proton(self) -> None:
         family = self._family_name
@@ -210,36 +194,24 @@ class RunnerManagerController(QObject):
         self._builds = await runners.list_proton_builds(family, self._releases[family])
 
     async def _install(self, key: str) -> None:
-        name, version = ("wine", key) if self._proton else (key, None)
         interaction = runners.RunnerInstallInteraction(self._set_progress, self._ask, self._choose_file)
         try:
-            await runners.install_runner(name, version, interaction=interaction)
+            await runners.install_runner("wine", key, interaction=interaction)
         finally:
-            await self._refresh_after_change()
-
-    async def _set_enabled(self, key: str, enabled: bool) -> None:
-        try:
-            await runners.set_runner_enabled(key, enabled)
-        finally:
-            await self._refresh_after_change()
+            await self._refresh_builds()
 
     async def _remove(self, key: str, label: str) -> None:
-        if not await self._ask(_("Remove runner"), _("Move %s to the Trash?") % label):
+        if not await self._ask(_("Remove Proton build"), _("Move %s to the Trash?") % label):
             return
-        name, version = ("wine", key) if self._proton else (key, None)
         try:
-            await runners.uninstall_runner(name, version)
+            await runners.uninstall_runner("wine", key)
         finally:
-            await self._refresh_after_change()
+            await self._refresh_builds()
 
-    async def _refresh_after_change(self) -> None:
-        self.runnersChanged.emit()
-        if self._proton:
-            family = self._family_name
-            self._latest = await runners.get_latest_proton(family)
-            self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
-        else:
-            await self._load_runners()
+    async def _refresh_builds(self) -> None:
+        family = self._family_name
+        self._latest = await runners.get_latest_proton(family)
+        self._builds = await runners.list_proton_builds(family, self._releases.get(family, ()))
 
     async def _ask(self, title: str, message: str) -> bool:
         return await self._prompts.ask_async("question", title, message) is not None

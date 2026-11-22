@@ -145,7 +145,7 @@ class ConfigController(QObject):
     def runnerChoices(self) -> list[dict[str, str]]:  # noqa: N802
         if not self._form:
             return []
-        choices = [{"label": _("Select a runner from the list"), "value": ""}]
+        choices = [{"label": _("Choose a game type"), "value": ""}]
         return choices + [{"label": choice.label, "value": choice.value} for choice in self._form.runner_choices]
 
     @Property(bool, notify=stateChanged)
@@ -161,7 +161,7 @@ class ConfigController(QObject):
         if not self._show_advanced and self._visible_options(include_advanced=True):
             return _("Only advanced options available")
         if self._form.game and not self._form.game.runner:
-            return _("Select a runner in the Game info tab")
+            return _("Choose a game type in the Game info tab")
         return _("No options available")
 
     @Slot(str, str)

@@ -16,13 +16,13 @@ Dialog {
     readonly property QtObject runtime: library.runtimeUpdates
     readonly property var storage: controller.storage
     readonly property var pageList: [
-        { title: qsTr("Sources"), icon: "store" },
+        { title: qsTr("Stores"), icon: "store" },
         { title: qsTr("Storage"), icon: "storage" },
         { title: qsTr("Updates"), icon: "refresh" },
         { title: qsTr("Accounts"), icon: "user" },
         { title: qsTr("System"), icon: "info" },
         { title: qsTr("Options"), icon: "configure" },
-        { title: qsTr("Runners"), icon: "runner" },
+        { title: qsTr("Local Games"), icon: "platform" },
         { title: qsTr("Interface"), icon: "layout" }
     ]
 
@@ -160,10 +160,10 @@ Dialog {
                 Layout.bottomMargin: 20
                 currentIndex: pages.currentIndex
 
-                // Sources
+                // Stores
                 Page {
                     SettingsGroup {
-                        description: qsTr("Access your game libraries from these sources. A source that's turned off isn't listed in the sidebar.")
+                        description: qsTr("Choose which stores appear in the sidebar.")
 
                         Repeater {
                             model: dialog.controller.sources
@@ -186,7 +186,7 @@ Dialog {
                                 details: CheckBox {
                                     visible: source.modelData.enabled
                                     checked: source.modelData.inGamesView
-                                    text: qsTr("Show games from this source in the Games view")
+                                    text: qsTr("Show games from this store in the Games view")
                                     font.pointSize: Theme.smallSize
                                     onToggled: dialog.controller.set_source_in_games_view(source.modelData.id, checked)
                                 }
@@ -420,7 +420,7 @@ Dialog {
                     SettingsGroup {
                         SettingsRow {
                             title: qsTr("Global options")
-                            subtitle: qsTr("Global options are the system options every runner and game starts from.")
+                            subtitle: qsTr("These are the default system options for all games.")
 
                             Button {
                                 text: qsTr("Edit Global Options…")

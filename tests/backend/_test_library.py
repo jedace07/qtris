@@ -73,10 +73,10 @@ def test_categories_runners_and_text(games):
 
 @pytest.mark.parametrize(
     ("runner", "local_slug", "local_service"),
-    [("linux", "game-10", "xdg"), ("wine", "game-9", "")],
+    [("linux", "game-10", "xdg"), ("wine", "game-9", ""), ("web", None, "")],
 )
-def test_desktop_runner_views_only_show_locally_installed_games(
-    games: dict[str, str], runner: str, local_slug: str, local_service: str
+def test_local_platform_views_only_show_locally_added_games(
+    games: dict[str, str], runner: str, local_slug: str | None, local_service: str
 ) -> None:
     local_entry = PREFIX + "local-entry"
     store_entry = PREFIX + "store-entry"
@@ -88,7 +88,8 @@ def test_desktop_runner_views_only_show_locally_installed_games(
     ):
         games[slug] = games_db.add_game(name=slug, slug=slug, runner=runner, installed=installed, service=service)
 
-    assert query(runner=runner) == [PREFIX + local_slug, local_entry]
+    expected = [PREFIX + local_slug, local_entry] if local_slug else [local_entry]
+    assert query(runner=runner) == expected
     assert query(runner=runner, text="installed:no") == []
     assert query(text="source:gog") == [store_entry]
     assert not asyncio.run(library.is_game_in_view(LibraryQuery(runner=runner), games[store_entry]))

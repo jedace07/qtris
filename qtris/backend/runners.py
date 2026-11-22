@@ -4,28 +4,26 @@ Errors are QtrisError subclasses, such as InvalidRunnerError for a name no
 runner has, and RunnerInstallationError.
 """
 
+from __future__ import annotations
+
 import asyncio
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from gettext import gettext as _
 from pathlib import Path
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING
 
-from qtris.backend.models import RunnerInfo
 from qtris.delegates import InstallUIDelegate
 from qtris.exceptions import QtrisError
 from qtris.game import Game
 from qtris.runners import (
     RunnerInstallationError,
-    get_enabled,
+    get_runner_platform_name,
     get_user_runner_names,
     import_runner,
-    is_runner_enabled,
 )
-from qtris.runners import set_runner_enabled as _save_runner_enabled
 from qtris.util import system
-from qtris.util.downloader import BaseDownloader, SimpleDownloader
+from qtris.util.downloader import SimpleDownloader
 from qtris.util.http import HTTPError
 from qtris.util.log import logger
 from qtris.util.strings import human_size
@@ -33,18 +31,21 @@ from qtris.util.wine import proton, proton_releases, rolling_proton
 from qtris.util.wine.wine import GE_PROTON_LATEST as GE_PROTON_LATEST
 from qtris.util.wine.wine import clear_wine_version_cache, get_installed_wine_versions
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+    from typing import Any
+
+    from qtris.util.downloader import BaseDownloader
+
 # The Proton forks Qtris downloads releases of, by name
 PROTON_FAMILIES: tuple[str, ...] = proton_releases.get_family_names()
 
 
 @dataclass(frozen=True)
-class RunnerCatalogEntry:
+class LocalGamePlatform:
     name: str
     label: str
     description: str
-    enabled: bool
-    installed: bool
-    can_remove: bool
 
 
 @dataclass(frozen=True)
@@ -115,39 +116,12 @@ async def list_runners() -> list[str]:
     return sorted(get_user_runner_names(), key=lambda name: name.lower())
 
 
-async def list_enabled_runners() -> list[RunnerInfo]:
-    """Return the runners that are turned on, in alphabetical order of their names."""
-    enabled = await asyncio.to_thread(get_enabled)
-    return sorted((RunnerInfo(r.name, r.human_name) for r in enabled), key=lambda r: r.human_name.casefold())
-
-
-async def set_runner_enabled(name: str, enabled: bool) -> None:
-    """Turn a runner on or off. Turning one off hides it, and leaves it installed."""
-    _save_runner_enabled(name, enabled)
-
-
-async def list_runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
-    """Describe the runners and which actions Qtris can perform."""
-    return await asyncio.to_thread(_runner_catalog)
-
-
-def _runner_catalog() -> tuple[RunnerCatalogEntry, ...]:
-    entries = []
-    for name in get_user_runner_names():
-        runner = import_runner(name)()
-        # Wine downloads the Proton build a game needs when it first runs, so it's always ready
-        installed = name == "wine" or runner.is_installed()
-        entries.append(
-            RunnerCatalogEntry(
-                name,
-                runner.human_name,
-                str(getattr(runner, "description", "")),
-                is_runner_enabled(name),
-                installed,
-                name != "wine" and runner.can_uninstall(),
-            )
-        )
-    return tuple(sorted(entries, key=lambda entry: entry.label.casefold()))
+async def list_local_game_platforms() -> tuple[LocalGamePlatform, ...]:
+    """Return the built-in local game platforms in sidebar order."""
+    return tuple(
+        LocalGamePlatform(name, get_runner_platform_name(name), str(getattr(import_runner(name), "description", "")))
+        for name in get_user_runner_names()
+    )
 
 
 def _managed_proton_path(version: str) -> Path | None:

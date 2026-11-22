@@ -14,7 +14,7 @@ ColumnLayout {
     readonly property Item selectedGame: rows.currentItem
     // The columns after the name, which the header and rows share
     readonly property var columns: [
-        { key: "", title: qsTr("Runner"), width: 96, visible: showPlatform },
+        { key: "", title: qsTr("Launch via"), width: 96, visible: showPlatform },
         { key: "", title: qsTr("Platform"), width: 96, visible: showPlatform },
         { key: "year", title: qsTr("Year"), width: 58, visible: showDetails },
         { key: "lastplayed", title: qsTr("Last Played"), width: 104, visible: showDetails },

@@ -169,7 +169,7 @@ Dialog {
                 Label {
                     Layout.fillWidth: true
                     visible: dialog.controller.runnersToInstall.length > 0
-                    text: qsTr("Qtris will install these runners first: %1").arg(dialog.controller.runnersToInstall.join(", "))
+                    text: qsTr("Qtris will install these components first: %1").arg(dialog.controller.runnersToInstall.join(", "))
                     textFormat: Text.PlainText
                     wrapMode: Text.WordWrap
                 }

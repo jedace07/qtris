@@ -10,17 +10,18 @@ ColumnLayout {
 
     required property QtObject controller
     required property QtObject configuration
+    readonly property bool managingProton: controller.proton
 
     spacing: 12
     Component.onCompleted: controller.open()
 
     RowLayout {
         Layout.fillWidth: true
-        visible: page.controller.proton
+        visible: page.managingProton
 
         Button {
-            text: qsTr("Back to Runners")
-            icon.source: Theme.icon("arrow-up")
+            text: qsTr("Back to Local Games")
+            icon.source: Theme.icon("chevron-left")
             enabled: !page.controller.busy
             onClicked: page.controller.open()
         }
@@ -39,7 +40,7 @@ ColumnLayout {
 
     TabBar {
         objectName: "protonFamilies"
-        visible: page.controller.proton
+        visible: page.managingProton
         enabled: !page.controller.busy
         currentIndex: page.controller.protonFamily
 
@@ -60,16 +61,7 @@ ColumnLayout {
 
     Label {
         Layout.fillWidth: true
-        visible: !page.controller.proton
-        text: qsTr("Runners that are turned off aren't listed in the sidebar or offered for new games.")
-        wrapMode: Text.WordWrap
-        font.pointSize: Theme.smallSize
-        color: Theme.textMuted
-    }
-
-    Label {
-        Layout.fillWidth: true
-        visible: page.controller.proton
+        visible: page.managingProton
         text: page.controller.protonNote
         wrapMode: Text.WordWrap
         font.pointSize: Theme.smallSize
@@ -102,9 +94,8 @@ ColumnLayout {
                 title: modelData.label
                 subtitle: modelData.description
 
-                // Runners only say when one that's on is missing; Proton builds always say
                 Rectangle {
-                    visible: !entry.modelData.canToggle || (entry.modelData.enabled && !entry.modelData.installed)
+                    visible: page.managingProton
                     implicitWidth: stateLabel.implicitWidth + 16
                     implicitHeight: stateLabel.implicitHeight + 6
                     radius: height / 2
@@ -120,20 +111,19 @@ ColumnLayout {
                     }
                 }
 
-                ToolButton {
+                Button {
                     objectName: "runnerConfigure_" + entry.modelData.key
-                    visible: entry.modelData.canConfigure
+                    visible: !page.managingProton
                     enabled: !page.controller.busy
+                    text: qsTr("Configure…")
                     icon.source: Theme.icon("configure")
                     Accessible.name: qsTr("Configure %1").arg(entry.modelData.label)
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Configure…")
                     onClicked: page.configuration.open_runner(entry.modelData.key, entry.modelData.label)
                 }
 
                 Button {
                     objectName: "runnerVersions_" + entry.modelData.key
-                    visible: entry.modelData.manageProton
+                    visible: !page.managingProton && entry.modelData.manageProton
                     enabled: !page.controller.busy
                     text: qsTr("Manage Proton")
                     onClicked: page.controller.show_proton()
@@ -141,7 +131,7 @@ ColumnLayout {
 
                 Button {
                     objectName: "runnerInstall_" + entry.modelData.key
-                    visible: entry.modelData.canInstall
+                    visible: page.managingProton && entry.modelData.canInstall
                     enabled: !page.controller.busy
                     highlighted: true
                     text: qsTr("Install")
@@ -152,7 +142,7 @@ ColumnLayout {
 
                 Button {
                     objectName: "runnerUpdate_" + entry.modelData.key
-                    visible: entry.modelData.canUpdate
+                    visible: page.managingProton && entry.modelData.canUpdate
                     enabled: !page.controller.busy
                     highlighted: true
                     text: qsTr("Update")
@@ -163,7 +153,7 @@ ColumnLayout {
 
                 ToolButton {
                     objectName: "runnerRemove_" + entry.modelData.key
-                    visible: entry.modelData.canRemove
+                    visible: page.managingProton && entry.modelData.canRemove
                     enabled: !page.controller.busy
                     icon.source: Theme.icon("trash")
                     icon.color: Theme.danger
@@ -172,21 +162,12 @@ ColumnLayout {
                     ToolTip.text: qsTr("Remove…")
                     onClicked: page.controller.remove(entry.modelData.key)
                 }
-
-                Switch {
-                    objectName: "runnerSwitch_" + entry.modelData.key
-                    visible: entry.modelData.canToggle
-                    enabled: !page.controller.busy
-                    checked: entry.modelData.enabled
-                    Accessible.name: qsTr("Use %1").arg(entry.modelData.label)
-                    onToggled: page.controller.set_enabled(entry.modelData.key, checked)
-                }
             }
 
             Label {
                 anchors.centerIn: parent
-                visible: !page.controller.busy && entries.count === 0
-                text: page.controller.proton ? qsTr("No Proton builds found") : qsTr("No runners found")
+                visible: page.managingProton && !page.controller.busy && entries.count === 0
+                text: qsTr("No Proton builds found")
                 color: Theme.textMuted
             }
         }

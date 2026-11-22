@@ -275,7 +275,7 @@ def test_new_games_need_a_runner_and_are_created_on_save(
         form = await configuration.set_game_details(
             form.id, GameDetails(name="Hand Added", sortname="", slug="", runner="", year="", playtime="")
         )
-        with pytest.raises(QtrisError, match="Runner not provided"):
+        with pytest.raises(QtrisError, match="Choose a game type"):
             await configuration.save_config(form.id)
 
         form = await configuration.set_game_runner(form.id, "linux")

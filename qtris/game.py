@@ -399,7 +399,7 @@ class Game:
             raise ValueError("Invalid game passed: %s" % self)
 
         if not self.service or self.service == "lutris":
-            raise GameConfigError(_("Choose a game from one of your library sources to install."))
+            raise GameConfigError(_("Choose a game from one of your stores to install."))
 
         service = launch_ui_delegate.get_service(self.service)
         db_game = service.get_service_db_game(self)

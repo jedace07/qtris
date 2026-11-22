@@ -24,8 +24,9 @@ _VIEW_ICONS = {
     ("category", "favorite"): "favorite",
     ("dynamic_category", ".uncategorized"): "uncategorized",
     ("category", ".hidden"): "hidden",
-    ("runner", "linux"): "linux",
-    ("runner", "wine"): "proton",
+    ("runner", "linux"): "platform",
+    ("runner", "wine"): "windows",
+    ("runner", "web"): "web",
     ("runner", "steam"): "steam",
 }
 _KIND_ICONS = {
@@ -73,10 +74,10 @@ class SidebarModel(QAbstractListModel):
                 _("Saved Searches"),
                 [SidebarEntry(item.name, {"saved_search": item.name}) for item in await library.list_saved_searches()],
             ),
-            (_("Sources"), [SidebarEntry(item.name, {"service": item.id}) for item in await services.list_services()]),
+            (_("Stores"), [SidebarEntry(item.name, {"service": item.id}) for item in await services.list_services()]),
             (
-                _("Runners"),
-                [SidebarEntry(item.human_name, {"runner": item.name}) for item in await runners.list_enabled_runners()],
+                _("Local Games"),
+                [SidebarEntry(item.label, {"runner": item.name}) for item in await runners.list_local_game_platforms()],
             ),
         )
         self.beginResetModel()

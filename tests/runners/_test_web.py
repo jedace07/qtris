@@ -50,8 +50,8 @@ def make_page(folder: Path, name: str = "index.html") -> Path:
     return folder / name
 
 
-def test_web_is_on_by_default() -> None:
-    assert "web" in runners.DEFAULT_RUNNERS
+def test_web_is_built_in() -> None:
+    assert "web" in runners.get_user_runner_names()
     assert web.web().is_installed()
 
 

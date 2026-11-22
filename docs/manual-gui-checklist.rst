@@ -114,8 +114,8 @@ Item 1 - First start
 **Pass:** the window opens within a few seconds. The header bar has a search entry
 ("Search games"), an "Add Game" button, a view toggle and the main menu. The
 sidebar shows **Library** (Games, Recent, Running, Favorites, Uncategorized,
-Hidden) and sections for **Categories**, **Sources**, and **Runners** when they
-have entries. There is no **Platforms** section. The library is empty. Qtris
+Hidden), **Stores**, and **Local Games** (Linux, Windows, Web). Categories
+appear when you add them. The library is empty. Qtris
 starts fetching its runtime/DXVK components, which is normal on a first run.
 No error dialog.
 
@@ -128,7 +128,7 @@ Item 3 - Add a locally installed game
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Do:** "Add Game" → **Add locally installed game** → **Continue**. Name it
-``GUI Smoke Test``, set **Runner** to ``Linux``, open the **Game options** tab and
+``GUI Smoke Test``, set **Game type** to ``Linux``, open the **Game options** tab and
 set **Executable** to ``$SMOKE/first-run/games/sleepy.sh``, then **Save**. Reopen
 the game with right-click → **Configure** → **Game options**, set **Arguments** to
 ``--smoke`` and save again.
@@ -159,7 +159,7 @@ Item 5 - Preferences persist
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Do:** main menu → **Preferences** ("Qtris settings"); the sidebar has Interface,
-Runners, Sources, Accounts, Updates, System, Storage and Global options. Under
+Local Games, Stores, Accounts, Updates, System, Storage and Global options. Under
 **Interface** set **Theme** to Dark, close the dialog, quit the client with Ctrl+Q
 and run ``launch first-run`` again.
 
@@ -167,23 +167,21 @@ and run ``launch first-run`` again.
 it is recorded in ``$SMOKE/first-run/home/.local/share/qtris/qtris.conf``.
 Switching back to System Default also works.
 
-Item 6 - Runner configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Item 6 - Local game defaults
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Do:** in the sidebar open **Runners**, then right-click **Wine** → **Configure**.
-(Double-clicking a runner row only filters the list; the configuration dialog is in
-the context menu.) Untick **Enable DXVK** and save.
+**Do:** under **Local Games** in the sidebar, right-click **Windows** and choose
+**Configure Windows…**. Turn on **Enable fullscreen FSR upscaling** and save. Open **Preferences →
+Local Games** and verify that **Configure…** is available for all three platforms.
 
-**Pass:** selecting the **Linux** or **Proton** runner lists only locally installed
-games for that runner; store games are listed under their sources. The value is
-written to the runner configuration and survives reopening
+**Pass:** selecting **Linux**, **Windows**, or **Web** lists games added locally
+for that platform. Store games appear under **Stores**. The value is written to
+the runner configuration and survives reopening
 the dialog; the reset button next to the option restores the default::
 
     cat "$SMOKE"/first-run/home/.local/share/qtris/runners/wine.yml
 
-The file should contain ``wine:`` and ``dxvk: false``. The Linux runner has no
-runner-level options (its Arguments field is a *game* option, covered by item 3),
-so this item uses Wine.
+The file should contain ``wine:`` and ``fsr: true``.
 
 Item 10 - Restart and clean shutdown
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -257,7 +255,7 @@ or media code.
 Item 8 - Service sync (only if the release can affect services)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Do:** **Preferences → Sources** (or sidebar → **Sources** → the service),
+**Do:** **Preferences → Stores** (or sidebar → **Stores** → the service),
 **Connect**/**Reload** a service installed on this machine, start one installed
 service game, then **Reload** again.
 

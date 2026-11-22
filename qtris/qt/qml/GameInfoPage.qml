@@ -24,12 +24,12 @@ ScrollView {
         parent: Overlay.overlay
         anchors.centerIn: parent
         modal: true
-        title: qsTr("Confirm runner change")
+        title: qsTr("Change game type?")
         standardButtons: Dialog.Yes | Dialog.No
 
         Label {
             width: Math.min(420, page.width)
-            text: qsTr("Are you sure you want to change the runner for this game? This will reset the full configuration for this game and is not reversible.")
+            text: qsTr("Changing the game type resets this game's configuration. This can't be undone.")
             wrapMode: Text.WordWrap
         }
 
@@ -73,7 +73,7 @@ ScrollView {
                 onEditingFinished: page.controller.set_detail("sortname", text)
             }
 
-            Label { text: qsTr("Runner"); color: Theme.textMuted }
+            Label { text: qsTr("Game type"); color: Theme.textMuted }
             ComboBox {
                 id: runnerBox
                 objectName: "gameInfoRunner"
@@ -81,7 +81,7 @@ ScrollView {
                 model: page.controller.runnerChoices
                 textRole: "label"
                 valueRole: "value"
-                Accessible.name: qsTr("Runner")
+                Accessible.name: qsTr("Game type")
                 onModelChanged: currentIndex = indexOfValue(page.game.runner ?? "")
                 onActivated: {
                     if (currentValue === page.game.runner)

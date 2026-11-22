@@ -1,81 +1,42 @@
-"""Turning runners on and off, and what a new profile starts with."""
+"""Built-in local platforms and downloadable Proton builds."""
 
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from qtris import runners as runner_registry
 from qtris import settings
-from qtris.backend import runners
-from qtris.runners import InvalidRunnerError
+from qtris.backend import configuration, runners
 from qtris.util.test_config import setup_test_environment
 from qtris.util.wine import proton
 
 setup_test_environment()
 
 
-@pytest.fixture
-def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
-    values: dict[tuple[str, str], str] = {}
+def test_local_platforms_are_available_even_with_old_disabled_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    read_bool_setting = settings.read_bool_setting
 
-    def read_bool_setting(key: str, default: bool = False, section: str = "qtris") -> bool:
-        value = values.get((section, key))
-        return default if value is None else value == "True"
+    def read_setting(key: str, default: bool = False, section: str = "qtris") -> bool:
+        return False if section == "runners" else read_bool_setting(key, default, section)
 
-    def write_setting(key: str, value: Any, section: str = "qtris") -> None:
-        values[(section, key)] = str(value)
+    monkeypatch.setattr(settings, "read_bool_setting", read_setting)
+    expected = [("linux", "Linux"), ("wine", "Windows"), ("web", "Web")]
 
-    monkeypatch.setattr(settings, "read_bool_setting", read_bool_setting)
-    monkeypatch.setattr(settings, "write_setting", write_setting)
-    return values
+    async def run() -> None:
+        assert [(item.name, item.label) for item in await runners.list_local_game_platforms()] == expected
+        assert await runners.list_runners() == ["linux", "web", "wine"]
+        assert all(runner_registry.is_valid_runner_name(name) for name in ("steam", "flatpak"))
 
+        form = await configuration.open_new_game_config()
+        try:
+            assert [(choice.value, choice.label) for choice in form.runner_choices] == expected
+        finally:
+            await configuration.close_config(form.id)
 
-def test_a_new_profile_has_linux_proton_and_web_turned_on(saved: dict[tuple[str, str], str]) -> None:
-    enabled = asyncio.run(runners.list_enabled_runners())
-    assert [(item.name, item.human_name) for item in enabled] == [
-        ("linux", "Linux"),
-        ("wine", "Proton"),
-        ("web", "Web"),
-    ]
-
-
-def test_steam_is_not_offered_as_a_runner(saved: dict[tuple[str, str], str]) -> None:
-    # A profile that turned the Steam runner off before it became internal
-    saved[("runners", "steam")] = "False"
-    assert "steam" not in asyncio.run(runners.list_runners())
-    assert "steam" not in {entry.name for entry in asyncio.run(runners.list_runner_catalog())}
-    assert "steam" not in {item.name for item in asyncio.run(runners.list_enabled_runners())}
-    # The Steam source's games still run through it
-    assert runner_registry.is_runner_enabled("steam") and runner_registry.is_valid_runner_name("steam")
-    with pytest.raises(InvalidRunnerError):
-        asyncio.run(runners.set_runner_enabled("steam", True))
-
-
-def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str]) -> None:
-    async def change() -> None:
-        await runners.set_runner_enabled("web", False)
-        await runners.set_runner_enabled("linux", False)
-        await runners.set_runner_enabled("web", True)
-
-    asyncio.run(change())
-    assert saved[("runners", "linux")] == "False"
-    enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["wine", "web"]
-
-    with pytest.raises(InvalidRunnerError):
-        asyncio.run(runners.set_runner_enabled("no-such-runner", True))
-
-
-def test_the_catalog_says_which_runners_are_on(saved: dict[tuple[str, str], str]) -> None:
-    catalog = {entry.name: entry for entry in asyncio.run(runners.list_runner_catalog())}
-    assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "web", "wine"}
-    assert catalog["wine"].label == "Proton"
-    # The runner downloads Proton builds when a game needs them
-    assert catalog["wine"].installed
+    asyncio.run(run())
 
 
 def test_protonplus_builds_are_not_qtris_to_list_or_remove(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

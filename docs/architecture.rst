@@ -324,7 +324,7 @@ Cancelling that wait leaves Steam's own installation in progress.
 fires ``GAME_INSTALLED``. New installs can create shortcuts and launch the
 game from the dialog.
 
-Game Actions → Configure, the main menu's Global Options and a runner's context menu
+Game Actions → Configure, the main menu's Global Options and a local platform's context menu
 in the sidebar open configuration forms. ``configuration.open_game_config``,
 ``open_runner_config`` and ``open_system_config`` build a ``QtrisConfig`` at
 that level and return a ``ConfigForm``: a ``ConfigPage`` per config section
@@ -345,7 +345,7 @@ Qt shows the details on a Game Info tab before the option pages. Qt's ``ConfigOp
 so editing doesn't reset the view, and ``ConfigOption.qml`` picks an editor per
 option type.
 
-For native Linux games, Runner Options → Steam Linux Runtime takes effect
+For native Linux games, Platform options → Steam Linux Runtime takes effect
 for the game or as the Linux runner's default. None uses the system libraries.
 The other choices use Valve's 1.0 (Scout), 2.0 (Soldier), 3.0 (Sniper), or 4.0
 container. Qtris finds the launchers in Steam libraries or in umu's runtime
@@ -411,10 +411,11 @@ and ZOOM's DOS and ScummVM games run the Windows DOSBox or ScummVM they bundle
 through Proton. For GOG's depot downloads the installer copies their settings
 from ``gog-support/<id>/app``, where gogdl leaves them, into the game's folder.
 
-Preferences → Runners uses ``qtris.backend.runners`` to configure, install
-and remove runners. Downloads and runner file prompts pass progress and plain
-text back to Qt while installation runs in a worker thread. Wine's **Manage
-Proton** has a tab for each Proton fork Qtris downloads, GE-Proton and
+Preferences → Local Games opens the settings for Linux, Windows and Web. These
+platforms are available in every profile. Under Windows, **Manage Proton** installs,
+updates and removes builds through ``qtris.backend.runners``. Downloads and file
+prompts pass progress and plain text back to Qt while installation runs in a
+worker thread. The page has a tab for each Proton fork Qtris downloads, GE-Proton and
 Proton-CachyOS (``qtris.util.wine.proton_releases``), listing installed builds
 and recent releases for the host architecture from GitHub. Proton-CachyOS gets
 its x86-64-v3 build when the CPU supports that level. Downloads are checked

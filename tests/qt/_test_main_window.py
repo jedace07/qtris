@@ -716,7 +716,7 @@ def test_qml_configures_a_game_and_the_global_options(
             options = window.window.findChild(QQuickItem, "configOptions")
             assert dialog is not None and options is not None
             await wait_for_qml(qt_application, lambda: bool(config.property("ready")))
-            assert config.property("pages") == ["Game info", "Game options", "Runner options", "System options"]
+            assert config.property("pages") == ["Game info", "Game options", "Platform options", "System options"]
             assert dialog.property("title") == "Configure " + PREFIX + "Installed"
             assert config.property("infoPage") and config.property("game")["runner"] == "linux"
             config.select_page(1)
@@ -762,7 +762,9 @@ def test_qml_configures_a_game_and_the_global_options(
             runner = find_item(window.window.contentItem(), "sidebarRunner_linux")
             assert runner is not None
             config.open_runner("linux", "Linux")
-            await wait_for_qml(qt_application, lambda: config.property("pages") == ["Runner options", "System options"])
+            await wait_for_qml(
+                qt_application, lambda: config.property("pages") == ["Platform options", "System options"]
+            )
             assert config.property("title") == "Configure Linux"
 
             add = window.window.findChild(QObject, "addGame")
@@ -913,25 +915,6 @@ def test_qml_manages_ge_proton_from_preferences(
     version = "GE-Proton11-7"
     installed = False
 
-    wine_enabled = True
-
-    async def list_catalog() -> tuple[runners.RunnerCatalogEntry, ...]:
-        return (
-            runners.RunnerCatalogEntry(
-                "wine",
-                "Proton",
-                "Runs Windows games",
-                enabled=wine_enabled,
-                installed=True,
-                can_remove=False,
-            ),
-        )
-
-    async def set_runner_enabled(name: str, enabled: bool, **_kwargs: object) -> None:
-        nonlocal wine_enabled
-        assert name == "wine"
-        wine_enabled = enabled
-
     families: list[str] = []
 
     async def list_builds(family: str, available: tuple[str, ...]) -> tuple[runners.ProtonBuild, ...]:
@@ -964,8 +947,6 @@ def test_qml_manages_ge_proton_from_preferences(
         assert (name, tag) == ("wine", version) and installed
         installed = False
 
-    monkeypatch.setattr(runners, "list_runner_catalog", list_catalog)
-    monkeypatch.setattr(runners, "set_runner_enabled", set_runner_enabled)
     monkeypatch.setattr(runners, "list_proton_builds", list_builds)
     monkeypatch.setattr(runners, "list_proton_releases", list_releases)
     monkeypatch.setattr(runners, "get_latest_proton", get_latest_proton)
@@ -998,18 +979,26 @@ def test_qml_manages_ge_proton_from_preferences(
                 assert button is not None and QMetaObject.invokeMethod(button, "clicked")
 
             manager = window.controller._runner_manager
-            await wait_for_qml(qt_application, lambda: bool(find_item(content, "runnerSwitch_wine")))
-            switch = find_item(content, "runnerSwitch_wine")
-            assert switch is not None and switch.property("checked")
-            switch.setProperty("checked", False)
-            assert QMetaObject.invokeMethod(switch, "toggled")
-            await wait_for_qml(qt_application, lambda: not wine_enabled and not manager.busy)
-            assert not manager.property("entries")[0]["manageProton"]
-            switch = find_item(content, "runnerSwitch_wine")
-            assert switch is not None
-            switch.setProperty("checked", True)
-            assert QMetaObject.invokeMethod(switch, "toggled")
-            await wait_for_qml(qt_application, lambda: wine_enabled and not manager.busy)
+            await wait_for_qml(qt_application, lambda: bool(find_item(content, "runnerConfigure_web")))
+            assert [entry["label"] for entry in manager.property("entries")] == ["Linux", "Windows", "Web"]
+            config = window.controller._configuration
+
+            def opened_config_dialog() -> QObject | None:
+                return next(
+                    (item for item in window.window.findChildren(QObject, "configDialog") if item.property("opened")),
+                    None,
+                )
+
+            for platform, label in (("linux", "Linux"), ("wine", "Windows"), ("web", "Web")):
+                assert find_item(content, f"runnerSwitch_{platform}") is None
+                await click(f"runnerConfigure_{platform}")
+                await wait_for_qml(qt_application, lambda: bool(config.property("ready")))
+                assert config.property("title") == f"Configure {label}"
+                assert config.property("pages") == ["Platform options", "System options"]
+                await wait_for_qml(qt_application, lambda: opened_config_dialog() is not None)
+                config_dialog = opened_config_dialog()
+                assert config_dialog is not None and QMetaObject.invokeMethod(config_dialog, "reject")
+                await wait_for_qml(qt_application, lambda: not config.property("ready"))
 
             await click("runnerVersions_wine")
             await click(f"runnerInstall_{version}")
