@@ -82,6 +82,7 @@ class QtrisApplication(Gio.Application):
         if self.tray:
             self.tray.shutdown()
             self.tray = None
+            self._set_tray_held(False)
         # Quitting (on Ctrl+C, say) leaves the window open otherwise
         if self.window:
             self.window.shutdown()
@@ -175,11 +176,12 @@ class QtrisApplication(Gio.Application):
             self.window.window.visibleChanged.connect(self.on_window_visibility_changed)
             self.tray = TrayIcon(
                 self.window.controller.preferences_controller,
+                self.window.window,
                 self.show_window,
+                self._launch_from_tray,
                 self.quit,
-                self._set_tray_held,
-                self.window,
             )
+            self.tray.disabled.connect(lambda: self._set_tray_held(False))
             # Fill in artwork the library is missing, without a word unless some arrives
             self.window.controller.update_artwork(quiet=True)
             # Keep umu and the rest of the runtime current, if the last check is stale
@@ -187,6 +189,11 @@ class QtrisApplication(Gio.Application):
         elif force:
             self.window.controller.runtime_updates_controller.check()
         self.window.show()
+
+    def _launch_from_tray(self, game_id: str) -> None:
+        if self.window:
+            self.show_window()
+            self.window.controller.launch(game_id, False)
 
     def _set_tray_held(self, held: bool) -> None:
         if held == self._tray_held:
@@ -202,12 +209,13 @@ class QtrisApplication(Gio.Application):
         if visible and not self._window_held:
             self._window_held = True
             self.hold()
+            self._set_tray_held(False)
         elif not visible and self._window_held:
             self._window_held = False
             if self.window:
                 self.window.prompts.dismiss()
-            if self.tray:
-                self.tray.refresh_availability()
+            # Keep a closed-to-tray session alive while the desktop panel restarts
+            self._set_tray_held(bool(self.tray and self.tray.can_keep_open()))
             self.release()
 
     def on_game_launching(self, game: GameInfo) -> None:

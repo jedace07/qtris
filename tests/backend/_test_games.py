@@ -6,7 +6,7 @@ import dataclasses
 import pytest
 
 from qtris import settings
-from qtris.backend import game_maintenance, games, preferences, runners, services
+from qtris.backend import game_actions, game_maintenance, games, preferences, runners, services
 from qtris.backend.models import GameInfo
 from qtris.database import games as games_db
 from qtris.database import sql
@@ -63,6 +63,25 @@ def test_installed_games_can_be_listed_alone(library):
     assert {installed_id, other_id} <= all_ids
     assert installed_id in installed_ids
     assert other_id not in installed_ids
+
+
+def test_recent_installed_games_exclude_hidden_games(library: list[str]) -> None:
+    played_id, uninstalled_id = library
+    games_db.update_existing(id=played_id, lastplayed=300, installed_at=100)
+    games_db.update_existing(id=uninstalled_id, lastplayed=500)
+    new_id = str(games_db.add_game(name="Recently Installed", slug="recently-installed", runner="linux", installed=1))
+    games_db.update_existing(id=new_id, lastplayed=None, installed_at=400)
+    try:
+        assert games.list_recent_installed_games(1) == [(new_id, "Recently Installed")]
+        assert games.list_recent_installed_games(10) == [
+            (new_id, "Recently Installed"),
+            (played_id, "Backend Installed"),
+        ]
+        asyncio.run(game_actions.set_hidden(new_id, True))
+        assert games.list_recent_installed_games(10) == [(played_id, "Backend Installed")]
+    finally:
+        asyncio.run(game_actions.set_hidden(new_id, False))
+        games_db.delete_game(new_id)
 
 
 def test_games_are_found_by_id_or_slug(library):

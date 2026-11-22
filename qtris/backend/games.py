@@ -8,6 +8,7 @@ from gettext import gettext as _
 from typing import TYPE_CHECKING, Any
 
 from qtris.backend.models import GameInfo
+from qtris.database import categories as categories_db
 from qtris.database import games as games_db
 from qtris.delegates import CommandLineUIDelegate
 from qtris.exceptions import QtrisError
@@ -157,6 +158,13 @@ async def list_games(installed_only: bool = False) -> list[GameInfo]:
     """Return the games in the library, or only the installed ones."""
     db_games = games_db.get_games(filters=({"installed": 1} if installed_only else None))
     return [to_game_info(db_game) for db_game in db_games]
+
+
+def list_recent_installed_games(limit: int) -> list[tuple[str, str]]:
+    hidden_ids = set(categories_db.get_game_ids_for_categories([".hidden"]))
+    installed = [game for game in games_db.get_games(filters={"installed": 1}) if game["id"] not in hidden_ids]
+    installed.sort(key=lambda game: max(game["lastplayed"] or 0, game["installed_at"] or 0), reverse=True)
+    return [(game["id"], game["name"] or game["slug"] or game["id"]) for game in installed[:limit]]
 
 
 async def get_game_log(game_id: str) -> str:
