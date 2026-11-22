@@ -31,6 +31,7 @@ Dialog {
         function onRequested() {
             dialog.usingExisting = false
             existingForm.clear()
+            installPrefix.text = ""
         }
     }
 
@@ -69,141 +70,167 @@ Dialog {
     contentItem: StackLayout {
         currentIndex: dialog.installation.active ? 2 : dialog.usingExisting ? 1 : 0
 
-        ColumnLayout {
-            id: installForm
+        ScrollView {
+            id: installScroll
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: installForm.implicitHeight
 
-            readonly property var choices: dialog.controller.choices
-            readonly property var choice: choices[dialog.controller.choiceIndex] ?? null
+            ColumnLayout {
+                id: installForm
+                width: installScroll.availableWidth
 
-            spacing: 8
+                readonly property var choices: dialog.controller.choices
+                readonly property var choice: choices[dialog.controller.choiceIndex] ?? null
 
-            Label {
-                visible: installForm.choices.length > 1
-                text: qsTr("Installation option")
-                font.weight: Font.DemiBold
-            }
+                spacing: 8
 
-            ComboBox {
-                objectName: "installerOptions"
-                Layout.fillWidth: true
-                visible: installForm.choices.length > 1
-                enabled: !dialog.controller.loading
-                model: installForm.choices
-                textRole: "version"
-                currentIndex: dialog.controller.choiceIndex
-                Accessible.name: qsTr("Installation option")
-                onActivated: index => dialog.controller.select(index)
-            }
+                Label {
+                    visible: installForm.choices.length > 1
+                    text: qsTr("Installation option")
+                    font.weight: Font.DemiBold
+                }
 
-            Label {
-                Layout.fillWidth: true
-                visible: text.length > 0
-                text: installForm.choices.length === 1 && !dialog.controller.createsShortcuts ? installForm.choices[0].version : ""
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-                font.weight: Font.DemiBold
-            }
-
-            Label {
-                objectName: "installerSummary"
-                Layout.fillWidth: true
-                visible: text.length > 0
-                text: dialog.controller.requiredGame.length > 0 ? qsTr("Install %1 first.").arg(dialog.controller.requiredGame) : (installForm.choice?.description ?? "")
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-                color: Theme.textMuted
-            }
-
-            Label {
-                Layout.fillWidth: true
-                visible: text.length > 0
-                text: installForm.choice?.notes ?? ""
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-                color: Theme.textMuted
-            }
-
-            Label {
-                Layout.topMargin: 4
-                visible: dialog.controller.createsGameFolder
-                text: qsTr("Installation folder")
-                font.weight: Font.DemiBold
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                visible: dialog.controller.createsGameFolder
-
-                TextField {
-                    objectName: "installerDirectory"
+                ComboBox {
+                    objectName: "installerOptions"
                     Layout.fillWidth: true
-                    text: dialog.controller.directory
-                    Accessible.name: qsTr("Installation folder")
-                    onTextEdited: dialog.controller.set_directory(text)
+                    visible: installForm.choices.length > 1
+                    enabled: !dialog.controller.loading
+                    model: installForm.choices
+                    textRole: "version"
+                    currentIndex: dialog.controller.choiceIndex
+                    Accessible.name: qsTr("Installation option")
+                    onActivated: index => dialog.controller.select(index)
                 }
 
-                Button {
-                    text: qsTr("Browse…")
-                    icon.source: Theme.icon("folder")
-                    Accessible.name: qsTr("Browse for installation folder")
-                    onClicked: picker.open()
+                Label {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: installForm.choices.length === 1 && !dialog.controller.createsShortcuts ? installForm.choices[0].version : ""
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                    font.weight: Font.DemiBold
                 }
-            }
 
-            Label {
-                Layout.fillWidth: true
-                visible: dialog.controller.runnersToInstall.length > 0
-                text: qsTr("Qtris will install these runners first: %1").arg(dialog.controller.runnersToInstall.join(", "))
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-            }
+                Label {
+                    objectName: "installerSummary"
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: dialog.controller.requiredGame.length > 0 ? qsTr("Install %1 first.").arg(dialog.controller.requiredGame) : (installForm.choice?.description ?? "")
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                    color: Theme.textMuted
+                }
 
-            CheckBox {
-                id: bonusContent
-                visible: dialog.controller.offersExtras
-                text: qsTr("Choose bonus downloads")
-            }
+                Label {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: installForm.choice?.notes ?? ""
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                    color: Theme.textMuted
+                }
 
-            CheckBox {
-                id: desktopShortcut
-                objectName: "installerDesktopShortcut"
-                visible: dialog.controller.selected && dialog.controller.createsShortcuts && dialog.controller.requiredGame.length === 0
-                checked: dialog.installation.desktopShortcutDefault
-                text: qsTr("Create desktop shortcut")
-            }
+                Label {
+                    Layout.topMargin: 4
+                    visible: dialog.controller.createsGameFolder
+                    text: qsTr("Installation folder")
+                    font.weight: Font.DemiBold
+                }
 
-            CheckBox {
-                id: menuShortcut
-                objectName: "installerMenuShortcut"
-                visible: desktopShortcut.visible
-                checked: dialog.installation.menuShortcutDefault
-                text: qsTr("Create application menu shortcut")
-            }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: dialog.controller.createsGameFolder
 
-            Label {
-                Layout.fillWidth: true
-                visible: text.length > 0
-                text: dialog.controller.loading ? qsTr("Preparing installation…") : dialog.controller.error
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-                color: dialog.controller.loading ? Theme.textMuted : Theme.danger
-            }
+                    TextField {
+                        objectName: "installerDirectory"
+                        Layout.fillWidth: true
+                        text: dialog.controller.directory
+                        Accessible.name: qsTr("Installation folder")
+                        onTextEdited: dialog.controller.set_directory(text)
+                    }
 
-            ProgressBar {
-                Layout.fillWidth: true
-                visible: dialog.controller.loading
-                indeterminate: visible
-                Accessible.name: qsTr("Preparing installation…")
-            }
+                    Button {
+                        text: qsTr("Browse…")
+                        icon.source: Theme.icon("folder")
+                        Accessible.name: qsTr("Browse for installation folder")
+                        onClicked: picker.open()
+                    }
+                }
 
-            Item {
-                Layout.fillHeight: true
+                WinePrefixField {
+                    id: installPrefix
+                    objectName: "installationWinePrefix"
+                    Layout.fillWidth: true
+                    controller: dialog.controller
+                    visible: dialog.controller.canChooseWinePrefix
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: dialog.controller.runnersToInstall.length > 0
+                    text: qsTr("Qtris will install these runners first: %1").arg(dialog.controller.runnersToInstall.join(", "))
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                }
+
+                CheckBox {
+                    id: bonusContent
+                    visible: dialog.controller.offersExtras
+                    text: qsTr("Choose bonus downloads")
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    visible: dialog.controller.selected && dialog.controller.createsShortcuts && dialog.controller.requiredGame.length === 0
+                    columns: width >= desktopShortcut.implicitWidth + menuShortcut.implicitWidth + columnSpacing ? 2 : 1
+                    columnSpacing: 16
+                    rowSpacing: 0
+
+                    CheckBox {
+                        id: desktopShortcut
+                        objectName: "installerDesktopShortcut"
+                        checked: dialog.installation.desktopShortcutDefault
+                        text: qsTr("Create desktop shortcut")
+                    }
+
+                    CheckBox {
+                        id: menuShortcut
+                        objectName: "installerMenuShortcut"
+                        checked: dialog.installation.menuShortcutDefault
+                        text: qsTr("Create application menu shortcut")
+                    }
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    visible: text.length > 0
+                    text: dialog.controller.loading ? qsTr("Preparing installation…") : dialog.controller.error
+                    textFormat: Text.PlainText
+                    wrapMode: Text.WordWrap
+                    color: dialog.controller.loading ? Theme.textMuted : Theme.danger
+                }
+
+                ProgressBar {
+                    Layout.fillWidth: true
+                    visible: dialog.controller.loading
+                    indeterminate: visible
+                    Accessible.name: qsTr("Preparing installation…")
+                }
             }
         }
 
-        ExistingGameForm {
-            id: existingForm
-            controller: dialog.controller
+        ScrollView {
+            id: existingScroll
+            clip: true
+            contentWidth: availableWidth
+            contentHeight: existingForm.implicitHeight
+
+            ExistingGameForm {
+                id: existingForm
+                width: existingScroll.availableWidth
+                controller: dialog.controller
+            }
         }
 
         InstallationPage {
@@ -254,7 +281,7 @@ Dialog {
                 text: dialog.controller.startLabel
                 visible: !dialog.usingExisting && dialog.controller.selected && !dialog.installation.active && dialog.controller.requiredGame.length === 0
                 enabled: !dialog.controller.loading && (!dialog.controller.createsGameFolder || dialog.controller.directory.trim().length > 0)
-                onClicked: dialog.controller.install(desktopShortcut.checked, menuShortcut.checked, bonusContent.checked)
+                onClicked: dialog.controller.install(desktopShortcut.checked, menuShortcut.checked, bonusContent.checked, installPrefix.text)
             }
 
             Button {

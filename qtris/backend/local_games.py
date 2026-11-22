@@ -22,6 +22,7 @@ from qtris.runners.linux import linux
 from qtris.util.gog import get_game_config
 from qtris.util.log import logger
 from qtris.util.strings import slugify
+from qtris.util.wine.wine import prepare_wine_prefix
 from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
@@ -45,11 +46,13 @@ async def register_linux_game(executable: str, name: str, arguments: str = "", *
     return await game_maintenance._run_maintenance(game_id, register)
 
 
-async def register_gog_game(appid: str, directory: str, executable: str = '', *, game_id: str = '') -> GameInfo:
+async def register_gog_game(
+    appid: str, directory: str, executable: str = '', *, game_id: str = '', wine_prefix: str = ''
+) -> GameInfo:
     """Link a GOG library entry to an existing game folder."""
 
     async def register() -> GameInfo:
-        row = await asyncio.to_thread(_register_gog, appid, directory, executable, game_id)
+        row = await asyncio.to_thread(_register_gog, appid, directory, executable, game_id, wine_prefix)
         game = games.to_game_info(row)
         events.GAME_INSTALLED.fire(game)
         return game
@@ -57,7 +60,9 @@ async def register_gog_game(appid: str, directory: str, executable: str = '', *,
     return await game_maintenance._run_maintenance(game_id, register)
 
 
-def _register_gog(appid: str, directory: str, executable: str, game_id: str) -> games_db.DbGameDict:
+def _register_gog(
+    appid: str, directory: str, executable: str, game_id: str, wine_prefix: str
+) -> games_db.DbGameDict:
     if not appid.isascii() or not appid.isdecimal():
         raise QtrisError(_('This GOG game has an invalid product ID.'))
     source = ServiceGameCollection.get_game('gog', appid)
@@ -78,9 +83,9 @@ def _register_gog(appid: str, directory: str, executable: str, game_id: str) -> 
     if not path.is_absolute() or not path.resolve().is_relative_to(folder) or not path.is_file():
         raise QtrisError(_('Choose a game executable inside the selected folder.'))
     runner = 'wine' if path.suffix.casefold() == '.exe' else 'linux'
-    if runner == 'wine':
-        options['prefix'] = str(Path(settings.DATA_DIR) / 'prefixes' / f'gog-{appid}')
-    else:
+    if runner == 'linux':
+        if wine_prefix:
+            raise QtrisError(_('Clear the Wine prefix to use the Linux executable.'))
         _check_executable(str(path))
     working_dir = Path(options.get('working_dir') or path.parent)
     if not working_dir.is_absolute():
@@ -98,7 +103,8 @@ def _register_gog(appid: str, directory: str, executable: str, game_id: str) -> 
         if game_id and entry is None:
             raise QtrisError(_('This game is no longer in the library.'))
         if runner == 'wine':
-            Path(options['prefix']).parent.mkdir(parents=True, exist_ok=True)
+            default_prefix = Path(settings.DATA_DIR) / 'prefixes' / f'gog-{appid}'
+            options['prefix'] = prepare_wine_prefix(wine_prefix or str(default_prefix))
         name = entry['name'] if entry else str(source['name'])
         return _save_registration(
             name,

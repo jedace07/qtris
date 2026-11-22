@@ -3,6 +3,7 @@
 import os
 import re
 from collections import defaultdict
+from os import stat
 
 from qtris.util import magic, system
 from qtris.util.log import logger
@@ -134,12 +135,13 @@ def is_excluded_exe(filename):
     return any(exclude in _fn for exclude in excluded)
 
 
-def find_windows_game_executable(path):
+def find_windows_game_executable(path: str, *, changed_since_ns: int | None = None) -> str:
     game_name = normalize_name(os.path.basename(os.path.normpath(path)))
 
-    for base, _dirs, files in os.walk(path):
+    for base, dirs, files in os.walk(path):
         candidates = defaultdict(list)
         if is_excluded_dir(base):
+            dirs.clear()
             continue
         for _file in files:
             if is_excluded_exe(_file):
@@ -147,6 +149,13 @@ def find_windows_game_executable(path):
             abspath = os.path.join(base, _file)
             if os.path.islink(abspath):
                 continue
+            if changed_since_ns is not None:
+                # ctime also catches installers that preserve the original file timestamps
+                try:
+                    if stat(abspath).st_ctime_ns < changed_since_ns:
+                        continue
+                except FileNotFoundError:
+                    continue
             file_type = magic.from_file(abspath)
             if "MS Windows shortcut" in file_type:
                 candidates["link"].append(abspath)

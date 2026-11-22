@@ -2,6 +2,7 @@
 
 import os
 from gettext import gettext as _
+from time import time_ns
 
 from qtris import settings
 from qtris.artwork import fetch_game_artwork
@@ -288,6 +289,8 @@ class ScriptInterpreter(CommandsMixin):
 
     def launch_installer_commands(self):
         """Run the pre-installation steps and launch install."""
+        if self.installer.wine_prefix:
+            self.installer.prefix_install_started_at = time_ns()
         self.create_game_folder()
 
         os.makedirs(self.cache_path, exist_ok=True)
@@ -477,7 +480,7 @@ class ScriptInterpreter(CommandsMixin):
             except Exception as ex:
                 error_function(ex)
 
-        if self.installer.runner.startswith("wine"):
+        if self.installer.runner.startswith("wine") and not self.installer.wine_prefix:
             AsyncCall(self.task, on_complete, {"name": "winekill"})
         else:
             on_complete(None, None)

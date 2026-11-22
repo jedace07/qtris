@@ -166,6 +166,7 @@ class InstallerSelection:
     # before this script can be used
     required_game_slug: str | None = None
     offers_extras: bool = False
+    can_choose_wine_prefix: bool = False
 
 
 @dataclass(frozen=True)

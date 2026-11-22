@@ -6,13 +6,23 @@ from qtris.util import system
 from qtris.util.log import logger
 
 
-def get_gog_game_path(target_path):
+def get_gog_game_path(target_path, product_id: str | None = None):
     """Return the absolute path where a GOG game is installed"""
     gog_game_path = os.path.join(target_path, "drive_c/GOG Games/")
     if not os.path.exists(gog_game_path):
         logger.warning("No 'GOG Games' folder in %s", target_path)
         return None
     games = os.listdir(gog_game_path)
+    if product_id:
+        manifest = f'goggame-{product_id}.info'
+        return next(
+            (
+                os.path.join(gog_game_path, game)
+                for game in games
+                if os.path.isfile(os.path.join(gog_game_path, game, manifest))
+            ),
+            None,
+        )
     if not games:
         logger.warning("No game found in %s", gog_game_path)
         return None
@@ -21,9 +31,10 @@ def get_gog_game_path(target_path):
     return os.path.join(gog_game_path, games[0])
 
 
-def get_gog_config(gog_game_path):
+def get_gog_config(gog_game_path, product_id: str | None = None):
     """Extract runtime information such as executable paths from GOG files"""
-    config_files = glob.glob(os.path.join(gog_game_path, "goggame-*.info"))
+    manifest = f'goggame-{product_id}.info' if product_id else 'goggame-*.info'
+    config_files = glob.glob(os.path.join(glob.escape(gog_game_path), manifest))
     if not config_files:
         logger.error("No config file found in %s", gog_game_path)
         return
@@ -80,13 +91,6 @@ def convert_gog_config_to_qtris(gog_config, gog_game_path):
     return qtris_config
 
 
-def get_gog_config_from_path(target_path):
-    """Return the GOG configuration for a root path"""
-    gog_game_path = get_gog_game_path(target_path)
-    if gog_game_path:
-        return get_gog_config(gog_game_path)
-
-
 def find_gog_config_dir(install_dir):
     """Return the directory containing goggame-*.info files, or None.
 
@@ -134,11 +138,12 @@ def find_installed_product_ids(install_dir):
 
 def apply_gog_config(installer):
     """Post-install hook: read GOG config from the install target and merge into the game script."""
-    target_path = installer.interpreter.target_path
+    prefix = installer.wine_prefix or installer.interpreter.target_path
+    product_id = str(installer.service_appid) if installer.wine_prefix and installer.service_appid else None
     if (
-        (gog_config := get_gog_config_from_path(target_path))
-        and (gog_game_path := get_gog_game_path(target_path))
-        and "game" in installer.script
+        'game' in installer.script
+        and (gog_game_path := get_gog_game_path(prefix, product_id))
+        and (gog_config := get_gog_config(gog_game_path, product_id))
     ):
         qtris_config = convert_gog_config_to_qtris(gog_config, gog_game_path)
         installer.script["game"].update(qtris_config)

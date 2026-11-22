@@ -120,6 +120,10 @@ class InstallerController(QObject):
     def offersExtras(self) -> bool:  # noqa: N802
         return bool(self._selection and self._selection.offers_extras)
 
+    @Property(bool, notify=stateChanged)
+    def canChooseWinePrefix(self) -> bool:  # noqa: N802
+        return bool(self._selection and self._selection.can_choose_wine_prefix)
+
     @Property(str, notify=stateChanged)
     def title(self) -> str:
         if self._kind == InstallationKind.UPDATE:
@@ -188,19 +192,24 @@ class InstallerController(QObject):
     def folder_url(self, directory: str) -> QUrl:
         return QUrl.fromLocalFile(directory)
 
-    @Slot(str, str)
-    def import_existing(self, directory: str, executable: str) -> None:
+    @Slot(str, str, str)
+    def import_existing(self, directory: str, executable: str, wine_prefix: str) -> None:
         if self._gog_target is None or self._importing or self.installation_controller.active:
             return
         self._importing = True
         self._import_error = ''
         self.existingStateChanged.emit()
         appid, game_id = self._gog_target
-        start_task(self._import_gog(appid, game_id, directory.strip(), executable.strip()), self._prompts.error)
+        start_task(
+            self._import_gog(appid, game_id, directory.strip(), executable.strip(), wine_prefix.strip()),
+            self._prompts.error,
+        )
 
-    async def _import_gog(self, appid: str, game_id: str, directory: str, executable: str) -> None:
+    async def _import_gog(self, appid: str, game_id: str, directory: str, executable: str, wine_prefix: str) -> None:
         try:
-            game = await local_games.register_gog_game(appid, directory, executable, game_id=game_id)
+            game = await local_games.register_gog_game(
+                appid, directory, executable, game_id=game_id, wine_prefix=wine_prefix
+            )
         except QtrisError as error:
             self._import_error = str(error)
             return
@@ -220,8 +229,8 @@ class InstallerController(QObject):
             self._directory = directory
             self.stateChanged.emit()
 
-    @Slot(bool, bool, bool)
-    def install(self, desktop_shortcut: bool, menu_shortcut: bool, include_extras: bool) -> None:
+    @Slot(bool, bool, bool, str)
+    def install(self, desktop_shortcut: bool, menu_shortcut: bool, include_extras: bool, wine_prefix: str) -> None:
         """Start installing with the selected script, into the chosen folder."""
         selection = self._selection
         if not selection or selection.required_game_slug or self._task or self._importing:
@@ -235,6 +244,7 @@ class InstallerController(QObject):
             self._directory.strip(),
             kinds if self.createsShortcuts else None,
             include_extras=include_extras and selection.offers_extras,
+            wine_prefix=wine_prefix.strip() if selection.can_choose_wine_prefix else '',
         )
 
     @Slot()

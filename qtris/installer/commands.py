@@ -34,6 +34,7 @@ class CommandsMixin:
     installer: QtrisInstaller = NotImplemented
     target_path: str
     interpreter_ui_delegate: Any
+    cancelled: bool
 
     def get_wine_path(self) -> str:
         """Return the program that runs Wine during the installation: the Proton build
@@ -235,10 +236,13 @@ class CommandsMixin:
         """
         self._check_required_params("name", data, "task")
         runner_name, task_name = self._get_task_runner_and_name(data.pop("name"))
+        wine_prefix = ''
 
         if runner_name.startswith("wine"):
+            wine_prefix = self.installer.wine_prefix
             data["wine_path"] = self.get_wine_path()
-            data["prefix"] = data.get("prefix") or self.installer.script.get("game", {}).get("prefix") or "$GAMEDIR"
+            if not wine_prefix:
+                data['prefix'] = data.get('prefix') or self.installer.script.get('game', {}).get('prefix') or '$GAMEDIR'
             data["arch"] = data.get("arch") or self.installer.script.get("game", {}).get("arch") or WINE_DEFAULT_ARCH
             if task_name == "wineexec":
                 data["env"] = self.script_env
@@ -255,9 +259,16 @@ class CommandsMixin:
                 value = self._substitute(data[key])
             data[key] = value
 
+        if wine_prefix:
+            data['prefix'] = wine_prefix
         task = import_task(runner_name, task_name)
         command = task(**data)
         if isinstance(command, MonitoredCommand):
+            if wine_prefix:
+                self.abort_current_task = command.stop
+                if self.cancelled:
+                    command.stop()
+                    return 'STOP'
             # Monitor thread and continue when task has executed
             self.interpreter_ui_delegate.attach_log(command)
             schedule_repeating_at_idle(self._monitor_task, command, interval_seconds=1.0)
@@ -265,7 +276,10 @@ class CommandsMixin:
         return None
 
     def _monitor_task(self, command):
+        if self.cancelled:
+            return False
         if not command.is_running:
+            self.abort_current_task = None
             logger.debug("Return code: %s", command.return_code)
             if command.return_code != "0":
                 raise ScriptingError(_("Command exited with code %s") % command.return_code)

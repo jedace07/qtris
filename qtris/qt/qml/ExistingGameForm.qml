@@ -18,12 +18,13 @@ ColumnLayout {
         folder.forceActiveFocus()
 
     function submit() {
-        controller.import_existing(folder.text, executable.text)
+        controller.import_existing(folder.text, executable.text, prefix.visible ? prefix.text : "")
     }
 
     function clear() {
         folder.clear()
         executable.clear()
+        prefix.text = ""
     }
 
     NativeDialogs.FolderDialog {
@@ -96,6 +97,15 @@ ColumnLayout {
         }
     }
 
+    WinePrefixField {
+        id: prefix
+        objectName: "existingWinePrefix"
+        Layout.fillWidth: true
+        controller: form.controller
+        label: qsTr("Wine prefix (Windows games)")
+        visible: executable.text.trim().length === 0 || executable.text.trim().toLowerCase().endsWith(".exe")
+    }
+
     Label {
         objectName: "existingGameError"
         Layout.fillWidth: true
@@ -111,9 +121,5 @@ ColumnLayout {
         visible: form.controller.importing
         indeterminate: visible
         Accessible.name: qsTr("Linking game…")
-    }
-
-    Item {
-        Layout.fillHeight: true
     }
 }

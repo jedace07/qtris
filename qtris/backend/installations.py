@@ -654,6 +654,7 @@ async def start_installation(
     shortcut_kinds: tuple[str, ...] = (),
     *,
     include_extras: bool = True,
+    wine_prefix: str = '',
 ) -> InstallationInfo:
     """Start installing with a catalog's script into a folder, if the script creates one.
 
@@ -663,7 +664,7 @@ async def start_installation(
     if unknown:
         raise QtrisError(_("Unknown shortcut destinations: %s") % ", ".join(sorted(unknown)))
     delegate = _InterpreterDelegate()
-    interpreter, kind = await installers.build_interpreter(catalog_id, choice_id, delegate)
+    interpreter, kind = await installers.build_interpreter(catalog_id, choice_id, delegate, wine_prefix=wine_prefix)
     installation = _Installation(interpreter, delegate, directory, shortcut_kinds, kind)
     _installations[installation.id] = installation
     installation.start(installation.prepare(include_extras=include_extras))

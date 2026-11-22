@@ -3,6 +3,7 @@
 import asyncio
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,7 +12,10 @@ from qtris import settings
 from qtris.backend import installers, services
 from qtris.database import games as games_db
 from qtris.exceptions import QtrisError
+from qtris.installer import commands
+from qtris.installer.interpreter import ScriptInterpreter
 from qtris.services.ubisoft import UbisoftConnectService
+from qtris.util import game_finder, magic
 from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
@@ -209,8 +213,6 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
 
 @pytest.mark.parametrize(("windows_version", "locale"), [("win10", ""), ("win7", "ja_JP.utf8")])
 def test_windows_setup_preserves_a_literal_executable_path(tmp_path: Path, windows_version: str, locale: str) -> None:
-    from qtris.installer.interpreter import ScriptInterpreter
-
     executable = tmp_path / "Setup $GAMEDIR.exe"
     executable.touch()
 
@@ -230,6 +232,51 @@ def test_windows_setup_preserves_a_literal_executable_path(tmp_path: Path, windo
                 assert len(tasks) == 1
             else:
                 assert tasks[0] == {"name": "winetricks", "app": windows_version, "arch": "win64"}
+        finally:
+            await installers.close_catalog(catalog.id)
+
+    asyncio.run(run())
+
+
+def test_windows_setup_uses_the_chosen_prefix_for_tasks_and_launch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    setup = tmp_path / 'Setup.exe'
+    setup.touch()
+    prefix = tmp_path / 'Prefix $GAMEDIR'
+    drive_c = prefix / 'drive_c'
+    drive_c.mkdir(parents=True)
+    (prefix / 'system.reg').write_text('#arch=win64\n', encoding='utf-8')
+    other_game = drive_c / 'Long name for another game.exe'
+    other_game.touch()
+    game_exe = drive_c / 'Game.exe'
+    task_arguments: dict[str, Any] = {}
+
+    def execute_task(**kwargs: Any) -> None:
+        task_arguments.update(kwargs)
+
+    monkeypatch.setattr(commands, 'import_task', lambda *_args: execute_task)
+    monkeypatch.setattr(ScriptInterpreter, 'get_wine_path', lambda _self: '/bin/wine')
+    monkeypatch.setattr(magic, 'from_file', lambda *_args: 'PE32+ executable (GUI) x86-64')
+    monkeypatch.setattr(
+        game_finder, 'stat', lambda filename: SimpleNamespace(st_ctime_ns=1 if filename == str(game_exe) else 0)
+    )
+
+    async def run() -> None:
+        catalog = await installers.prepare_windows_setup('Test Game', str(setup))
+        try:
+            selection = await installers.select_installer(catalog.id, '0')
+            assert selection.can_choose_wine_prefix
+            interpreter, _ = await installers.build_interpreter(
+                catalog.id, '0', ScriptInterpreter.InterpreterUIDelegate(), wine_prefix=str(prefix)
+            )
+            interpreter.target_path = str(tmp_path / 'Install folder')
+            interpreter.installer.prefix_install_started_at = 1
+            game_exe.touch()
+            interpreter.task({'name': 'wineexec', 'executable': '$SETUP_EXE', 'prefix': '$GAMEDIR'})
+            assert task_arguments['prefix'] == str(prefix) and task_arguments['executable'] == str(setup)
+            launch = interpreter.installer.get_game_config()['game']
+            assert launch['prefix'] == str(prefix) and launch['exe'] == str(game_exe)
         finally:
             await installers.close_catalog(catalog.id)
 

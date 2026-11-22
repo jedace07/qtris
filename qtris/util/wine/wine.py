@@ -5,8 +5,9 @@ import re
 import signal
 from collections import OrderedDict
 from gettext import gettext as _
+from pathlib import Path
 
-from qtris.exceptions import MissingExecutableError, UnspecifiedVersionError
+from qtris.exceptions import MissingExecutableError, QtrisError, UnspecifiedVersionError
 from qtris.util import cache_single, system
 from qtris.util.log import logger
 from qtris.util.process import Process
@@ -58,6 +59,24 @@ def detect_prefix_arch(prefix_path: str) -> str:
                 return "win32"
     logger.error("Failed to detect Wine prefix architecture in %s; defaulting to %s.", prefix_path, WINE_DEFAULT_ARCH)
     return WINE_DEFAULT_ARCH
+
+
+def prepare_wine_prefix(directory: str) -> str:
+    """Resolve a chosen Wine prefix and make its parent available to Proton."""
+    try:
+        path = Path(directory).expanduser()
+        if not path.is_absolute():
+            raise QtrisError(_('Enter an absolute path for the Wine prefix.'))
+        path = path.resolve()
+        if is_prefix_directory(str(path)):
+            if detect_prefix_arch(str(path)) == 'win32':
+                raise QtrisError(_('Proton needs a 64-bit Wine prefix.'))
+        elif path.exists() and (not path.is_dir() or any(path.iterdir())):
+            raise QtrisError(_('Choose a Wine prefix, an empty folder, or a new path.'))
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise QtrisError(_('Could not open the Wine prefix path: %s') % directory) from error
+    return str(path)
 
 
 def set_drive_path(prefix: str, letter: str, path: str) -> None:

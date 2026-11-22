@@ -148,6 +148,7 @@ class InstallationController(QObject):
         shortcut_kinds: tuple[str, ...] | None,
         *,
         include_extras: bool,
+        wine_prefix: str = '',
     ) -> None:
         if self.active:
             return
@@ -160,7 +161,8 @@ class InstallationController(QObject):
         self.stateChanged.emit()
         self.logChanged.emit()
         self._start_task = start_task(
-            self._start(catalog_id, choice_id, directory, shortcut_kinds, include_extras), self._prompts.error
+            self._start(catalog_id, choice_id, directory, shortcut_kinds, include_extras, wine_prefix),
+            self._prompts.error,
         )
 
     async def _start(
@@ -170,13 +172,19 @@ class InstallationController(QObject):
         directory: str,
         shortcut_kinds: tuple[str, ...] | None,
         include_extras: bool,
+        wine_prefix: str,
     ) -> None:
         try:
             if shortcut_kinds is not None:
                 await installations.set_default_shortcuts(shortcut_kinds)
                 self._default_shortcuts = shortcut_kinds
             info = await installations.start_installation(
-                catalog_id, choice_id, directory, shortcut_kinds or (), include_extras=include_extras
+                catalog_id,
+                choice_id,
+                directory,
+                shortcut_kinds or (),
+                include_extras=include_extras,
+                wine_prefix=wine_prefix,
             )
         except BaseException:
             self._unregister()

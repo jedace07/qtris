@@ -40,6 +40,7 @@ from qtris.game import LOG_BUFFERS, Game
 from qtris.installer import interpreter
 from qtris.qt import store_sources
 from qtris.qt.main_window import MainWindow
+from qtris.runners.wine import wine
 from qtris.services.base import QtrisBanner, QtrisCoverart
 from qtris.services.gog import GOGService
 from qtris.util import path_cache
@@ -466,12 +467,14 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
     setup = tmp_path / "setup.txt"
     setup.write_text("game data", encoding="utf-8")
     target = tmp_path / "Games" / "qt-installed"
+    prefix = tmp_path / 'Windows environments' / 'Chosen $GAMEDIR prefix'
+    monkeypatch.setattr(wine, 'is_installed_for', lambda *_args: True)
     script = {
         "name": PREFIX + "Uninstalled",
         "game_slug": PREFIX + "uninstalled",
         "slug": PREFIX + "uninstalled-local",
         "version": "Local",
-        "runner": "linux",
+        "runner": "wine",
         "script": {
             "game": {"exe": "$GAMEDIR/setup.txt"},
             "files": [{"setup": "N/A:Select the game data"}],
@@ -505,6 +508,9 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
             options = window.window.findChild(QQuickItem, 'installerOptions')
             assert options is not None and not options.property('visible')
             controller._installers.set_directory(str(target))
+            prefix_field = window.window.findChild(QObject, 'installationWinePrefix')
+            assert prefix_field is not None and prefix_field.property('visible')
+            assert prefix_field.setProperty('text', str(prefix))
 
             def reached(stage: str) -> Callable[[], bool]:
                 def check() -> bool:
@@ -540,6 +546,11 @@ def test_qml_installs_a_synced_store_game_without_a_library_entry(
                 return bool(game and game.installed)
 
             await wait_for_qml(qt_application, installed_in_library)
+            installed = games_db.get_game_for_service('gog', store_appid)
+            assert installed is not None
+            config = Game(installed['id']).config
+            assert config is not None and config.game_level['game']['prefix'] == str(prefix)
+            assert prefix.parent.is_dir()
             close = window.window.findChild(QObject, "installerClose")
             assert close is not None and QMetaObject.invokeMethod(close, "clicked")
             await wait_for_qml(qt_application, lambda: not progress.property("active"))
@@ -574,6 +585,8 @@ def test_qml_links_gog_game_files_in_place(
     executable.parent.mkdir(parents=True)
     executable.write_bytes(b'MZ')
     manifest = folder / f'goggame-{store_appid}.info'
+    existing_prefix = tmp_path / 'Existing prefix'
+    registry = existing_prefix / 'system.reg'
     metadata = json.dumps({
         'playTasks': [
             {'isPrimary': True, 'path': r'bin\play.exe', 'workingDir': 'bin', 'arguments': '--windowed'},
@@ -581,6 +594,8 @@ def test_qml_links_gog_game_files_in_place(
     })
     if use_manifest:
         manifest.write_text(metadata, encoding='utf-8')
+        (existing_prefix / 'drive_c').mkdir(parents=True)
+        registry.write_text('#arch=win64\n', encoding='utf-8')
 
     async def run() -> None:
         window = MainWindow()
@@ -613,6 +628,10 @@ def test_qml_links_gog_game_files_in_place(
             assert folder_field is not None and exe_field is not None and link is not None
             assert folder_field.property('visible') and link.property('visible') and not link.property('enabled')
             folder_field.setProperty('text', str(folder))
+            prefix_field = window.window.findChild(QObject, 'existingWinePrefix')
+            assert prefix_field is not None and prefix_field.property('visible')
+            if use_manifest:
+                assert prefix_field.setProperty('text', str(existing_prefix))
             if not use_manifest:
                 assert QMetaObject.invokeMethod(link, 'clicked')
                 error = window.window.findChild(QObject, 'existingGameError')
@@ -633,7 +652,7 @@ def test_qml_links_gog_game_files_in_place(
             options = config.game_level['game']
             assert options['exe'] == str(executable) and options['working_dir'] == str(executable.parent)
             assert options.get('args') == ('--windowed' if use_manifest else None)
-            prefix = tmp_path / 'data' / 'prefixes' / f'gog-{store_appid}'
+            prefix = existing_prefix if use_manifest else tmp_path / 'data' / 'prefixes' / f'gog-{store_appid}'
             assert options['prefix'] == str(prefix) and prefix.parent.is_dir()
             assert await game_actions.get_installation_directory(game_id) == str(folder)
             maintenance = await game_maintenance.get_maintenance_info(game_id)
@@ -659,6 +678,7 @@ def test_qml_links_gog_game_files_in_place(
             assert executable.read_bytes() == b'MZ'
             if use_manifest:
                 assert manifest.read_text(encoding='utf-8') == metadata
+                assert registry.read_text(encoding='utf-8') == '#arch=win64\n'
         finally:
             window.shutdown()
 
