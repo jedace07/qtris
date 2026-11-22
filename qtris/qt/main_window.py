@@ -1,8 +1,11 @@
 """Load and own the Qt Quick library window."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QUrl
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -38,9 +41,12 @@ class MainWindow(QObject):
         self.load_task = self.controller.start()
 
     def show(self) -> None:
+        was_visible = self.window.isVisible()
         self.restore()
         self.window.setVisible(True)
-        self.window.requestActivate()
+        # Wayland activates newly shown windows and consumes the compositor's activation token
+        if was_visible or not QGuiApplication.platformName().startswith("wayland"):
+            self.window.requestActivate()
 
     def minimize(self) -> None:
         self.window.setWindowStates(self.window.windowStates() | Qt.WindowState.WindowMinimized)
