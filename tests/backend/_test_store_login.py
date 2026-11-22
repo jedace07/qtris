@@ -14,7 +14,6 @@ from qtris.exceptions import QtrisError
 from qtris.services.gog import GOGService
 from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.ubisoft import UbisoftConnectService
-from qtris.util import epic_auth
 from qtris.util.credentials import save_credentials
 from qtris.util.test_config import setup_test_environment
 from qtris.util.ubisoft.client import UbisoftConnectClient
@@ -122,37 +121,24 @@ def test_amazon_signs_in_through_nile(
     assert "SECRET-TOKEN" not in caplog.text
 
 
-def test_epic_signs_in_through_the_browser_and_legendary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("response", ['{"authorizationCode": "epic-code"}', "epic-code"])
+def test_epic_signs_in_through_the_browser_and_legendary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, response: str
+) -> None:
     install_store_clients(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
-    session = epic_auth.ApprovedSession("refresh")
-    device = epic_auth.DeviceLogin("https://www.epicgames.com/activate?userCode=CODE", "CODE", "device")
-    codes = ["wrong-code", "epic-code"]
-
-    async def approve(login: epic_auth.DeviceLogin) -> epic_auth.ApprovedSession:
-        assert login == device
-        return session
-
-    monkeypatch.setattr(epic_auth, "start", lambda: device)
-    monkeypatch.setattr(epic_auth, "wait_for_approval", approve)
-    monkeypatch.setattr(epic_auth, "hand_over", lambda approved, accept: accept(codes.pop(0)))
 
     async def run() -> None:
         request = await store_login.begin("egs")
-        assert (request.input_kind, request.user_code, request.url) == ("device", "CODE", device.url)
+        assert (request.input_kind, request.url) == ("epic_code", "https://legendary.gl/epiclogin")
         assert not store_login.is_web_response(request.id, request.url)
-        with pytest.raises(QtrisError, match="Approve the sign-in"):
-            await store_login.finish(request.id)
-        await store_login.wait_for_approval(request.id)
-        # legendary reports a refused code only in its output, with exit status 0
+        with pytest.raises(QtrisError, match="Copy the sign-in response"):
+            await store_login.finish(request.id, '{"authorizationCode": "--delete"}')
+        # Legendary reports a refused code only in its output, with exit status 0
         with pytest.raises(QtrisError, match="legendary could not sign in"):
-            await store_login.finish(request.id)
+            await store_login.finish(request.id, '{"authorizationCode": "wrong-code"}')
         assert not (await services.get_source_status("egs")).signed_in
-        # An approval is good for one try
-        with pytest.raises(QtrisError, match="Approve the sign-in"):
-            await store_login.finish(request.id)
-        await store_login.wait_for_approval(request.id)
-        await store_login.finish(request.id)
+        await store_login.finish(request.id, response)
         assert (await services.get_source_status("egs")).signed_in
         await services.disconnect_source("egs")
         assert not (await services.get_source_status("egs")).signed_in
@@ -160,35 +146,25 @@ def test_epic_signs_in_through_the_browser_and_legendary(tmp_path: Path, monkeyp
     asyncio.run(run())
 
 
-def test_cancelling_an_approved_epic_sign_in_revokes_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cancelled_epic_sign_in_does_not_accept_a_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install_store_clients(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
-    session = epic_auth.ApprovedSession("refresh")
-    revoked: list[epic_auth.ApprovedSession] = []
-
-    async def approve(login: epic_auth.DeviceLogin) -> epic_auth.ApprovedSession:
-        return session
-
-    monkeypatch.setattr(epic_auth, "start", lambda: epic_auth.DeviceLogin("https://epic.test", "CODE", "device"))
-    monkeypatch.setattr(epic_auth, "wait_for_approval", approve)
-    monkeypatch.setattr(epic_auth, "revoke", revoked.append)
 
     async def run() -> None:
         request = await store_login.begin("egs")
-        await store_login.wait_for_approval(request.id)
         await store_login.cancel(request.id)
+        with pytest.raises(QtrisError, match="no longer available"):
+            await store_login.finish(request.id, "epic-code")
+        retry = await store_login.begin("egs")
+        await store_login.cancel(retry.id)
 
     asyncio.run(run())
-    assert revoked == [session]
 
 
 def test_epic_checks_for_legendary_before_opening_the_browser(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "RUNTIME_DIR", str(tmp_path))
-    started: list[bool] = []
-    monkeypatch.setattr(epic_auth, "start", lambda: started.append(True))
     with pytest.raises(QtrisError, match="hasn't been downloaded"):
         asyncio.run(store_login.begin("egs"))
-    assert not started
 
 
 def test_cookie_import_only_persists_the_selected_stores_cookies(

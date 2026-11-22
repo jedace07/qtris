@@ -1,8 +1,8 @@
 """Run the command-line store clients Qtris downloads with its other components.
 
-legendary (the Epic Games Store) and Nile (Amazon Games) are the clients Heroic
-maintains. Each keeps its sign-in, library and installed games in a folder of
-Qtris's own, and both report downloads in the same "= Progress:" format.
+Legendary (the Epic Games Store) and Nile (Amazon Games) each keep their sign-in,
+library and installed games in a folder of Qtris's own, and both report downloads
+in the same "= Progress:" format.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ class StoreClient:
     def get_env(self) -> dict[str, str]:
         return {**os.environ, self.config_variable: self.config_value}
 
-    def run(self, args: list[str], timeout: float = _TIMEOUT_SECONDS) -> str:
+    def run(self, args: list[str], timeout: float = _TIMEOUT_SECONDS, *, sensitive: bool = False) -> str:
         """Run the client and return what it printed; raise StoreClientError with its
         error messages if it fails."""
         command = [self.binary, *args]
@@ -82,10 +82,14 @@ class StoreClient:
             result = subprocess.run(
                 command, capture_output=True, text=True, errors="replace", env=self.get_env(), timeout=timeout
             )
-        except (OSError, subprocess.SubprocessError) as ex:
+        except subprocess.TimeoutExpired:
+            raise StoreClientError(_("Timed out waiting for %s.") % self.name) from None
+        except OSError as ex:
             raise StoreClientError(_("%s could not run: %s") % (self.name, ex)) from ex
         if result.returncode != 0:
-            raise StoreClientError(_get_error(self.name, result.stderr + result.stdout, result.returncode))
+            # Sign-in commands can include credentials in their error output
+            output = "" if sensitive else result.stderr + result.stdout
+            raise StoreClientError(_get_error(self.name, output, result.returncode))
         return result.stdout
 
     def run_json(self, args: list[str], timeout: float = _TIMEOUT_SECONDS) -> Any:

@@ -406,16 +406,11 @@ off-the-record profile whose user agent drops the QtWebEngine token.
 sign-in. GOG also keeps the web session's ``gog.com`` cookies, though its API
 token alone signs in.
 
-The Epic Games Store signs in in the system default browser, because Epic's
-bot check turns the web view away and Google forbids signing in inside one.
-``qtris.util.epic_auth`` gets a device code for the Epic Games Launcher's
-client from Epic Account Services (``api.epicgames.dev``; Epic's older account
-service offers that client no device flow). The user approves the code while
-``store_login.wait_for_approval()`` polls. The session that gives can't use
-the launcher's APIs, so its refresh token is redeemed at the account service
-with ``token_type=eg1`` for a launcher session, whose exchange code goes to
-``legendary auth --token``. That launcher session isn't revoked afterwards, as
-that could end legendary's. This flow is undocumented by Epic.
+The Epic Games Store uses Legendary's sign-in page in the system default
+browser. The user copies the final JSON response and returns to Qtris.
+While the Epic sign-in dialog is open, Qtris checks for a newly copied
+``authorizationCode``. The dialog also accepts a code entered manually.
+Qtris passes the code to ``legendary auth --code`` to save the session.
 
 The other stores use the system default browser. ZOOM Platform accepts its
 redirect URL.
@@ -426,11 +421,11 @@ until the handoff completes so it can keep transient login data such as
 the device registration Nile starts for Amazon. The frontend syncs the library on successful
 sign-in.
 
-Three stores go through the command-line clients Heroic maintains, which Qtris
-downloads with its other components (``qtris.runtime``) and runs through
-``qtris.util.store_cli``: gogdl for GOG, Heroic's fork of legendary for the Epic
-Games Store, and Nile for Amazon Games. legendary and Nile keep their sign-in,
-library and installed games in ``legendary`` and ``nile`` folders under Qtris's
+Three stores use command-line clients that Qtris downloads from their upstream
+releases (``qtris.runtime``) and runs through ``qtris.util.store_cli``:
+gogdl for GOG, Legendary for the Epic Games Store, and Nile for Amazon Games.
+Legendary and Nile keep their sign-in, library and installed games in
+``legendary`` and ``nile`` folders under Qtris's
 configuration folder. Their games install with the ``legendary_setup`` and
 ``nile_setup`` directives (download, update or repair) and run on the Wine
 runner. At each launch, ``Game.get_store_launch()`` asks the store, on a worker

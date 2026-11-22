@@ -62,8 +62,7 @@ def get_components(arch: str | None) -> list[Component]:
     ]
     if arch in {"x86_64", "aarch64"}:
         asset_arch = {"x86_64": "x86_64", "aarch64": "arm64"}[arch]
-        # The store clients Heroic maintains: gogdl for GOG, its legendary fork for
-        # the Epic Games Store, and Nile for Amazon Games
+        legendary_arch = "x64" if arch == "x86_64" else asset_arch
         components += [
             Component(
                 "gogdl",
@@ -73,7 +72,7 @@ def get_components(arch: str | None) -> list[Component]:
             ),
             Component(
                 "legendary",
-                ReleaseSource("Heroic-Games-Launcher/legendary", rf"^legendary_linux_{asset_arch}$"),
+                ReleaseSource("legendary-gl/legendary", rf"^legendary_linux_{legendary_arch}$"),
                 "legendary",
                 archive=False,
             ),

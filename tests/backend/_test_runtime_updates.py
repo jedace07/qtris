@@ -1,6 +1,7 @@
 """Update runtime components with their progress announced as plain data."""
 
 import asyncio
+import re
 import threading
 from typing import Any
 
@@ -96,7 +97,7 @@ def test_runtime_components_come_from_individual_upstreams() -> None:
     for name, expected in (
         ("umu", "Open-Wine-Components/umu-launcher"),
         ("gogdl", "Heroic-Games-Launcher/heroic-gogdl"),
-        ("legendary", "Heroic-Games-Launcher/legendary"),
+        ("legendary", "legendary-gl/legendary"),
         ("nile", "imLinguin/nile"),
         ("winetricks", "Winetricks/winetricks"),
     ):
@@ -104,6 +105,13 @@ def test_runtime_components_come_from_individual_upstreams() -> None:
         assert isinstance(source, ReleaseSource)
         assert source.repo == expected
     assert not {"dxvk", "vkd3d", "lib32", "lib64", "network-tools"} & components.keys()
+
+
+@pytest.mark.parametrize(("arch", "asset"), [("x86_64", "legendary_linux_x64"), ("aarch64", "legendary_linux_arm64")])
+def test_legendary_uses_upstream_linux_asset_names(arch: str, asset: str) -> None:
+    source = next(component.source for component in get_components(arch) if component.name == "legendary")
+    assert isinstance(source, ReleaseSource)
+    assert source.asset is not None and re.fullmatch(source.asset, asset)
 
 
 def test_system_options_no_longer_offer_the_qtris_runtime() -> None:

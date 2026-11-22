@@ -1,13 +1,14 @@
 """Expose game sources and store sign-in to Qt Quick."""
 
+from __future__ import annotations
+
 import asyncio
 import re
-from collections.abc import Coroutine
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Property, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtWebEngineQuick import QQuickWebEngineProfile
 
@@ -15,6 +16,9 @@ from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
 from qtris.qt.delegates import PromptController
 from qtris.qt.tasks import start_task
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 # Stores' sign-in pages treat an unknown browser more warily than Chrome itself
 _WEB_ENGINE_TOKEN = re.compile(r"\s*QtWebEngine/\S+")
@@ -50,12 +54,15 @@ class StoreSourcesController(QObject):
         self._launchers: tuple[services.SourceLauncher, ...] = ()
         self._request: store_login.BrowserLogin | None = None
         self._task: asyncio.Task[None] | None = None
-        # Waiting for the browser is apart from _task: it mustn't keep Cancel from working
-        self._approval: asyncio.Task[None] | None = None
         self._closed = False
         self._error = ""
+        self._last_epic_code = ""
         # The cookies the sign-in web view has, by domain, path and name
         self._web_cookies: dict[tuple[str, str, str], store_login.WebCookie] = {}
+        QGuiApplication.clipboard().dataChanged.connect(self._check_epic_clipboard)
+        app = QGuiApplication.instance()
+        if isinstance(app, QGuiApplication):
+            app.applicationStateChanged.connect(self._check_epic_clipboard)
 
     @Property(dict, notify=changed)
     def source(self) -> dict[str, str | bool]:
@@ -77,8 +84,6 @@ class StoreSourcesController(QObject):
         login = {"name": request.name, "inputKind": request.input_kind}
         if request.input_kind == "web":
             login["url"] = request.url
-        elif request.input_kind == "device":
-            login["userCode"] = request.user_code
         return login
 
     @Property(list, notify=changed)
@@ -94,10 +99,6 @@ class StoreSourcesController(QObject):
     @Property(bool, notify=changed)
     def busy(self) -> bool:
         return self._task is not None
-
-    @Property(bool, notify=changed)
-    def waiting(self) -> bool:
-        return self._approval is not None
 
     @Property(str, notify=changed)
     def error(self) -> str:
@@ -150,38 +151,20 @@ class StoreSourcesController(QObject):
             self.webLoginRequested.emit()
         else:
             self.loginRequested.emit()
-        if request.input_kind == "device":
-            self._approval = start_task(self._wait_for_approval(service_id, request.id), self._prompts.error)
+        if request.input_kind == "epic_code":
+            # A response already on the clipboard may belong to an earlier sign-in
+            self._last_epic_code = store_login.epic_authorization_code(QGuiApplication.clipboard().text())
             self.open_browser()
-            self.changed.emit()
-
-    async def _wait_for_approval(self, service_id: str, request_id: str) -> None:
-        try:
-            await store_login.wait_for_approval(request_id)
-        except QtrisError as error:
-            self._error = error.message
-            return
-        finally:
-            if self._approval is asyncio.current_task():
-                self._approval = None
-                self.changed.emit()
-        if self._request and self._request.id == request_id:
-            self._start(self._submit(service_id, request_id, ""))
 
     @Slot()
-    def retry_login(self) -> None:
-        """Replace a device sign-in that expired or failed with a new code."""
-        if self._request and self._request.input_kind == "device" and not self._task and not self._approval:
-            self._start(self._retry(self._source, self._request.id))
-
-    async def _retry(self, service_id: str, request_id: str) -> None:
-        self._error = ""
-        await store_login.cancel(request_id)
-        try:
-            await self._begin(service_id)
-        except QtrisError as error:
-            # The dialog stays open for another try
-            self._error = error.message
+    def _check_epic_clipboard(self) -> None:
+        if self._closed or not self._request or self._request.input_kind != "epic_code" or self._task:
+            return
+        if QGuiApplication.applicationState() != Qt.ApplicationState.ApplicationActive:
+            return
+        code = store_login.epic_authorization_code(QGuiApplication.clipboard().text())
+        if code and code != self._last_epic_code:
+            self.submit(code)
 
     @Slot(QQuickWebEngineProfile)
     def attach_web_profile(self, profile: QQuickWebEngineProfile) -> None:
@@ -227,6 +210,10 @@ class StoreSourcesController(QObject):
     @Slot(str)
     def submit(self, text: str) -> None:
         if self._request and not self._task:
+            if self._request.input_kind == "epic_code":
+                code = store_login.epic_authorization_code(text, allow_plain=True)
+                if code:
+                    self._last_epic_code = code
             self._start(self._submit(self._source, self._request.id, text))
 
     @Slot(QUrl)
@@ -244,22 +231,20 @@ class StoreSourcesController(QObject):
             self._error = error.message
             return
         self._request = None
+        self._last_epic_code = ""
         self._web_cookies.clear()
         self.loginClosed.emit()
         await self._reload(service_id)
 
     def shutdown(self) -> None:
-        # Tasks keep the application running, and an approval can take ten minutes
         self._closed = True
         self.close_login()
 
     @Slot()
     def close_login(self) -> None:
-        if self._approval:
-            self._approval.cancel()
-            self._approval = None
         if self._request and not self._task:
             request, self._request = self._request, None
+            self._last_epic_code = ""
             self._web_cookies.clear()
             start_task(store_login.cancel(request.id), self._prompts.error)
             self.changed.emit()
@@ -296,3 +281,4 @@ class StoreSourcesController(QObject):
         finally:
             self._task = None
             self.changed.emit()
+            self._check_epic_clipboard()

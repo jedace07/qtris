@@ -2,21 +2,23 @@
 
 GOG and Amazon sign in in a web view the frontend shows: their sign-in ends on
 fixed store pages that only an embedded browser can watch. The Epic Games Store
-signs in in the host browser, where the user approves a code while Qtris waits.
+signs in in the host browser and hands the copied authorization code to Legendary.
 The other stores sign in in the host browser and hand back a redirect address,
 a cookie export or a key.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
-from collections.abc import Sequence
+import re
 from dataclasses import dataclass
 from gettext import gettext as _
 from http.cookiejar import Cookie
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
 
@@ -30,12 +32,16 @@ from qtris.services.gog import GOGService
 from qtris.services.itchio import ItchIoService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.services.zoom import ZoomService
-from qtris.util import epic_auth
 from qtris.util.cookies import WebkitCookieJar
 from qtris.util.log import logger
 
-type LoginInput = Literal["web", "device", "redirect", "api_key", "cookies", "ubisoft"]
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
+type LoginInput = Literal["web", "epic_code", "redirect", "api_key", "cookies", "ubisoft"]
+
+_EPIC_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,255}")
+_MAX_LOGIN_RESPONSE = 16384
 _REDIRECTS = {
     "gog": (("https://embed.gog.com/on_login_success", "https://www.gog.com/on_login_success"), "code"),
     "amazon": (("https://www.amazon.com/", "https://amazon.com/"), "openid.oa2.authorization_code"),
@@ -58,8 +64,6 @@ class BrowserLogin:
     name: str
     url: str
     input_kind: LoginInput
-    # What the user approves in the browser, for a device sign-in
-    user_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,8 +86,6 @@ class _PendingLogin:
     service: OnlineService
     service_id: str
     working: bool = False
-    device: epic_auth.DeviceLogin | None = None
-    approval: epic_auth.ApprovedSession | None = None
 
 
 _pending: dict[str, _PendingLogin] = {}
@@ -93,7 +95,7 @@ def login_input(service_id: str) -> LoginInput | None:
     if service_id in _WEB_LOGINS:
         return "web"
     if service_id == "egs":
-        return "device"
+        return "epic_code"
     if service_id in _REDIRECTS:
         return "redirect"
     if service_id in _COOKIE_DOMAINS:
@@ -115,18 +117,15 @@ async def begin(service_id: str) -> BrowserLogin:
         raise QtrisError(_("A sign-in for this store is already open."))
 
     service = service_class()
-    device = None
     if isinstance(service, EpicGamesStoreService):
-        device = await asyncio.to_thread(service.begin_sign_in)
-        url = device.url
+        url = service.begin_sign_in()
     elif input_kind == "api_key":
         url = "https://itch.io/user/settings/api-keys"
     else:
         # Amazon's address comes from Nile, which registers a new device for it
         url = await asyncio.to_thread(lambda: str(service.login_url))
-    user_code = device.user_code if device else ""
-    request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind, user_code)
-    _pending[request.id] = _PendingLogin(request, service, service_id, device=device)
+    request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind)
+    _pending[request.id] = _PendingLogin(request, service, service_id)
     return request
 
 
@@ -143,31 +142,33 @@ def is_web_response(request_id: str, url: str) -> bool:
     return True
 
 
-async def wait_for_approval(request_id: str) -> None:
-    """Return once the user has approved a device sign-in in their browser; finish()
-    then signs in. Cancelling this stops waiting."""
-    pending = _pending.get(request_id)
-    if not pending or not pending.device:
-        raise QtrisError(_("This sign-in request is no longer available."))
-    session = await epic_auth.wait_for_approval(pending.device)
-    if request_id not in _pending:
-        await asyncio.to_thread(epic_auth.revoke, session)
-        raise QtrisError(_("This sign-in request is no longer available."))
-    pending.approval = session
+def epic_authorization_code(value: str, *, allow_plain: bool = False) -> str:
+    """Read Epic's JSON response or a code the user submitted explicitly."""
+    if len(value) > _MAX_LOGIN_RESPONSE:
+        return ""
+    value = value.strip()
+    if value.startswith("{"):
+        try:
+            payload = json.loads(value)
+        except ValueError, RecursionError:
+            return ""
+        code = payload.get("authorizationCode")
+        return code if isinstance(code, str) and _EPIC_CODE.fullmatch(code) else ""
+    if allow_plain:
+        code = value.strip('"')
+        return code if _EPIC_CODE.fullmatch(code) else ""
+    return ""
 
 
 async def cancel(request_id: str) -> None:
     pending = _pending.get(request_id)
     if pending and not pending.working:
         _pending.pop(request_id)
-        if pending.approval:
-            await asyncio.to_thread(epic_auth.revoke, pending.approval)
 
 
 async def finish(request_id: str, value: str = "", cookies: Sequence[WebCookie] = ()) -> None:
     """Validate and exchange the user's sign-in response without logging it.
-    A web sign-in passes the cookies its web view received. A device sign-in has no
-    response; wait_for_approval() got it."""
+    A web sign-in passes the cookies its web view received."""
     pending = _pending.get(request_id)
     if not pending or pending.working:
         raise QtrisError(_("This sign-in request is no longer available."))
@@ -189,11 +190,7 @@ async def finish(request_id: str, value: str = "", cookies: Sequence[WebCookie] 
 
 def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) -> None:
     service = pending.service
-    approval, pending.approval = pending.approval, None
-    if pending.request.input_kind == "device":
-        if not approval:
-            raise QtrisError(_("Approve the sign-in in your browser first."))
-    elif not value or len(value) > 16384:
+    if not value or len(value) > _MAX_LOGIN_RESPONSE:
         raise QtrisError(_("Enter the sign-in response from your browser."))
     if pending.request.input_kind in ("redirect", "web"):
         value = _redirect_response(pending.service_id, value)
@@ -206,8 +203,11 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
             _store_cookies(service, _load_cookie_file(Path(value)), _COOKIE_DOMAINS[pending.service_id])
         elif isinstance(service, GOGService):
             _sign_in_to_gog(service, value, cookies)
-        elif isinstance(service, EpicGamesStoreService) and approval:
-            service.sign_in(approval)
+        elif isinstance(service, EpicGamesStoreService):
+            code = epic_authorization_code(value, allow_plain=True)
+            if not code:
+                raise QtrisError(_("Copy the sign-in response or authorization code from Epic Games."))
+            service.sign_in(code)
         elif isinstance(service, ItchIoService):
             if not service.validate_api_key(value):
                 raise QtrisError(_("itch.io did not accept that API key."))

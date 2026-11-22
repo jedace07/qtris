@@ -1217,16 +1217,16 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("ending", ["approve", "expire", "reject", "cancel", "shutdown"])
+@pytest.mark.parametrize("ending", ["clipboard", "manual", "reject", "cancel", "shutdown"])
 def test_qml_signs_in_to_epic_in_the_host_browser(
     qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch, ending: str
 ) -> None:
     opened: list[str] = []
     cancelled: list[str] = []
     synced: list[str] = []
-    stopped: list[str] = []
-    begun = 0
+    submitted: list[str] = []
     signed_in = False
+    login_url = "https://legendary.gl/epiclogin"
 
     async def list_sources() -> list[ServiceInfo]:
         return [ServiceInfo("egs", "Epic Games Store", True)]
@@ -1235,26 +1235,15 @@ def test_qml_signs_in_to_epic_in_the_host_browser(
         return services.SourceStatus("Epic Games Store", True, signed_in, True)
 
     async def begin(source_id: str) -> store_login.BrowserLogin:
-        nonlocal begun
-        begun += 1
-        url = f"https://www.epicgames.com/activate?userCode=CODE{begun}"
-        return store_login.BrowserLogin(f"request{begun}", "Epic Games Store", url, "device", f"CODE{begun}")
-
-    async def wait_for_approval(request_id: str) -> None:
-        try:
-            # Long enough to see the dialog waiting
-            await asyncio.sleep(30 if ending in ("cancel", "shutdown") else 0.2)
-        except asyncio.CancelledError:
-            stopped.append(request_id)
-            raise
-        if ending == "expire" and request_id == "request1":
-            raise QtrisError("The code expired.")
+        return store_login.BrowserLogin("request", "Epic Games Store", login_url, "epic_code")
 
     async def finish(request_id: str, value: str = "", cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
         nonlocal signed_in
-        assert value == ""
-        if ending == "reject" and request_id == "request1":
+        assert request_id == "request"
+        submitted.append(value)
+        if value == "expired-code":
             raise QtrisError("legendary refused.")
+        assert value == "epic-code"
         signed_in = True
 
     async def cancel(request_id: str) -> None:
@@ -1273,12 +1262,13 @@ def test_qml_signs_in_to_epic_in_the_host_browser(
     monkeypatch.setattr(services, "get_source_status", status)
     monkeypatch.setattr(services, "sync_source", sync)
     monkeypatch.setattr(store_login, "begin", begin)
-    monkeypatch.setattr(store_login, "wait_for_approval", wait_for_approval)
     monkeypatch.setattr(store_login, "finish", finish)
     monkeypatch.setattr(store_login, "cancel", cancel)
     monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
 
     async def run() -> None:
+        clipboard = qt_application.clipboard()
+        clipboard.setText('{"authorizationCode": "old-code"}')
         window = MainWindow()
         window.show()
         sources = window.controller._store_sources
@@ -1299,34 +1289,47 @@ def test_qml_signs_in_to_epic_in_the_host_browser(
             await settle(window)
             window.controller.select_view(window.controller.sidebar.find_row({"service": "egs"}))
             await click("storeSignIn")
-            await wait_for_qml(qt_application, lambda: len(opened) == 1 and shown("storeLoginCode"))
-            code = find("storeLoginCode")
-            assert code is not None and code.property("text") == "CODE1"
-            assert opened == ["https://www.epicgames.com/activate?userCode=CODE1"]
-            # Nothing to paste, and waiting leaves Cancel working
-            assert not shown("storeLoginResponse") and not shown("finishStoreLogin")
-            assert sources.waiting and not sources.busy and not shown("retryDeviceLogin")
+            await wait_for_qml(
+                qt_application, lambda: bool(opened) and shown("storeLoginResponse") and not sources.busy
+            )
+            assert opened == [login_url]
             assert find("storeWebLoginWindow") is None
 
+            # Ignore the clipboard's existing response and unrelated copied text
+            clipboard.setText('{"authorizationCode":"old-code"}')
+            clipboard.setText("unrelated-text")
+            assert not sources.busy and not submitted
+
             if ending in ("cancel", "shutdown"):
-                # Let the approval start waiting before stopping it
-                await asyncio.sleep(0.05)
                 if ending == "shutdown":
                     window.shutdown()
                 else:
                     dialog = find("storeLoginDialog")
                     assert dialog is not None and QMetaObject.invokeMethod(dialog, "close")
-                await wait_for_qml(qt_application, lambda: stopped == ["request1"] and cancelled == ["request1"])
-                assert not sources.waiting and not signed_in
+                await wait_for_qml(qt_application, lambda: cancelled == ["request"])
+                clipboard.setText('{"authorizationCode":"epic-code"}')
+                assert not sources.busy and not submitted
                 return
-            if ending in ("expire", "reject"):
-                await click("retryDeviceLogin")
+            if ending == "reject":
+                clipboard.setText('{"authorizationCode":"expired-code"}')
+                await wait_for_qml(qt_application, lambda: sources.error == "legendary refused." and not sources.busy)
+                clipboard.setText('{"authorizationCode": "expired-code"}')
+                assert not sources.busy and submitted == ["expired-code"]
+                await click("openStoreBrowser")
                 await wait_for_qml(qt_application, lambda: len(opened) == 2)
-                assert cancelled == ["request1"] and opened[1].endswith("CODE2")
+                assert opened == [login_url, login_url]
+            if ending == "manual":
+                response = find("storeLoginResponse")
+                assert response is not None
+                response.setProperty("text", "epic-code")
+                await click("finishStoreLogin")
+            else:
+                clipboard.setText('{"authorizationCode":"epic-code"}')
             await wait_for_qml(qt_application, lambda: synced == ["egs"] and sources.login == {})
         finally:
             if ending != "shutdown":
                 window.shutdown()
+            clipboard.clear()
 
     asyncio.run(run())
 

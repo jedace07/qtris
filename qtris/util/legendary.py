@@ -1,4 +1,4 @@
-"""The Epic Games Store through legendary, as Heroic maintains it.
+"""The Epic Games Store through Legendary.
 
 legendary keeps the sign-in, the library's metadata and the installed games in
 Qtris's configuration folder, and gives the launch parameters, with a fresh
@@ -18,6 +18,7 @@ from qtris.util.store_cli import DownloadProgress, StoreClient, StoreClientError
 
 CONFIG_PATH = os.path.join(settings.CONFIG_DIR, "legendary")
 CLIENT = StoreClient("legendary", "LEGENDARY_CONFIG_PATH", CONFIG_PATH)
+LOGIN_URL = "https://legendary.gl/epiclogin"
 
 
 def is_signed_in() -> bool:
@@ -29,9 +30,9 @@ def check_available() -> None:
     _binary = CLIENT.binary  # Finding the binary is the check
 
 
-def sign_in(exchange_code: str) -> None:
-    CLIENT.run(["auth", "--token", exchange_code, "--disable-webview"])
-    # legendary exits successfully even when Epic refuses the code
+def sign_in(authorization_code: str) -> None:
+    CLIENT.run(["auth", "--code", authorization_code, "--disable-webview"], sensitive=True)
+    # Legendary exits successfully even when Epic refuses the code
     if not is_signed_in():
         raise StoreClientError(_("legendary could not sign in to Epic Games. Try again."))
 

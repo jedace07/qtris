@@ -2,6 +2,7 @@
 installation, launch and uninstallation, against stand-ins for the two clients."""
 
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -139,6 +140,24 @@ def test_a_crashing_client_reports_why() -> None:
     output = 'Traceback (most recent call last):\n  File "core.py", line 192\nValueError: No saved credentials\n'
     assert store_cli._get_error("legendary", output, 1) == "No saved credentials"
     assert store_cli._get_error("legendary", "nothing useful", 2) == "legendary failed (exit code 2)."
+
+
+@pytest.mark.parametrize("timeout", [False, True])
+def test_epic_sign_in_errors_hide_authorization_codes(monkeypatch: pytest.MonkeyPatch, timeout: bool) -> None:
+    code = "private-authorization-code"
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert command[1:4] == ["auth", "--code", code]
+        if timeout:
+            raise subprocess.TimeoutExpired(command, 1)
+        return subprocess.CompletedProcess(command, 1, "", f"ERROR: {code}")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    message = "Timed out waiting for legendary" if timeout else "legendary failed"
+    with pytest.raises(StoreClientError, match=message) as error:
+        legendary.sign_in(code)
+    assert code not in str(error.value)
+    assert error.value.__cause__ is None
 
 
 def test_epic_games_start_offline_only_when_the_sign_in_fails(monkeypatch: pytest.MonkeyPatch) -> None:

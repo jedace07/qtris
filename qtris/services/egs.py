@@ -12,7 +12,7 @@ from qtris.game import Game
 from qtris.services.base import SERVICE_LOGIN, OnlineService, StoreLaunch
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
-from qtris.util import epic_auth, legendary
+from qtris.util import legendary
 from qtris.util.images import paste_overlay, thumbnail_image
 from qtris.util.log import logger
 from qtris.util.store_cli import StoreClientError
@@ -158,14 +158,13 @@ class EpicGamesStoreService(OnlineService):
     def is_authenticated(self) -> bool:
         return legendary.is_signed_in()
 
-    def begin_sign_in(self) -> epic_auth.DeviceLogin:
-        """Get a code for the user to approve in their browser."""
-        # Before the browser opens, rather than after the user has approved
+    def begin_sign_in(self) -> str:
+        """Return Legendary's browser sign-in URL once the client is available."""
         legendary.check_available()
-        return epic_auth.start()
+        return legendary.LOGIN_URL
 
-    def sign_in(self, session: epic_auth.ApprovedSession) -> None:
-        epic_auth.hand_over(session, legendary.sign_in)
+    def sign_in(self, authorization_code: str) -> None:
+        legendary.sign_in(authorization_code)
         SERVICE_LOGIN.fire(self)
 
     def logout(self) -> None:
