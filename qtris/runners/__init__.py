@@ -2,6 +2,7 @@
 
 __all__ = [
     "eden",
+    "flatpak",
     "libretro",
     "linux",
     "pico8",
@@ -24,9 +25,8 @@ if TYPE_CHECKING:
 
 # The runners a new profile starts with turned on; the others are opt-in
 DEFAULT_RUNNERS = ("linux", "wine")
-# Runners that only run the games of a source, and so are never offered as runners: the
-# Steam source runs its games through Steam
-INTERNAL_RUNNERS = ("steam",)
+# Source runners and legacy emulator integrations needed by existing game configurations
+INTERNAL_RUNNERS = ("steam", "flatpak", "eden", "ryubing", "shadps4", "86box", "basiliskii", "gargoyle", "ruffle")
 
 ADDON_RUNNERS: dict[str, type["Runner"]] = {}
 _cached_runner_human_names: dict[str, str] = {}

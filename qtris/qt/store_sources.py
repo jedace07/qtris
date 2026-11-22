@@ -54,6 +54,7 @@ class StoreSourcesController(QObject):
         self._launchers: tuple[services.SourceLauncher, ...] = ()
         self._request: store_login.BrowserLogin | None = None
         self._task: asyncio.Task[None] | None = None
+        self._flathub_scan: asyncio.Task[None] | None = None
         self._closed = False
         self._error = ""
         self._last_epic_code = ""
@@ -63,6 +64,20 @@ class StoreSourcesController(QObject):
         app = QGuiApplication.instance()
         if isinstance(app, QGuiApplication):
             app.applicationStateChanged.connect(self._check_epic_clipboard)
+            app.applicationStateChanged.connect(self.refresh_flathub_installations)
+
+    @Slot()
+    def refresh_flathub_installations(self) -> None:
+        if not self._closed and self._flathub_scan is None:
+            if QGuiApplication.applicationState() == Qt.ApplicationState.ApplicationActive:
+                self._flathub_scan = start_task(self._scan_flathub(), self._prompts.error)
+
+    async def _scan_flathub(self) -> None:
+        try:
+            if await services.refresh_flathub_installations() and not self._closed:
+                self.gamesChanged.emit()
+        finally:
+            self._flathub_scan = None
 
     @Property(dict, notify=changed)
     def source(self) -> dict[str, str | bool]:

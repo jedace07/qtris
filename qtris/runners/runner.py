@@ -536,7 +536,7 @@ class Runner:  # pylint: disable=too-many-public-methods
 
     @property
     def can_install(self) -> bool:
-        """True if Qtris can install the runner, which it does from Flathub."""
+        """True if Qtris can offer installation for the runner."""
         return bool(self.flatpak_id) and flatpak.is_installed()
 
     def install(
@@ -545,18 +545,17 @@ class Runner:  # pylint: disable=too-many-public-methods
         version: str | None = None,
         callback: Callable[[], None] | None = None,
     ) -> None:
-        """Install the runner's Flatpak from Flathub."""
+        """Hand off a missing emulator to the host app store without resuming setup."""
         if not self.flatpak_id or not self.can_install:
             raise NonInstallableRunnerError(
                 _("Qtris can't install %s. Install it yourself, or set its executable in the runner options.")
                 % self.human_name,
             )
         try:
-            flatpak.install_app(self.flatpak_id)
+            flatpak.open_app_store(self.flatpak_id)
         except flatpak.FlatpakError as ex:
             raise RunnerInstallationError(ex.message) from ex
-        if callback:
-            callback()
+        raise RunnerInstallationError(_("Finish installing %s in your app store, then try again.") % self.human_name)
 
     def download_and_extract(
         self,

@@ -63,15 +63,15 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
 
     async def change() -> None:
         await runners.set_runner_enabled("web", True)
-        await runners.set_runner_enabled("eden", True)
+        await runners.set_runner_enabled("pico8", True)
         await runners.set_runner_enabled("linux", False)
 
     asyncio.run(change())
     # Only the runner that wasn't installed yet is installed
-    assert installs == ["eden"]
+    assert installs == ["pico8"]
     assert saved[("runners", "linux")] == "False"
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [item.name for item in enabled] == ["eden", "wine", "web"]
+    assert [item.name for item in enabled] == ["pico8", "wine", "web"]
 
     with pytest.raises(InvalidRunnerError):
         asyncio.run(runners.set_runner_enabled("no-such-runner", True))

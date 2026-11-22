@@ -12,6 +12,9 @@ from qtris.database.services import ServiceGameCollection
 from qtris.exceptions import QtrisError
 from qtris.services import SERVICES, get_enabled_services
 from qtris.services.base import AuthTokenExpiredError, BaseService, OnlineService
+from qtris.services.flathub import FlathubService
+from qtris.util.flatpak import FlatpakError
+from qtris.util.log import logger
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,17 @@ async def sync_source(service_id: str) -> None:
     await asyncio.to_thread(_sync_source, service_id)
 
 
+async def refresh_flathub_installations() -> bool:
+    """Update host-managed entries without fetching the catalog again."""
+    if FlathubService.id not in get_enabled_services():
+        return False
+    try:
+        return await asyncio.to_thread(FlathubService().scan_installed_apps)
+    except FlatpakError as error:
+        logger.warning("Could not refresh Flathub installations: %s", error)
+        return False
+
+
 def _sync_source(service_id: str) -> None:
     service = _get_service(service_id)
     if isinstance(service, OnlineService) and not service.is_authenticated():
@@ -96,8 +110,6 @@ async def list_services() -> list[ServiceInfo]:
 async def list_service_games(service: str | None = None, installed_only: bool = False) -> list[ServiceGameInfo]:
     """Return the games one service offers, or all services if service is None, with
     whether each is installed in the library."""
-    if service == "flathub":
-        return []
     installed = {
         (game["service"], game.get("service_id"))
         for game in games_db.get_games(filters={"installed": 1})
@@ -106,7 +118,7 @@ async def list_service_games(service: str | None = None, installed_only: bool = 
     if service:
         db_games = ServiceGameCollection.get_for_service(service)
     else:
-        db_games = ServiceGameCollection.get_service_games(excludes={"service": "flathub"})
+        db_games = ServiceGameCollection.get_service_games()
     games = [
         ServiceGameInfo(
             id=str(db_game["id"]),

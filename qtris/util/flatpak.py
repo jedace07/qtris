@@ -1,8 +1,9 @@
-"""Run and install the Flathub apps that Qtris uses as runners."""
+"""Discover and run host Flatpaks, leaving installation to the desktop."""
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from gettext import gettext as _
@@ -11,14 +12,12 @@ from typing import TYPE_CHECKING
 
 from qtris.exceptions import QtrisError, UnavailableRunnerError
 from qtris.util import cache_single
-from qtris.util.log import logger
 from qtris.util.system import read_process_output
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-FLATHUB_REMOTE = "flathub"
-FLATHUB_REPO_URL = "https://dl.flathub.org/repo/flathub.flatpakrepo"
+_APP_ID = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2,}")
 
 # Variables that point at libraries or drivers outside the app's sandbox, which would break it
 UNFORWARDED_ENV = frozenset(
@@ -38,7 +37,7 @@ _UNSHAREABLE_ROOTS = (Path("/app"), Path("/usr"), Path("/etc"), Path("/proc"), P
 
 
 class FlatpakError(QtrisError):
-    """Raised when Flatpak fails to install an app."""
+    """Raised when inspecting host apps or opening the app store fails."""
 
 
 @cache_single
@@ -68,40 +67,27 @@ def get_command() -> list[str]:
     return [exe]
 
 
-@cache_single
-def get_installed_apps() -> list[dict[str, str]]:
+def get_installed_apps() -> set[str]:
     if not is_installed():
-        return []
+        return set()
 
-    command = get_command() + ["list", "--columns=name,application,version,branch,arch,origin,installation"]
-    package_list = read_process_output(command)
-    packages = []
-    for package in package_list.split("\n"):
-        if package:
-            try:
-                name, appid, version, branch, arch, origin, installation = package.split("\t")
-            except ValueError:
-                logger.error("Not able to parse Flatpak output: %s", package)
-                continue
-            packages.append(
-                {
-                    "name": name,
-                    "appid": appid,
-                    "version": version,
-                    "branch": branch,
-                    "arch": arch,
-                    "origin": origin,
-                    "installation": installation,
-                }
-            )
-    return packages
+    command = [*get_command(), "list", "--app", "--columns=application"]
+    try:
+        package_list = read_process_output(command, timeout=10, error_result=None)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise FlatpakError(_("Could not list the Flatpak apps installed on the host.")) from error
+    return {appid for appid in package_list.splitlines() if is_app_id(appid)}
 
 
 def is_app_installed(appid: str | None) -> bool:
     """Return whether an app is installed"""
     if not appid:
         return False
-    return any(app["appid"] == appid for app in get_installed_apps())
+    return appid in get_installed_apps()
+
+
+def is_app_id(appid: str) -> bool:
+    return not appid.startswith("-") and _APP_ID.fullmatch(appid) is not None
 
 
 def get_app_dir(appid: str) -> Path:
@@ -148,19 +134,14 @@ def add_environment(command: list[str], appid: str, env: dict[str, str]) -> list
     return [*command[:app_index], *variables, *command[app_index:]]
 
 
-def install_app(appid: str) -> None:
-    """Install an app from Flathub for the current user, adding the Flathub remote if needed."""
-    command = get_command()
-    steps = (
-        [*command, "remote-add", "--user", "--if-not-exists", FLATHUB_REMOTE, FLATHUB_REPO_URL],
-        [*command, "install", "--user", "--noninteractive", "-y", FLATHUB_REMOTE, appid],
-    )
-    logger.info("Installing %s from Flathub", appid)
+def open_app_store(appid: str) -> None:
+    """Open an app in the host's default AppStream handler."""
+    if not is_app_id(appid):
+        raise FlatpakError(_("Invalid Flatpak application ID: %s") % appid)
+    command = ["xdg-open", f"appstream://{appid}"]
     try:
-        for step in steps:
-            subprocess.run(step, check=True, capture_output=True, text=True)
-    except (OSError, subprocess.CalledProcessError) as ex:
-        details = ex.stderr.strip() if isinstance(ex, subprocess.CalledProcessError) else str(ex)
-        raise FlatpakError(_("Flatpak could not install %s: %s") % (appid, details)) from ex
-    finally:
-        get_installed_apps.cache_clear()
+        if os.path.exists("/.flatpak-info"):
+            command = [*get_command()[:-1], *command]
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError, UnavailableRunnerError) as error:
+        raise FlatpakError(_("Could not open %s in the host's app store.") % appid) from error

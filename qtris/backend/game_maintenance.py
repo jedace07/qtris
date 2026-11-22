@@ -17,12 +17,12 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.exceptions import QtrisError
 from qtris.game import GAME_UPDATED, Game
+from qtris.services.flathub import FlathubService
 from qtris.util import system
 from qtris.util.log import logger
 from qtris.util.path_cache import remove_from_path_cache
 from qtris.util.yaml import write_yaml_to_file
 
-# Keep protecting installations created by the retired Flatpak runner
 _EXTERNALLY_MANAGED_RUNNERS = {"steam", "flatpak", "web"}
 
 
@@ -195,6 +195,8 @@ async def _uninstall_game(
     current = await asyncio.to_thread(_describe_game, game)
     if (current.installed, current.directory) != (expected.installed, expected.directory):
         raise QtrisError(_("The installation changed. Reopen this dialog before trying again."))
+    if current.installed and game.service == FlathubService.id and game.runner_name == "flatpak":
+        raise QtrisError(_("Manage Flathub apps in your desktop app store."))
     if trash_files:
         if not current.installed:
             raise QtrisError(_("This game is not installed."))

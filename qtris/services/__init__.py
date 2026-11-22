@@ -8,6 +8,7 @@ from qtris.services.battlenet import BattleNetService
 from qtris.services.dlsite import DlsiteService
 from qtris.services.ea_app import EAAppService
 from qtris.services.egs import EpicGamesStoreService
+from qtris.services.flathub import FlathubService
 from qtris.services.gamejolt import GameJoltService
 from qtris.services.gog import GOGService
 from qtris.services.humblebundle import HumbleBundleService
@@ -16,15 +17,14 @@ from qtris.services.steam import SteamService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.services.xdg import XDGService
 from qtris.services.zoom import ZoomService
+from qtris.util import flatpak
 from qtris.util.linux import LINUX_SYSTEM
 
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
 
-# The stores a new profile starts with turned on: those with a client that installs
-# and runs their games for Qtris (Steam itself, gogdl, legendary and Nile), not
-# just a launcher inside a Wine prefix
-DEFAULT_SERVICES = ["steam", "gog", "egs", "amazon"]
+# Default to stores with a native client or host installation flow
+DEFAULT_SERVICES = ["steam", "gog", "egs", "amazon", "flathub"]
 
 
 def get_services() -> dict[str, "type[BaseService]"]:
@@ -46,6 +46,8 @@ def get_services() -> dict[str, "type[BaseService]"]:
         _services["xdg"] = XDGService
     if LINUX_SYSTEM.has_steam():
         _services["steam"] = SteamService
+    if flatpak.is_installed():
+        _services["flathub"] = FlathubService
     return _services
 
 

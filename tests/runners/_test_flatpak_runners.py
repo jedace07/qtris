@@ -1,5 +1,8 @@
-"""Runners that launch, and install, an emulator's Flathub build."""
+"""Launch Flatpaks and hand off missing emulator installs to the desktop."""
 
+from __future__ import annotations
+
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -8,8 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from qtris.delegates import InstallUIDelegate
-from qtris.runners import RunnerInstallationError
+from qtris.runners import RunnerInstallationError, get_user_runner_names
 from qtris.runners.eden import eden
+from qtris.runners.flatpak import flatpak as FlatpakRunner
 from qtris.runners.json import load_json_runners
 from qtris.util import flatpak
 
@@ -67,44 +71,49 @@ def test_missing_flatpak_names_the_flathub_app(tmp_path: Path, host_flatpak: set
         runner.get_command()
 
 
-def test_install_adds_flathub_for_the_user_and_installs_the_app(
-    host_flatpak: set[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    commands: list[list[str]] = []
-
-    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        commands.append(command)
-        if command[1] == "install":
-            host_flatpak.add(command[-1])
-        return subprocess.CompletedProcess(command, 0, "", "")
-
-    monkeypatch.setattr(subprocess, "run", run)
+def test_legacy_runner_hands_off_install_without_reporting_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    open_store = MagicMock()
+    monkeypatch.setattr(flatpak, "open_app_store", open_store)
+    monkeypatch.setattr(flatpak, "is_installed", lambda: True)
     callback = MagicMock()
     ruffle = load_json_runners()["ruffle"]()
 
-    ruffle.install(InstallUIDelegate(), callback=callback)
+    with pytest.raises(RunnerInstallationError, match="Finish installing"):
+        ruffle.install(InstallUIDelegate(), callback=callback)
 
-    assert commands[0][:5] == ["/usr/bin/flatpak", "remote-add", "--user", "--if-not-exists", "flathub"]
-    assert commands[1] == [
-        "/usr/bin/flatpak",
-        "install",
-        "--user",
-        "--noninteractive",
-        "-y",
-        "flathub",
-        "rs.ruffle.Ruffle",
-    ]
-    assert ruffle.is_installed()
-    callback.assert_called_once()
+    open_store.assert_called_once_with("rs.ruffle.Ruffle")
+    callback.assert_not_called()
 
 
-def test_failed_flatpak_install_reports_flatpaks_error(host_flatpak: set[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        raise subprocess.CalledProcessError(1, command, "", "error: No remote refs found")
-
+@pytest.mark.parametrize("sandbox", [False, True])
+def test_app_store_uses_the_hosts_xdg_handler(sandbox: bool, monkeypatch: pytest.MonkeyPatch) -> None:
+    run = MagicMock()
     monkeypatch.setattr(subprocess, "run", run)
-    with pytest.raises(RunnerInstallationError, match="No remote refs found"):
-        eden().install(InstallUIDelegate())
+    monkeypatch.setattr(os.path, "exists", lambda path: sandbox and path == "/.flatpak-info")
+    monkeypatch.setattr(flatpak, "get_executable", lambda: "/usr/bin/flatpak-spawn")
+
+    flatpak.open_app_store("rs.ruffle.Ruffle")
+
+    prefix = ["/usr/bin/flatpak-spawn", "--host"] if sandbox else []
+    assert run.call_count == 1
+    assert run.call_args.args[0] == [*prefix, "xdg-open", "appstream://rs.ruffle.Ruffle"]
+
+
+def test_missing_app_store_reports_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(subprocess, "run", MagicMock(side_effect=OSError))
+    with pytest.raises(flatpak.FlatpakError, match="host's app store"):
+        flatpak.open_app_store("rs.ruffle.Ruffle")
+
+
+def test_hidden_runner_uses_the_catalog_app_id(host_flatpak: set[str]) -> None:
+    appid = "rs.ruffle.Ruffle"
+    runner = FlatpakRunner()
+    runner._config = MagicMock(game_config={"appid": appid, "args": '--example "two words"'})
+    assert {"flatpak", "eden", "ruffle"}.isdisjoint(get_user_runner_names())
+    assert not runner.is_installed()
+    host_flatpak.add(appid)
+    assert runner.is_installed()
+    assert runner.play()["command"] == ["/usr/bin/flatpak", "run", appid, "--example", "two words"]
 
 
 def test_flatpak_spawn_reaches_the_hosts_flatpak(monkeypatch: pytest.MonkeyPatch) -> None:

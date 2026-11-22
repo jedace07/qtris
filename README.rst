@@ -35,10 +35,14 @@ bottom of the window (or right-click the game → **Install**). For a local
 Windows setup executable, choose **Add → Run Windows Setup**. Use
 **Add → Add Game** to configure a game that is already installed.
 
-Emulators run through the `RetroArch Flatpak
-<https://flathub.org/apps/org.libretro.RetroArch>`_ and its libretro cores, or,
-for emulators with no core, through their own Flathub builds. Qtris installs
-the ones a game needs.
+On systems with Flatpak, select **Flathub** under **Sources** and choose
+**Sync Library** to browse games and emulators together. **Install** opens the
+selected app in your desktop's default app store through AppStream. Qtris does
+not add remotes or install Flatpaks itself; it detects installed apps and makes
+them playable when you return to Qtris.
+
+Existing ROM shortcuts still use their configured emulators. The Libretro
+runner remains available for per-game RetroArch and core configuration.
 
 Game library
 ============

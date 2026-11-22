@@ -11,8 +11,8 @@ from qtris.backend.models import GameInfo
 from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.database.services import ServiceGameCollection
-from qtris.exceptions import GameConfigError
 from qtris.game import Game
+from qtris.services.flathub import FlathubService
 from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
@@ -87,13 +87,15 @@ def test_service_games_know_whether_they_are_installed(library, monkeypatch):
     assert [game.appid for game in asyncio.run(services.list_service_games("steam", installed_only=True))] == ["4242"]
 
 
-def test_retired_flatpak_integration_leaves_existing_game_records() -> None:
+def test_flathub_is_a_source_but_not_a_visible_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(services.SERVICES, "flathub", FlathubService)
     game_id = str(
         games_db.add_game(
             name="Previous Flatpak Game",
             slug="previous-flatpak-game",
             runner="flatpak",
             service="flathub",
+            service_id="org.example.Game",
             configpath="previous-flatpak-game",
             installed=1,
         )
@@ -105,14 +107,13 @@ def test_retired_flatpak_integration_leaves_existing_game_records() -> None:
     )
     try:
         assert "flatpak" not in asyncio.run(runners.list_runners())
-        assert "flathub" not in {source.id for source in asyncio.run(preferences.list_sources())}
-        assert not asyncio.run(services.list_service_games("flathub"))
-        assert "flathub" not in {game.service for game in asyncio.run(services.list_service_games())}
+        assert "flathub" in {source.id for source in asyncio.run(preferences.list_sources())}
+        assert [game.appid for game in asyncio.run(services.list_service_games("flathub"))] == ["org.example.Game"]
+        assert "flathub" in {game.service for game in asyncio.run(services.list_service_games())}
         assert asyncio.run(games.get_game(game_id)) is not None
         info = asyncio.run(game_maintenance.get_maintenance_info(game_id))
         assert info.files_unavailable_reason == "This installation is managed outside Qtris."
-        with pytest.raises(GameConfigError, match="Flatpak runner has been removed"):
-            Game(game_id).check_launchable()
+        assert Game(game_id).check_launchable()
     finally:
         sql.db_delete(settings.DB_PATH, "service_games", "id", service_id)
         games_db.delete_game(game_id)

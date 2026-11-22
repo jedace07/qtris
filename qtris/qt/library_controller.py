@@ -136,6 +136,7 @@ class LibraryController(QObject):
     async def _load(self) -> None:
         self._running_ids = set(await games.list_running_game_ids())
         self.model.set_running_game_ids(self._running_ids | self._launch_requests)
+        self._store_sources.refresh_flathub_installations()
         self.refresh_sidebar()
         self.refresh()
 
@@ -334,6 +335,8 @@ class LibraryController(QObject):
     @Property(bool, notify=selectionChanged)
     def canMaintain(self) -> bool:  # noqa: N802
         game = self.selected_game
+        if game and game.installed and game.runner == "flatpak" and installers.uses_external_installation(game.service):
+            return False
         return bool(game and self._can_maintain(game.game_id))
 
     def _can_maintain(self, game_id: str | None) -> bool:
@@ -515,6 +518,7 @@ class LibraryController(QObject):
 
     def _on_sources_changed(self) -> None:
         if not self._closed:
+            self._store_sources.refresh_flathub_installations()
             self.refresh_sidebar()
             self.refresh()
 

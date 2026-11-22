@@ -28,7 +28,9 @@ from qtris.installer.interpreter import ScriptInterpreter
 from qtris.runners import get_runner_human_name, is_valid_runner_name
 from qtris.services import SERVICES
 from qtris.services.base import OnlineService
+from qtris.services.flathub import FlathubService
 from qtris.uri import parse_installer_url
+from qtris.util import flatpak
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 from qtris.util.wine.wine import prepare_wine_prefix
@@ -69,6 +71,18 @@ _catalogs: OrderedDict[str, _Catalog] = OrderedDict()
 
 def can_install_game(installed: bool, service: str | None, appid: str | None) -> bool:
     return not installed and bool(service in SERVICES and appid)
+
+
+def uses_external_installation(service: str | None) -> bool:
+    return service == FlathubService.id
+
+
+async def open_external_installation(service: str, appid: str) -> None:
+    """Hand a Flathub installation off to the desktop, without a Qtris installer."""
+    if not uses_external_installation(service):
+        raise QtrisError(_("This game source does not install apps through the desktop."))
+    await get_store_game_name(service, appid)
+    await asyncio.to_thread(flatpak.open_app_store, appid)
 
 
 def can_update_game(installed: bool, service: str | None, appid: str | None) -> bool:
@@ -120,6 +134,8 @@ def _store_installers(
     source_class = SERVICES.get(service_id)
     if not (source_class and appid):
         raise QtrisError(_("This game source is unavailable."))
+    if uses_external_installation(service_id):
+        raise QtrisError(_("Manage Flathub apps in your desktop app store."))
     source = source_class()
     if isinstance(source, OnlineService) and not source.is_authenticated():
         raise QtrisError(_("Sign in to %s before installing this game.") % source.name)
@@ -299,7 +315,7 @@ def _is_usable(script: _Script) -> bool:
     if missing:
         logger.warning("Skipping install script %s, missing %s", script.get("slug"), ", ".join(missing))
         return False
-    if not is_valid_runner_name(script["runner"]):
+    if not is_valid_runner_name(script["runner"]) or script["runner"] == "flatpak":
         logger.warning("Skipping install script %s for unsupported runner %s", script["slug"], script["runner"])
         return False
     if not isinstance(script["script"], dict):

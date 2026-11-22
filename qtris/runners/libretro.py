@@ -355,8 +355,7 @@ class libretro(Runner):
         version: str | None = None,
         callback: Callable[[], None] | None = None,
     ) -> None:
-        """Install RetroArch from Flathub if it's missing, then the core, the way RetroArch's
-        own updater does: from the Libretro buildbot into RetroArch's cores directory."""
+        """Hand off a missing RetroArch to the app store or install the core from Libretro."""
         if not super().is_installed():
             super().install(install_ui_delegate)
         core = version or self.get_version(use_default=False)

@@ -142,9 +142,12 @@ class InstallerController(QObject):
 
     @Slot(str, str, str, str, str)
     def open_installers(self, service: str, appid: str, game_id: str, game_name: str, operation: str) -> None:
+        kind = InstallationKind[operation.upper()]
+        if kind == InstallationKind.INSTALL and installers.uses_external_installation(service):
+            start_task(installers.open_external_installation(service, appid), self._prompts.error)
+            return
         if self.installation_controller.active or self._importing:
             return
-        kind = InstallationKind[operation.upper()]
         self._reset(game_name)
         self._kind = kind
         if service == "gog" and appid and kind == InstallationKind.INSTALL:
@@ -174,6 +177,9 @@ class InstallerController(QObject):
         self.requested.emit()
 
     async def open_store_uri(self, service: str, appid: str) -> None:
+        if installers.uses_external_installation(service):
+            await installers.open_external_installation(service, appid)
+            return
         name = await installers.get_store_game_name(service, appid)
         if self.installation_controller.active or self._importing:
             raise QtrisError(_("Finish the current installation first."))
