@@ -459,6 +459,8 @@ class LibraryController(QObject):
             return _("Add games to your favorites to see them here.")
         if query.category == ".hidden":
             return _("No games are hidden.")
+        if query.is_local_runner_view:
+            return _("No locally installed games found.")
         if query.installed_only and await library.has_uninstalled_games():
             return _("No installed games found. Uncheck 'Installed only' to show the others.")
         return _("No games found")

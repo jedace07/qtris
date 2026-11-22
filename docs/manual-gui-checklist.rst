@@ -114,9 +114,10 @@ Item 1 - First start
 **Pass:** the window opens within a few seconds. The header bar has a search entry
 ("Search games"), an "Add Game" button, a view toggle and the main menu. The
 sidebar shows **Library** (Games, Recent, Running, Favorites, Uncategorized,
-Hidden) followed by **Categories**, **Sources**, **Runners** and
-**Platforms**. The library is empty. Qtris starts fetching its runtime/DXVK
-components, which is normal on a first run. No error dialog.
+Hidden) and sections for **Categories**, **Sources**, and **Runners** when they
+have entries. There is no **Platforms** section. The library is empty. Qtris
+starts fetching its runtime/DXVK components, which is normal on a first run.
+No error dialog.
 
 Anything already in this library means a profile was reused, not a first start.
 
@@ -173,7 +174,9 @@ Item 6 - Runner configuration
 (Double-clicking a runner row only filters the list; the configuration dialog is in
 the context menu.) Untick **Enable DXVK** and save.
 
-**Pass:** the value is written to the runner configuration and survives reopening
+**Pass:** selecting the **Linux** or **Proton** runner lists only locally installed
+games for that runner; store games are listed under their sources. The value is
+written to the runner configuration and survives reopening
 the dialog; the reset button next to the option restores the default::
 
     cat "$SMOKE"/first-run/home/.local/share/qtris/runners/wine.yml

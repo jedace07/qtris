@@ -33,18 +33,12 @@ _KIND_ICONS = {
     "saved_search": "saved-search",
     "service": "store",
     "runner": "runner",
-    "platform": "platform",
 }
 
 
 def get_view_icon(view: dict[str, str]) -> str:
     """Name the icon, from the style's icon set, that shows a view in the sidebar."""
     for kind, value in view.items():
-        if kind == "platform":
-            if value in ("Linux", _("Linux")):
-                return "linux"
-            if value in ("Windows", _("Windows")):
-                return "windows"
         if icon := _VIEW_ICONS.get((kind, value)) or _KIND_ICONS.get(kind):
             return icon
     return "games"
@@ -84,7 +78,6 @@ class SidebarModel(QAbstractListModel):
                 _("Runners"),
                 [SidebarEntry(item.human_name, {"runner": item.name}) for item in await runners.list_enabled_runners()],
             ),
-            (_("Platforms"), [SidebarEntry(name, {"platform": name}) for name in await library.list_platforms()]),
         )
         self.beginResetModel()
         self._entries = [(section, entry) for section, entries in sections for entry in entries]

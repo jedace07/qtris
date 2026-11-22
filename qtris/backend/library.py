@@ -1,6 +1,8 @@
 """Calls that read the library the way its views show it: which games a view
 lists, in what order, and what each row says about its game."""
 
+from __future__ import annotations
+
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -44,7 +46,7 @@ class LibrarySort:
 @dataclass(frozen=True)
 class LibraryQuery:
     """What a library view shows: the sidebar row it's for (at most one of category,
-    saved_search, dynamic_category, service, runner and platform), the search text,
+    saved_search, dynamic_category, service and runner), the search text,
     and whether only installed games show."""
 
     text: str = ""
@@ -56,12 +58,15 @@ class LibraryQuery:
     # A service's id; its view lists the games it offers rather than the library's
     service: str | None = None
     runner: str | None = None
-    platform: str | None = None
     installed_only: bool = False
     # The games running now, for the "running" dynamic category
     running_game_ids: tuple[str, ...] = ()
     sort: LibrarySort = field(default_factory=LibrarySort)
     include_artwork: bool = False
+
+    @property
+    def is_local_runner_view(self) -> bool:
+        return self.runner in ("linux", "wine")
 
 
 async def query_games(query: LibraryQuery) -> list[LibraryGame]:
@@ -89,11 +94,6 @@ async def list_saved_searches() -> list[SavedSearchInfo]:
     """Return the saved searches, in alphabetical order."""
     searches = [SavedSearchInfo(s.name, s.search) for s in saved_searches_db.get_saved_searches()]
     return sorted(searches, key=lambda s: s.name.casefold())
-
-
-async def list_platforms() -> list[str]:
-    """Return the platforms of the games in the library."""
-    return games_db.get_used_platforms()
 
 
 async def has_uninstalled_games() -> bool:
@@ -168,12 +168,13 @@ def _query_games(query: LibraryQuery, only_game_ids: set[str] | None = None) -> 
     excluded = [".hidden"] if category != ".hidden" and not any(s.has_component("hidden") for s in searches) else []
     category_game_ids = set(categories_db.get_game_ids_for_categories(included, excluded))
 
-    filters = {}
+    filters: dict[str, str | tuple[str | None, ...]] = {}
     if query.runner:
         filters["runner"] = query.runner
-    if query.platform:
-        filters["platform"] = query.platform
-    if query.installed_only and not search.has_component("installed"):
+    if query.is_local_runner_view:
+        filters["service"] = (None, "", "xdg")
+        filters["installed"] = "1"
+    elif query.installed_only and not search.has_component("installed"):
         filters["installed"] = "1"
 
     excludes = {}

@@ -62,8 +62,6 @@ def sidebar_views() -> list[dict[str, str]]:
         {"runner": "linux"},
         {"runner": "wine"},
         {"runner": "steam"},
-        {"platform": "Linux"},
-        {"platform": "Windows"},
     ]
 
 
@@ -81,9 +79,6 @@ def sidebar_views() -> list[dict[str, str]]:
         ({"runner": "wine"}, "proton"),
         ({"runner": "steam"}, "steam"),
         ({"runner": "web"}, "runner"),
-        ({"platform": "Linux"}, "linux"),
-        ({"platform": "Windows"}, "windows"),
-        ({"platform": "Web"}, "platform"),
     ],
 )
 def test_sidebar_views_have_icons(view: dict[str, str], icon: str) -> None:

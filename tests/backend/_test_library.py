@@ -71,6 +71,29 @@ def test_categories_runners_and_text(games):
     assert query(category="all", text="uninstalled") == [PREFIX + "uninstalled-game"]
 
 
+@pytest.mark.parametrize(
+    ("runner", "local_slug", "local_service"),
+    [("linux", "game-10", "xdg"), ("wine", "game-9", "")],
+)
+def test_desktop_runner_views_only_show_locally_installed_games(
+    games: dict[str, str], runner: str, local_slug: str, local_service: str
+) -> None:
+    local_entry = PREFIX + "local-entry"
+    store_entry = PREFIX + "store-entry"
+    uninstalled_entry = PREFIX + "uninstalled-entry"
+    for slug, service, installed in (
+        (local_entry, local_service, 1),
+        (store_entry, "gog", 1),
+        (uninstalled_entry, None, 0),
+    ):
+        games[slug] = games_db.add_game(name=slug, slug=slug, runner=runner, installed=installed, service=service)
+
+    assert query(runner=runner) == [PREFIX + local_slug, local_entry]
+    assert query(runner=runner, text="installed:no") == []
+    assert query(text="source:gog") == [store_entry]
+    assert not asyncio.run(library.is_game_in_view(LibraryQuery(runner=runner), games[store_entry]))
+
+
 def test_sorting(games):
     by_playtime = LibrarySort(key="playtime", reverse=False, installed_first=True)
     assert query(category="all", sort=by_playtime) == [

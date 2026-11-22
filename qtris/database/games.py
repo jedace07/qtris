@@ -249,17 +249,6 @@ def get_used_runners() -> list[str]:
     return [result[0] for result in results if result[0]]
 
 
-def get_used_platforms() -> list[str]:
-    """Return a list of platforms currently in use"""
-    with sql.db_cursor(settings.DB_PATH) as cursor:
-        query = (
-            "select distinct platform from games where platform is not null and platform is not '' order by platform"
-        )
-        rows = cursor.execute(query)
-        results = rows.fetchall()
-    return [result[0] for result in results if result[0]]
-
-
 def get_game_count(param: str, value: Any) -> int | None:
     res = sql.db_select(settings.DB_PATH, "games", fields=("COUNT(id)",), condition=(param, value))
     if res:

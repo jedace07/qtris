@@ -89,6 +89,9 @@ def listed(window: MainWindow) -> list[str]:
 
 
 def test_the_window_follows_sidebar_search_and_filter(qt_application: QGuiApplication, library: list[str]) -> None:
+    games_db.update_existing(id=library[0], platform="Linux")
+    games_db.update_existing(id=library[1], platform="Windows")
+
     async def run() -> None:
         window = MainWindow()
         controller = window.controller
@@ -97,6 +100,13 @@ def test_the_window_follows_sidebar_search_and_filter(qt_application: QGuiApplic
             await settle(window)
             assert window.window.title() == "Qtris"
             assert listed(window) == [PREFIX + "Installed", PREFIX + "Uninstalled"]
+            assert controller.sidebar.find_row({"platform": "Linux"}) == -1
+            assert controller.sidebar.find_row({"platform": "Windows"}) == -1
+
+            controller.set_search("platform:linux")
+            controller.refresh()
+            await settle(window)
+            assert listed(window) == [PREFIX + "Installed"]
 
             controller.set_search("uninstalled")
             controller.refresh()
@@ -107,6 +117,12 @@ def test_the_window_follows_sidebar_search_and_filter(qt_application: QGuiApplic
             row = controller.sidebar.find_row({"category": PREFIX + "Category"})
             assert row >= 0
             controller.select_view(row)
+            await settle(window)
+            assert listed(window) == [PREFIX + "Installed"]
+
+            linux_row = controller.sidebar.find_row({"runner": "linux"})
+            assert linux_row >= 0
+            controller.select_view(linux_row)
             await settle(window)
             assert listed(window) == [PREFIX + "Installed"]
 
