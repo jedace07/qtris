@@ -195,9 +195,26 @@ ApplicationWindow {
     Connections {
         target: window.controller.storeSources
         function onLoginRequested() { storeLoginLoader.active = true }
+        function onWebLoginRequested() { storeWebLoginLoader.active = true }
         function onLoginClosed() {
             if (storeLoginLoader.status === Loader.Ready)
                 (storeLoginLoader.item as StoreLoginDialog).close()
+            // The library sync that follows keeps the controller busy, which the window
+            // would refuse to close for
+            storeWebLoginLoader.active = false
+        }
+    }
+
+    Loader {
+        id: storeWebLoginLoader
+        active: false
+        sourceComponent: StoreWebLoginWindow {
+            controller: window.controller.storeSources
+            transientParent: window
+            onDismissed: {
+                controller.close_login()
+                storeWebLoginLoader.active = false
+            }
         }
     }
 

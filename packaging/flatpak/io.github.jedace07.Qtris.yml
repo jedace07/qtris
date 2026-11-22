@@ -8,6 +8,8 @@
 #     update-python-dependencies.py, instead of hand-maintained pip modules. Re-run
 #     it after changing uv.lock; the build itself needs no network access
 #   * Read-write access to drives mounted under /mnt
+#   * QtWebEngine, for the stores' sign-in web view, without the PySide6 add-on
+#     modules Qtris never loads (trim-pyside6.py)
 #
 # See INSTALL.rst for build and install commands
 
@@ -743,6 +745,9 @@ modules:
         done
       - uv build --wheel --offline
       - uv pip install --python /usr/bin/python3 --prefix ${FLATPAK_DEST} --offline --no-deps dist/*.whl
+      # QtWebEngine, for the stores' sign-in web view, brings every optional Qt module
+      # with it; drop the ones Qtris never loads
+      - python3 packaging/flatpak/trim-pyside6.py ${FLATPAK_DEST}
       - msgfmt --desktop -d qtris/locale --template packaging/desktop/share/applications/io.github.jedace07.Qtris.desktop
         -o ${FLATPAK_DEST}/share/applications/io.github.jedace07.Qtris.desktop
       - msgfmt --xml -d qtris/locale --template packaging/desktop/share/metainfo/io.github.jedace07.Qtris.metainfo.xml

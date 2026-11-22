@@ -397,12 +397,20 @@ custom executables. A configured version that isn't Proton falls back to
 GE-Proton Latest, except in a Wine prefix Proton has never run in.
 
 Selecting a source in Qt exposes **Sign In**, **Sync Library**, and
-**Disconnect** as appropriate. Sign-in uses the system default browser.
-Amazon and ZOOM Platform accept their redirect URL. Epic Games accepts
-its authorization code or the JSON from the final page. itch.io uses a
-dedicated API key. GOG uses the redirect URL for its API token and cookies
-for the library endpoint. EA App, Humble Bundle, Steam Families, Game Jolt
-and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
+**Disconnect** as appropriate. GOG, the Epic Games Store and Amazon sign in
+in Qtris's own web view (``StoreWebLoginWindow.qml``, QtWebEngine), like
+Heroic: their sign-in ends on fixed store pages (the OAuth clients they borrow
+allow no other redirect), so the host browser can't hand the result back.
+Each sign-in gets a private, off-the-record profile whose user agent drops the
+QtWebEngine token. ``store_login.web_response()`` tells the frontend which
+page ends the sign-in: GOG's and Amazon's redirect address carries the code,
+and Epic's ``/id/api/redirect`` page shows it as JSON, which QML reads from
+the page. GOG also keeps the web session's ``gog.com`` cookies, though its API
+token alone signs in. Epic's device-code flow would work in the host browser,
+but only Epic's Fortnite client allows it, so it isn't used. The other stores
+use the system default browser. ZOOM Platform accepts its redirect URL.
+itch.io uses a dedicated API key. EA App, Humble Bundle, Steam Families, Game
+Jolt and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
 keeps only cookies from the selected store's domain. ``store_login`` retains the service instance
 until the handoff completes so it can keep transient login data such as
 the device registration Nile starts for Amazon. The frontend syncs the library on successful

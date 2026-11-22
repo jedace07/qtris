@@ -30,6 +30,7 @@ dependencies = [
     "webdav4>=0.11.0",
     "packaging>=26.3",
     "pyside6-essentials>=6.12.0",
+    "pyside6-webengine>=6.12.0",
 ]
 
 [project.urls]

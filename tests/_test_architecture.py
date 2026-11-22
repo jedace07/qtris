@@ -20,9 +20,15 @@ GTK_NAMESPACES = {
     "WebKit2",
 }
 NATIVE_QT_IMPORTS = {
-    "qtris/qt/application.py": {"PySide6.QtWidgets.QApplication"},
+    "qtris/qt/application.py": {"PySide6.QtWidgets.QApplication", "PySide6.QtWebEngineQuick"},
     "qtris/qt/tray.py": {"PySide6.QtWidgets.QMenu", "PySide6.QtWidgets.QSystemTrayIcon"},
+    # The web view GOG, Epic and Amazon sign in with; the other stores use the host browser
+    "qtris/qt/store_sources.py": {
+        "PySide6.QtNetwork",
+        "PySide6.QtWebEngineQuick",
+    },
 }
+WEB_VIEW_QML = {"StoreWebLoginWindow.qml"}
 QUICK_MODULES = {"PySide6.QtCore", "PySide6.QtGui", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickControls2"}
 GIO_DEFAULT = "Gio.Application.get_default()"
 
@@ -84,6 +90,8 @@ def test_only_qt_quick_assets_are_shipped():
     assert not (ROOT / "qtris/gui").exists()
     assert not (ROOT / "qtris/data/ui").exists()
     for path in (ROOT / "qtris/qt/qml").rglob("*.qml"):
+        if path.name in WEB_VIEW_QML:
+            continue
         assert not any(
             line.lstrip().startswith(("import QtWebEngine", "import QtWebView"))
             for line in path.read_text(encoding="utf-8").splitlines()

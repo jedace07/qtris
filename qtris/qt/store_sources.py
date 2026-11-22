@@ -1,23 +1,44 @@
-"""Expose game sources and host-browser sign-in to Qt Quick."""
+"""Expose game sources and store sign-in to Qt Quick."""
 
 import asyncio
+import re
 from collections.abc import Coroutine
 from gettext import gettext as _
 from typing import Any
 
 from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtNetwork import QNetworkCookie
+from PySide6.QtWebEngineQuick import QQuickWebEngineProfile
 
 from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
 from qtris.qt.delegates import PromptController
 from qtris.qt.tasks import start_task
 
+# Stores' sign-in pages treat an unknown browser more warily than Chrome itself
+_WEB_ENGINE_TOKEN = re.compile(r"\s*QtWebEngine/\S+")
+
+
+def _web_cookie(cookie: QNetworkCookie) -> store_login.WebCookie:
+    expires = None if cookie.isSessionCookie() else cookie.expirationDate().toSecsSinceEpoch()
+    return store_login.WebCookie(
+        domain=cookie.domain(),
+        name=bytes(cookie.name().data()).decode("utf-8", "replace"),
+        value=bytes(cookie.value().data()).decode("utf-8", "replace"),
+        path=cookie.path() or "/",
+        secure=cookie.isSecure(),
+        http_only=cookie.isHttpOnly(),
+        expires=expires,
+    )
+
 
 class StoreSourcesController(QObject):
     changed = Signal()
     gamesChanged = Signal()
+    # A sign-in in the host browser, or in Qtris's own web view
     loginRequested = Signal()
+    webLoginRequested = Signal()
     loginClosed = Signal()
     launcherRequested = Signal(str)
 
@@ -30,6 +51,8 @@ class StoreSourcesController(QObject):
         self._request: store_login.BrowserLogin | None = None
         self._task: asyncio.Task[None] | None = None
         self._error = ""
+        # The cookies the sign-in web view has, by domain, path and name
+        self._web_cookies: dict[tuple[str, str, str], store_login.WebCookie] = {}
 
     @Property(dict, notify=changed)
     def source(self) -> dict[str, str | bool]:
@@ -46,7 +69,10 @@ class StoreSourcesController(QObject):
     @Property(dict, notify=changed)
     def login(self) -> dict[str, str]:
         request = self._request
-        return {"name": request.name, "inputKind": request.input_kind} if request else {}
+        if not request:
+            return {}
+        login = {"name": request.name, "inputKind": request.input_kind}
+        return login | {"url": request.url} if request.input_kind == "web" else login
 
     @Property(list, notify=changed)
     def launchers(self) -> list[dict[str, str]]:
@@ -108,7 +134,61 @@ class StoreSourcesController(QObject):
             return
         self._request = request
         self._error = ""
-        self.loginRequested.emit()
+        self._web_cookies.clear()
+        if request.input_kind == "web":
+            self.webLoginRequested.emit()
+        else:
+            self.loginRequested.emit()
+
+    @Slot(QQuickWebEngineProfile)
+    def attach_web_profile(self, profile: QQuickWebEngineProfile) -> None:
+        """Take the sign-in web view's private profile: present it as plain Chrome
+        and keep the cookies it gets, which some stores need besides the token."""
+        profile.setHttpUserAgent(_WEB_ENGINE_TOKEN.sub("", profile.httpUserAgent()))
+        store = profile.cookieStore()
+        store.cookieAdded.connect(self._add_web_cookie)
+        store.cookieRemoved.connect(self._remove_web_cookie)
+
+    def _add_web_cookie(self, cookie: QNetworkCookie) -> None:
+        web_cookie = _web_cookie(cookie)
+        self._web_cookies[(web_cookie.domain, web_cookie.path, web_cookie.name)] = web_cookie
+
+    def _remove_web_cookie(self, cookie: QNetworkCookie) -> None:
+        web_cookie = _web_cookie(cookie)
+        self._web_cookies.pop((web_cookie.domain, web_cookie.path, web_cookie.name), None)
+
+    @Slot(QUrl)
+    def web_url_changed(self, url: QUrl) -> None:
+        """Finish the sign-in when the web view reaches an address that is the response."""
+        if self._web_response(url) == "url":
+            self._submit_web(url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
+
+    @Slot(QUrl, result=bool)
+    def web_wants_page_text(self, url: QUrl) -> bool:
+        """Return whether the page the web view loaded holds the response; QML then
+        passes its text to web_page_text()."""
+        return self._web_response(url) == "page"
+
+    def _web_response(self, url: QUrl) -> store_login.WebResponse | None:
+        request = self._request
+        if not request or self._task:
+            return None
+        return store_login.web_response(request.id, url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
+
+    @Slot(str)
+    def web_page_text(self, text: str) -> None:
+        self._submit_web(text)
+
+    def _submit_web(self, value: str) -> None:
+        if self._request and not self._task:
+            cookies = tuple(self._web_cookies.values())
+            self._start(self._submit(self._source, self._request.id, value, cookies))
+
+    @Slot()
+    def clear_error(self) -> None:
+        if self._error:
+            self._error = ""
+            self.changed.emit()
 
     @Slot()
     def open_browser(self) -> None:
@@ -121,21 +201,22 @@ class StoreSourcesController(QObject):
         if self._request and not self._task:
             self._start(self._submit(self._source, self._request.id, text))
 
-    @Slot(QUrl, str)
-    def submit_cookie_file(self, url: QUrl, redirect: str) -> None:
-        if self._request and not self._task and url.isLocalFile():
-            if self._request.input_kind == "cookies":
-                self.submit(url.toLocalFile())
-            elif self._request.input_kind == "gog":
-                self._start(self._submit(self._source, self._request.id, redirect, url.toLocalFile()))
+    @Slot(QUrl)
+    def submit_cookie_file(self, url: QUrl) -> None:
+        if self._request and self._request.input_kind == "cookies" and url.isLocalFile():
+            self.submit(url.toLocalFile())
 
-    async def _submit(self, service_id: str, request_id: str, text: str, cookie_file: str = "") -> None:
+    async def _submit(
+        self, service_id: str, request_id: str, text: str, cookies: tuple[store_login.WebCookie, ...] = ()
+    ) -> None:
+        self._error = ""
         try:
-            await store_login.finish(request_id, text, cookie_file)
+            await store_login.finish(request_id, text, cookies)
         except QtrisError as error:
             self._error = error.message
             return
         self._request = None
+        self._web_cookies.clear()
         self.loginClosed.emit()
         await self._reload(service_id)
 
@@ -143,6 +224,7 @@ class StoreSourcesController(QObject):
     def close_login(self) -> None:
         if self._request and not self._task:
             request, self._request = self._request, None
+            self._web_cookies.clear()
             start_task(store_login.cancel(request.id), self._prompts.error)
             self.changed.emit()
 

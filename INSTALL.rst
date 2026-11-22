@@ -70,12 +70,19 @@ Build requirements, for the Python packages that compile against C libraries
 * Arch: ``base-devel gobject-introspection cairo dbus linux-api-headers``
 
 Runtime requirements, the libraries Qtris loads through GObject introspection
-and the tools it runs. The desktop application uses Qt Quick (PySide6 Essentials
-from ``uv.lock``); it does not require GTK introspection packages:
+and the tools it runs. The desktop application uses Qt Quick and QtWebEngine
+(PySide6 from ``uv.lock``); it does not require GTK introspection packages:
 
 * Fedora: ``glib-networking file-libs psmisc cabextract unzip 7zip curl xrandr mesa-demos vulkan-tools fluid-soundfont-gs``
 * Debian/Ubuntu: ``glib-networking libmagic1 psmisc cabextract unzip p7zip-full curl x11-xserver-utils mesa-utils vulkan-tools fluid-soundfont-gs``
 * Arch: ``glib-networking file psmisc cabextract unzip p7zip curl xorg-xrandr mesa-utils vulkan-tools soundfont-fluid``
+
+QtWebEngine, which shows the stores' sign-in pages, also loads these libraries.
+Qtris doesn't start without them, though most desktops already have them:
+
+* Fedora: ``nss nspr libxkbfile libXcomposite libXdamage libXfixes libXrandr libXtst alsa-lib krb5-libs libglvnd-glx``
+* Debian/Ubuntu: ``libgl1 libnss3 libnspr4 libxkbfile1 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxtst6 libasound2t64 libgssapi-krb5-2``
+* Arch: ``nss nspr libxkbfile libxcomposite libxdamage libxfixes libxrandr libxtst alsa-lib krb5 libglvnd``
 
 On X11, Qt's ``xcb`` plugin also needs your distribution's XCB helper libraries,
 including ``xcb-util-cursor`` (``libxcb-cursor0`` on Debian/Ubuntu).

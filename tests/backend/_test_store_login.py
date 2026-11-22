@@ -22,12 +22,11 @@ from tests.store_clients import install_store_clients
 setup_test_environment()
 
 
-def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
+def test_gog_signs_in_from_its_web_view_and_keeps_only_gog_cookies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     token = tmp_path / ".gog.token"
-    cookie_file = tmp_path / "cookies.txt"
-    cookie_file.write_text(".gog.com\tTRUE\t/\tTRUE\t0\tsession\tfixture\n", encoding="utf-8")
+    cookie_path = tmp_path / ".gog.auth"
     responses: list[str] = []
 
     def exchange(self: GOGService, url: str, refresh_token: str = "") -> None:
@@ -36,29 +35,64 @@ def test_gog_rejects_lookalike_origins_and_retries_the_same_request(
 
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(GOGService, "token_path", str(token))
-    monkeypatch.setattr(GOGService, "cookies_path", str(tmp_path / ".gog.auth"))
+    monkeypatch.setattr(GOGService, "cookies_path", str(cookie_path))
     monkeypatch.setattr(GOGService, "request_token", exchange)
+    redirect = "https://embed.gog.com/on_login_success?origin=client&code=fixture"
+    cookies = (
+        store_login.WebCookie(".gog.com", "gog-al", "session", secure=True, http_only=True, expires=4_000_000_000),
+        store_login.WebCookie("login.gog.com", "GalaxyLogin", "fixture"),
+        store_login.WebCookie(".gog.com.example", "stolen", "no"),
+    )
 
     async def run() -> None:
         request = await store_login.begin("gog")
-        assert urlsplit(request.url).netloc == "auth.gog.com"
-        for reply in (
+        assert request.input_kind == "web" and urlsplit(request.url).netloc == "auth.gog.com"
+        for page in (
+            request.url,
+            "https://login.gog.com/login",
             "https://embed.gog.com@other.example/on_login_success?code=secret",
             "https://embed.gog.com/on_login_success?code=one&code=two",
         ):
+            assert store_login.web_response(request.id, page) is None
             with pytest.raises(QtrisError, match="full sign-in redirect URL"):
-                await store_login.finish(request.id, reply)
+                await store_login.finish(request.id, page)
+        assert store_login.web_response(request.id, redirect) == "url"
         assert not responses
-        await store_login.finish(
-            request.id, "https://embed.gog.com/on_login_success?origin=client&code=fixture", str(cookie_file)
-        )
+        await store_login.finish(request.id, redirect, cookies)
         with pytest.raises(QtrisError, match="no longer available"):
-            await store_login.finish(request.id, "https://embed.gog.com/on_login_success?code=fixture")
+            await store_login.finish(request.id, redirect)
+        assert store_login.web_response(request.id, redirect) is None
         assert (await services.get_source_status("gog")).signed_in
 
     asyncio.run(run())
     assert responses == ["https://embed.gog.com/on_login_success?code=fixture"]
     assert token.stat().st_mode & 0o777 == 0o600
+    saved = cookie_path.read_text(encoding="utf-8")
+    assert "gog-al" in saved and "GalaxyLogin" in saved and "stolen" not in saved
+    assert cookie_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_gog_signs_in_with_the_token_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    token = tmp_path / ".gog.token"
+    cookie_path = tmp_path / ".gog.auth"
+    cookie_path.write_text(".gog.com\tTRUE\t/\tTRUE\t0\tstale\tsession\n", encoding="utf-8")
+
+    def exchange(self: GOGService, url: str, refresh_token: str = "") -> None:
+        save_credentials(self.token_path, "{}")
+
+    monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(GOGService, "token_path", str(token))
+    monkeypatch.setattr(GOGService, "cookies_path", str(cookie_path))
+    monkeypatch.setattr(GOGService, "request_token", exchange)
+
+    async def run() -> None:
+        request = await store_login.begin("gog")
+        await store_login.finish(request.id, "https://embed.gog.com/on_login_success?code=fixture")
+        assert (await services.get_source_status("gog")).signed_in
+
+    asyncio.run(run())
+    assert not cookie_path.exists()
+    assert GOGService().load_cookies() is None
 
 
 def test_amazon_signs_in_through_nile(
@@ -69,7 +103,14 @@ def test_amazon_signs_in_through_nile(
 
     async def run() -> None:
         request = await store_login.begin("amazon")
+        assert request.input_kind == "web"
         assert "openid.oa2.code_challenge" in parse_qs(urlsplit(request.url).query)
+        assert store_login.web_response(request.id, request.url) is None
+        assert store_login.web_response(request.id, "https://www.amazon.com/ap/signin?openid.mode=x") is None
+        assert (
+            store_login.web_response(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code")
+            == "url"
+        )
         with pytest.raises(QtrisError, match="full sign-in redirect URL"):
             await store_login.finish(request.id, "https://www.amazon.com.example/?openid.oa2.authorization_code=x")
         await store_login.finish(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code")
@@ -87,7 +128,17 @@ def test_epic_signs_in_through_legendary(tmp_path: Path, monkeypatch: pytest.Mon
 
     async def run() -> None:
         request = await store_login.begin("egs")
-        assert urlsplit(request.url).netloc == "www.epicgames.com"
+        assert request.input_kind == "web" and urlsplit(request.url).netloc == "www.epicgames.com"
+        # The sign-in page carries the redirect page's address in its own query
+        assert store_login.web_response(request.id, request.url) is None
+        assert (
+            store_login.web_response(
+                request.id, "https://www.epicgames.com/id/api/redirect?clientId=x&responseType=code"
+            )
+            == "page"
+        )
+        with pytest.raises(QtrisError, match="authorization code"):
+            await store_login.finish(request.id, '{"redirectUrl": "https://localhost", "authorizationCode": null}')
         with pytest.raises(QtrisError, match="Login attempt failed"):
             await store_login.finish(request.id, '{"authorizationCode": "wrong-code"}')
         await store_login.finish(request.id, '{"redirectUrl": "https://localhost", "authorizationCode": "epic-code"}')

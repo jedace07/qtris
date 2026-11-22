@@ -130,6 +130,14 @@ class GOGService(OnlineService):
     def credential_files(self) -> list[str]:
         return [self.cookies_path, self.token_path]
 
+    def is_authenticated(self) -> bool:
+        # The API token signs in; the web session's cookies are optional
+        return not self.is_login_in_progress and system.path_exists(self.token_path)
+
+    def load_cookies(self):
+        """Load the web session's cookies, if the sign-in kept any"""
+        return super().load_cookies() if system.path_exists(self.cookies_path) else None
+
     def is_connected(self) -> bool:
         """Return whether the user is authenticated and if the service is available"""
         if not self.is_authenticated():
@@ -223,8 +231,9 @@ class GOGService(OnlineService):
         return time.time() - token_modified
 
     def make_request(self, url: str) -> Any:
-        """Send a cookie authenticated HTTP request to GOG"""
-        request = Request(url, cookies=self.load_cookies())
+        """Send a request to GOG's web endpoints; they answer with a sign-in page
+        instead of JSON once the session has expired"""
+        request = Request(url, headers=self.get_auth_headers(), cookies=self.load_cookies())
         request.get()
         if request.content.startswith(b"<"):
             raise AuthenticationError("Token expired, please log in again")
@@ -232,15 +241,17 @@ class GOGService(OnlineService):
 
     def make_api_request(self, url: str) -> Any:
         """Send a token authenticated request to GOG"""
-        token = self.load_token()
+        request = Request(url, headers=self.get_auth_headers(), cookies=self.load_cookies())
+        request.get()
+        return request.json
 
+    def get_auth_headers(self) -> dict[str, str]:
+        """Return the API token's header, refreshing the token when it's old"""
+        token = self.load_token()
         if self.get_token_age() > 2600:
             self.request_token(refresh_token=token["refresh_token"])
             token = self.load_token()
-        headers = {"Authorization": "Bearer " + token["access_token"]}
-        request = Request(url, headers=headers, cookies=self.load_cookies())
-        request.get()
-        return request.json
+        return {"Authorization": "Bearer " + token["access_token"]}
 
     def get_user_data(self) -> dict:
         """Return GOG profile information"""

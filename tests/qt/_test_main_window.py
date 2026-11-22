@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import Q_ARG, QCoreApplication, QEvent, QMetaObject, QMimeData, QObject, QPointF, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QGuiApplication, QImage
+from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
 
@@ -986,6 +987,152 @@ def test_qml_signs_in_via_the_host_browser_and_syncs(
             await wait_for_qml(qt_application, lambda: actions == [target, "sync", "sync"])
             await click("storeDisconnect")
             await wait_for_qml(qt_application, lambda: not signed_in)
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
+
+
+def test_qml_signs_in_through_the_web_view_with_its_cookies(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect = "https://embed.gog.com/on_login_success?origin=client&code=fixture"
+    finished: list[tuple[str, tuple[store_login.WebCookie, ...]]] = []
+    signed_in = False
+
+    async def list_sources() -> list[ServiceInfo]:
+        return [ServiceInfo("gog", "GOG", True)]
+
+    async def status(source_id: str) -> services.SourceStatus:
+        return services.SourceStatus("GOG", True, signed_in, True)
+
+    async def begin(source_id: str) -> store_login.BrowserLogin:
+        # A blank page keeps the web view off the network
+        return store_login.BrowserLogin("request", "GOG", "about:blank", "web")
+
+    def web_response(request_id: str, url: str) -> store_login.WebResponse | None:
+        assert request_id == "request"
+        return "url" if url == redirect else None
+
+    async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
+        nonlocal signed_in
+        finished.append((value, tuple(cookies)))
+        signed_in = True
+
+    async def sync(source_id: str) -> None:
+        pass
+
+    class Desktop:
+        @staticmethod
+        def openUrl(url: QUrl) -> bool:  # noqa: N802
+            raise AssertionError("A web sign-in must not open the host browser")
+
+    monkeypatch.setattr(services, "list_services", list_sources)
+    monkeypatch.setattr(services, "get_source_status", status)
+    monkeypatch.setattr(services, "sync_source", sync)
+    monkeypatch.setattr(store_login, "begin", begin)
+    monkeypatch.setattr(store_login, "web_response", web_response)
+    monkeypatch.setattr(store_login, "finish", finish)
+    monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        try:
+            await settle(window)
+            window.controller.select_view(window.controller.sidebar.find_row({"service": "gog"}))
+            await wait_for_qml(
+                qt_application,
+                lambda: bool(
+                    (button := window.window.findChild(QObject, "storeSignIn")) and button.property("visible")
+                ),
+            )
+            button = window.window.findChild(QObject, "storeSignIn")
+            assert button is not None and QMetaObject.invokeMethod(button, "clicked")
+
+            def sign_in_view() -> QObject | None:
+                sign_in = window.window.findChild(QObject, "storeWebLoginWindow")
+                return sign_in.findChild(QQuickItem, "storeWebLoginView") if sign_in else None
+
+            await wait_for_qml(qt_application, lambda: sign_in_view() is not None)
+            view = sign_in_view()
+            assert view is not None
+            profile = view.property("profile")
+            assert "QtWebEngine" not in profile.httpUserAgent()
+            cookie = QNetworkCookie(b"gog-al", b"session")
+            cookie.setDomain(".gog.com")
+            cookie.setSecure(True)
+            profile.cookieStore().setCookie(cookie, QUrl("https://www.gog.com/"))
+            await wait_for_qml(qt_application, lambda: bool(window.controller._store_sources._web_cookies))
+
+            # Only the final page ends the sign-in
+            assert view.setProperty("url", QUrl("about:blank#not-yet"))
+            await wait_for_qml(qt_application, lambda: view.property("url") == QUrl("about:blank#not-yet"))
+            assert not finished
+            window.controller._store_sources.web_url_changed(QUrl(redirect))
+            await wait_for_qml(qt_application, lambda: bool(finished) and not window.controller._store_sources.busy)
+            assert finished == [(redirect, (store_login.WebCookie(".gog.com", "gog-al", "session", secure=True),))]
+
+            def window_closed() -> bool:
+                # The Loader deletes the window later, which processEvents() alone doesn't do
+                QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+                return window.window.findChild(QObject, "storeWebLoginWindow") is None
+
+            await wait_for_qml(qt_application, window_closed)
+            assert window.controller._store_sources.login == {}
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
+
+
+def test_qml_web_view_passes_the_final_page_text(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    page = 'data:application/json,{"authorizationCode":"epic-code"}'
+    finished: list[str] = []
+
+    async def list_sources() -> list[ServiceInfo]:
+        return [ServiceInfo("egs", "Epic Games Store", True)]
+
+    async def status(source_id: str) -> services.SourceStatus:
+        return services.SourceStatus("Epic Games Store", True, bool(finished), True)
+
+    async def begin(source_id: str) -> store_login.BrowserLogin:
+        return store_login.BrowserLogin("request", "Epic Games Store", page, "web")
+
+    def web_response(request_id: str, url: str) -> store_login.WebResponse | None:
+        return "page" if url.startswith("data:") else None
+
+    async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
+        finished.append(value)
+
+    async def sync(source_id: str) -> None:
+        pass
+
+    monkeypatch.setattr(services, "list_services", list_sources)
+    monkeypatch.setattr(services, "get_source_status", status)
+    monkeypatch.setattr(services, "sync_source", sync)
+    monkeypatch.setattr(store_login, "begin", begin)
+    monkeypatch.setattr(store_login, "web_response", web_response)
+    monkeypatch.setattr(store_login, "finish", finish)
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        try:
+            await settle(window)
+            window.controller.select_view(window.controller.sidebar.find_row({"service": "egs"}))
+            await wait_for_qml(
+                qt_application,
+                lambda: bool(
+                    (button := window.window.findChild(QObject, "storeSignIn")) and button.property("visible")
+                ),
+            )
+            button = window.window.findChild(QObject, "storeSignIn")
+            assert button is not None and QMetaObject.invokeMethod(button, "clicked")
+            await wait_for_qml(qt_application, lambda: bool(finished))
+            assert finished == ['{"authorizationCode":"epic-code"}']
         finally:
             window.shutdown()
 

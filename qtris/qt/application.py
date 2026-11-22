@@ -15,6 +15,7 @@ from types import TracebackType
 
 from gi.repository import Gio, GLib
 from PySide6.QtGui import QIcon, QWindow
+from PySide6.QtWebEngineQuick import QtWebEngineQuick
 from PySide6.QtWidgets import QApplication
 
 from qtris import settings
@@ -59,7 +60,9 @@ class QtrisApplication(Gio.Application):
 
     def do_startup(self) -> None:
         Gio.Application.do_startup(self)
-        # Only the primary instance shows anything, so only it needs Qt
+        # Only the primary instance shows anything, so only it needs Qt. The stores'
+        # sign-in web view needs its setup before the application exists
+        QtWebEngineQuick.initialize()
         self.qt_application = QApplication([sys.argv[0]])
         self.qt_application.setQuitOnLastWindowClosed(False)
         self.qt_application.setApplicationName("Qtris")

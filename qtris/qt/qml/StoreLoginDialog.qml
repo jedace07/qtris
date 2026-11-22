@@ -9,7 +9,7 @@ Dialog {
 
     required property QtObject controller
     readonly property string inputKind: controller.login.inputKind ?? ""
-    readonly property bool needsCookies: inputKind === "cookies" || inputKind === "gog"
+    readonly property bool needsCookies: inputKind === "cookies"
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -23,10 +23,7 @@ Dialog {
 
         title: qsTr("Select the store’s cookies.txt export")
         nameFilters: [qsTr("Text files (*.txt)"), qsTr("All files (*)")]
-        onAccepted: {
-            dialog.controller.submit_cookie_file(selectedFile, response.text)
-            response.clear()
-        }
+        onAccepted: dialog.controller.submit_cookie_file(selectedFile)
     }
 
     contentItem: ColumnLayout {
@@ -39,12 +36,8 @@ Dialog {
                 switch (dialog.inputKind) {
                 case "api_key":
                     return qsTr("Open the browser, create an API key for Qtris, and paste it here.")
-                case "epic":
-                    return qsTr("Sign in in your browser, then paste the authorization code or the JSON shown by Epic Games.")
                 case "cookies":
                     return qsTr("Sign in in your browser. Export only this store’s cookies in Netscape cookies.txt format, then select the file.")
-                case "gog":
-                    return qsTr("Sign in in your browser and paste the full address from the final page. Export only GOG’s cookies in Netscape cookies.txt format, then select the file.")
                 case "ubisoft":
                     return qsTr("After signing in, open your browser’s developer tools and find local storage for connect.ubisoft.com. Paste PRODloginData here, or combine PRODloginData, PRODrememberMe and PRODlastProfile in a JSON array. Use null for missing values. Do not share these values.")
                 default:
