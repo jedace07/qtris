@@ -27,6 +27,16 @@ NATIVE_QT_IMPORTS = {
         "PySide6.QtNetwork",
         "PySide6.QtWebEngineQuick",
     },
+    # The web player, a process of its own. Qt Quick's web view refuses pointer lock,
+    # which mouse-look games need, so only the player uses the Widgets one
+    "qtris/qt/web_player/player.py": {
+        "PySide6.QtWebEngineCore",
+        "PySide6.QtWidgets.QApplication",
+        "PySide6.QtWidgets.QFileDialog",
+        "PySide6.QtWidgets.QMessageBox",
+    },
+    "qtris/qt/web_player/profile.py": {"PySide6.QtWebEngineCore"},
+    "qtris/qt/web_player/window.py": {"PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets"},
 }
 WEB_VIEW_QML = {"StoreWebLoginWindow.qml"}
 QUICK_MODULES = {"PySide6.QtCore", "PySide6.QtGui", "PySide6.QtQml", "PySide6.QtQuick", "PySide6.QtQuickControls2"}

@@ -17,6 +17,8 @@ FRONTEND_API = (
     "qtris.util.mainloop",
     "qtris.util.notifications",
     "qtris.util.strings",
+    # The web player is a process of its own, so it binds the translations itself
+    "qtris.util.textdomain",
 )
 
 

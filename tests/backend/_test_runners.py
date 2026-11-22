@@ -34,9 +34,13 @@ def saved(monkeypatch: pytest.MonkeyPatch) -> dict[tuple[str, str], str]:
     return values
 
 
-def test_a_new_profile_has_linux_and_proton_turned_on(saved: dict[tuple[str, str], str]) -> None:
+def test_a_new_profile_has_linux_proton_and_web_turned_on(saved: dict[tuple[str, str], str]) -> None:
     enabled = asyncio.run(runners.list_enabled_runners())
-    assert [(item.name, item.human_name) for item in enabled] == [("linux", "Linux"), ("wine", "Proton")]
+    assert [(item.name, item.human_name) for item in enabled] == [
+        ("linux", "Linux"),
+        ("wine", "Proton"),
+        ("web", "Web"),
+    ]
 
 
 def test_steam_is_not_offered_as_a_runner(saved: dict[tuple[str, str], str]) -> None:
@@ -79,7 +83,7 @@ def test_runners_can_be_turned_on_and_off(saved: dict[tuple[str, str], str], mon
 
 def test_the_catalog_says_which_runners_are_on(saved: dict[tuple[str, str], str]) -> None:
     catalog = {entry.name: entry for entry in asyncio.run(runners.list_runner_catalog())}
-    assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "wine"}
+    assert {name for name, entry in catalog.items() if entry.enabled} == {"linux", "web", "wine"}
     assert catalog["wine"].label == "Proton"
     # The runner downloads Proton builds when a game needs them
     assert catalog["wine"].installed and not catalog["wine"].can_install

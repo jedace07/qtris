@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from qtris.runners.runner import Runner
 
 # The runners a new profile starts with turned on; the others are opt-in
-DEFAULT_RUNNERS = ("linux", "wine")
+DEFAULT_RUNNERS = ("linux", "web", "wine")
 # Source runners and legacy emulator integrations needed by existing game configurations
 INTERNAL_RUNNERS = ("steam", "flatpak", "eden", "ryubing", "shadps4", "86box", "basiliskii", "gargoyle", "ruffle")
 

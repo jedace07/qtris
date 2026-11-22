@@ -9,8 +9,8 @@ Flatpak
 
 The Flatpak uses the Freedesktop runtime and its 32-bit compatibility
 extensions. Qtris downloads Proton on demand, and UMU downloads the Steam
-Linux Runtime when a Windows game needs it. Store sign-in pages use the
-bundled QtWebEngine. The manifest lives in ``packaging/flatpak``.
+Linux Runtime when a Windows game needs it. Store sign-in pages and web games
+use the bundled QtWebEngine. The manifest lives in ``packaging/flatpak``.
 
 Build it with the ``org.flatpak.Builder`` app from Flathub. It is the same
 ``flatpak-builder`` that Flathub and CI use, and it stays current whatever your
@@ -86,7 +86,8 @@ and the tools it runs. The desktop application uses Qt Quick and QtWebEngine
 * Debian/Ubuntu: ``glib-networking libmagic1 psmisc cabextract unzip p7zip-full curl x11-xserver-utils mesa-utils vulkan-tools fluid-soundfont-gs``
 * Arch: ``glib-networking file psmisc cabextract unzip p7zip curl xorg-xrandr mesa-utils vulkan-tools soundfont-fluid``
 
-QtWebEngine, which shows the stores' sign-in pages, also loads these libraries.
+QtWebEngine, which shows the stores' sign-in pages and runs web games, also
+loads these libraries.
 Qtris doesn't start without them, though most desktops already have them:
 
 * Fedora: ``nss nspr libxkbfile libXcomposite libXdamage libXfixes libXrandr libXtst alsa-lib krb5-libs libglvnd-glx``

@@ -1,6 +1,6 @@
 """Remove the PySide6 add-on files Qtris never loads from a Flatpak build.
 
-The store sign-in web view needs QtWebEngine, which comes in the pyside6-webengine
+Store sign-in and web games need QtWebEngine, which comes in the pyside6-webengine
 wheel and depends on pyside6-addons, a wheel of every other optional Qt module (3D,
 charts, multimedia, Bluetooth and many more). This keeps what Qtris can reach:
 

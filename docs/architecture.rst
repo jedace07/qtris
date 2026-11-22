@@ -17,8 +17,10 @@ The rule
 and ``Gio`` aren't UI and are allowed; accessing the running application
 through ``Gio.Application.get_default()`` stays in the frontend.
 ``tests/_test_architecture.py`` also keeps the CLI toolkit-free and guards the
-Qt Quick boundary. The only Qt Widgets imports are ``QApplication`` for
-bootstrap and ``QSystemTrayIcon`` and ``QMenu`` for the native system tray.
+Qt Quick boundary. The only Qt Widgets imports in the application are
+``QApplication`` for bootstrap and ``QSystemTrayIcon`` and ``QMenu`` for the
+native system tray. The web player, a program of its own, uses Widgets too
+(see "Web games").
 ``tests/_test_imports.py`` checks that each core module can be imported on its
 own, which catches the circular imports that moving code tends to create.
 
@@ -114,6 +116,48 @@ Models instead of widgets
     Notifications are delivered later, on the main loop, so a model that
     changes quickly should pass a snapshot of its state with each one rather
     than have handlers read its current state (the downloads do).
+
+Web games
+---------
+
+The Web runner starts ``qtris.qt.web_player`` as a process for each game, by
+module name, so the core still imports no frontend. A game's process is tracked
+and stopped like any other game's, and shares nothing with the application's
+QtWebEngine or with another game's.
+
+Profiles
+    A game's site data (cookies, storage, service workers) is in
+    ``DATA_DIR/web-profiles/<game id>-<time added>`` and its cache in the same
+    folder under ``CACHE_DIR``. Renaming or moving the game keeps it. The time is
+    there because SQLite reuses the ids of deleted games. A file lock keeps a
+    second player out of a profile. Removing a game leaves its profile on disk.
+
+Qt Widgets
+    The player uses ``QWebEngineView``. Qt Quick's ``WebEngineView`` denies every
+    pointer lock request ("Not supported in Qt Quick", in QtWebEngine's
+    ``qquickwebengineview.cpp``), which breaks mouse-look games.
+
+Local games
+    An HTML file is never loaded as ``file:``, which lets a page read any of the
+    user's files. The player serves the file's folder on a random loopback port,
+    answers only requests carrying its token, and maps the fixed host
+    ``game.qtris.localhost`` to the port, so the game's origin and saves outlast
+    it. Hidden files and links leading out of the folder aren't served, and the
+    runner refuses a file kept directly in the home or another personal folder.
+    The *Shared memory for local games* option adds the cross-origin isolation
+    headers that threaded builds need.
+
+Stopping
+    Chromium loses its latest writes if a signal kills it, so the player turns
+    SIGTERM, SIGINT and SIGHUP into a close: it unloads the page, waits for the
+    storage to commit and exits within about two seconds. The runner's Stop
+    signals only the player, not the engine's processes under it.
+
+Permissions
+    Pointer lock and writing to the clipboard are allowed; camera, microphone,
+    location, notifications and reading the clipboard are denied. Pop-ups need a
+    click. Links to other sites that open a tab go to the desktop portal, as a
+    browser started by the player would count as part of the game.
 
 The command line
 ----------------

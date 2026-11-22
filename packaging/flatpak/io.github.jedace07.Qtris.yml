@@ -2,7 +2,7 @@
 #
 # The native game libraries come from Lutris's Flatpak manifest. As in Faugus
 # Launcher, UMU uses a Proton build and downloads its Steam Linux Runtime as
-# needed. Qtris's store sign-in views use QtWebEngine
+# needed. Qtris's store sign-in views and web games use QtWebEngine
 #
 # Regenerate python-dependencies.json after changing uv.lock. The build runs
 # offline once the declared sources are downloaded
@@ -767,7 +767,7 @@ modules:
         done
       - uv build --wheel --offline
       - uv pip install --python /usr/bin/python3 --prefix ${FLATPAK_DEST} --offline --no-deps dist/*.whl
-      # QtWebEngine, for the stores' sign-in web view, brings every optional Qt module
+      # QtWebEngine, for store sign-in and web games, brings every optional Qt module
       # with it; drop the ones Qtris never loads
       - python3 packaging/flatpak/trim-pyside6.py ${FLATPAK_DEST}
       - msgfmt --desktop -d qtris/locale --template packaging/desktop/share/applications/io.github.jedace07.Qtris.desktop
