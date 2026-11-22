@@ -116,7 +116,6 @@ ScrollView {
                 subtitle: page.controller.trayAvailable ? "" : qsTr("The desktop does not provide a system tray.")
 
                 Switch {
-                    enabled: page.controller.trayAvailable
                     checked: page.controller.trayEnabled
                     Accessible.name: qsTr("Show tray icon")
                     onToggled: page.controller.set_interface_option("show_tray_icon", checked)

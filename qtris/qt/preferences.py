@@ -42,20 +42,19 @@ class PreferencesController(QObject):
     def theme(self) -> str:
         return self._get_theme()
 
-    def should_show_tray(self) -> bool:
-        return self._tray_available and settings.read_bool_setting("show_tray_icon")
-
-    @Property(bool, notify=interfaceChanged)
-    def trayEnabled(self) -> bool:  # noqa: N802
+    def is_tray_enabled(self) -> bool:
         return settings.read_bool_setting("show_tray_icon")
 
-    @Property(bool, notify=interfaceChanged)
-    def trayAvailable(self) -> bool:  # noqa: N802
+    def is_tray_available(self) -> bool:
         return self._tray_available
 
+    trayEnabled = Property(bool, is_tray_enabled, notify=interfaceChanged)  # noqa: N815
+    trayAvailable = Property(bool, is_tray_available, notify=interfaceChanged)  # noqa: N815
+
     def set_tray_available(self, available: bool) -> None:
-        self._tray_available = available
-        self.interfaceChanged.emit()
+        if available != self._tray_available:
+            self._tray_available = available
+            self.interfaceChanged.emit()
 
     @Property(bool, notify=interfaceChanged)
     def hideBadges(self) -> bool:  # noqa: N802

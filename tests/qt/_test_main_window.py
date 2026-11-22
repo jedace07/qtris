@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Q_ARG, QCoreApplication, QEvent, QMetaObject, QObject, QPointF, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QGuiApplication, QImage
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QWindow
 from PySide6.QtNetwork import QNetworkCookie
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
@@ -153,6 +153,29 @@ def test_quit_shortcut_requests_application_shutdown(qt_application: QGuiApplica
             quit_requested = QSignalSpy(window.engine.quit)
             QTest.keyClick(window.window, Qt.Key.Key_Q, Qt.KeyboardModifier.ControlModifier)
             await wait_for_qml(qt_application, lambda: quit_requested.count() == 1)
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
+
+
+def test_show_preserves_the_maximized_window(qt_application: QGuiApplication) -> None:
+    async def run() -> None:
+        window = MainWindow()
+        try:
+            await settle(window)
+            window.window.showMaximized()
+            window.show()
+            assert window.window.visibility() == QWindow.Visibility.Maximized
+
+            window.minimize()
+            assert window.window.visibility() == QWindow.Visibility.Minimized
+            window.show()
+            assert window.window.visibility() == QWindow.Visibility.Maximized
+
+            window.window.close()
+            window.show()
+            assert window.window.visibility() == QWindow.Visibility.Maximized
         finally:
             window.shutdown()
 

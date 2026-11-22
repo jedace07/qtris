@@ -1,13 +1,18 @@
 """Keep native tray integration separate from the Qt Quick window."""
 
-from collections.abc import Callable
-from gettext import gettext as _
+from __future__ import annotations
 
-from PySide6.QtCore import QObject
+from gettext import gettext as _
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
-from qtris.qt.preferences import PreferencesController
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from qtris.qt.preferences import PreferencesController
 
 
 class TrayIcon(QObject):
@@ -31,16 +36,24 @@ class TrayIcon(QObject):
         self._icon.activated.connect(
             lambda reason: show_window() if reason == QSystemTrayIcon.ActivationReason.Trigger else None
         )
-        self._preferences.set_tray_available(self._icon.isSystemTrayAvailable())
-        self._preferences.interfaceChanged.connect(self._update)
-        self._update()
+        self._availability_timer = QTimer(self, interval=1000, timerType=Qt.TimerType.VeryCoarseTimer)
+        self._availability_timer.timeout.connect(self.refresh_availability)
+        self.refresh_availability()
+        self._preferences.interfaceChanged.connect(self._sync)
+        self._sync()
+        self._availability_timer.start()
 
-    def _update(self) -> None:
-        enabled = self._preferences.should_show_tray()
+    def refresh_availability(self) -> None:
+        self._preferences.set_tray_available(QSystemTrayIcon.isSystemTrayAvailable())
+
+    def _sync(self) -> None:
+        enabled = self._preferences.is_tray_enabled()
+        # Qt registers visible icons when the desktop tray becomes available
         self._icon.setVisible(enabled)
-        self._set_held(enabled)
+        self._set_held(enabled and self._preferences.is_tray_available())
 
     def shutdown(self) -> None:
-        self._preferences.interfaceChanged.disconnect(self._update)
+        self._availability_timer.stop()
+        self._preferences.interfaceChanged.disconnect(self._sync)
         self._icon.hide()
         self._set_held(False)

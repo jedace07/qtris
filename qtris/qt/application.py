@@ -81,6 +81,7 @@ class QtrisApplication(Gio.Application):
     def do_shutdown(self) -> None:
         if self.tray:
             self.tray.shutdown()
+            self.tray = None
         # Quitting (on Ctrl+C, say) leaves the window open otherwise
         if self.window:
             self.window.shutdown()
@@ -205,6 +206,8 @@ class QtrisApplication(Gio.Application):
             self._window_held = False
             if self.window:
                 self.window.prompts.dismiss()
+            if self.tray:
+                self.tray.refresh_availability()
             self.release()
 
     def on_game_launching(self, game: GameInfo) -> None:
@@ -212,7 +215,7 @@ class QtrisApplication(Gio.Application):
 
     def on_game_started(self, _game: GameInfo) -> None:
         if self.window and self.window.window.isExposed() and settings.read_bool_setting("hide_client_on_game_start"):
-            self.window.window.showMinimized()
+            self.window.minimize()
             self._minimized_for_game = True
 
     def _hold_for_game(self, game_id: str) -> None:
@@ -227,7 +230,7 @@ class QtrisApplication(Gio.Application):
         if self._minimized_for_game and not self._running_game_ids:
             self._minimized_for_game = False
             if self.window and self.window.window.visibility() == QWindow.Visibility.Minimized:
-                self.window.window.showNormal()
+                self.window.restore()
 
     async def _release_when_saves_finish(self, game_id: str) -> None:
         signal = asyncio.Event()

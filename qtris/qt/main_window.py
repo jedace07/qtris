@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl
+from PySide6.QtCore import QObject, Qt, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -38,9 +38,15 @@ class MainWindow(QObject):
         self.load_task = self.controller.start()
 
     def show(self) -> None:
-        self.window.show()
-        self.window.raise_()
+        self.restore()
+        self.window.setVisible(True)
         self.window.requestActivate()
+
+    def minimize(self) -> None:
+        self.window.setWindowStates(self.window.windowStates() | Qt.WindowState.WindowMinimized)
+
+    def restore(self) -> None:
+        self.window.setWindowStates(self.window.windowStates() & ~Qt.WindowState.WindowMinimized)
 
     def shutdown(self) -> None:
         self.prompts.set_interactive(False)
