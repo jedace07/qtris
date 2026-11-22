@@ -50,6 +50,9 @@ class StoreSourcesController(QObject):
         self._launchers: tuple[services.SourceLauncher, ...] = ()
         self._request: store_login.BrowserLogin | None = None
         self._task: asyncio.Task[None] | None = None
+        # Waiting for the browser is apart from _task: it mustn't keep Cancel from working
+        self._approval: asyncio.Task[None] | None = None
+        self._closed = False
         self._error = ""
         # The cookies the sign-in web view has, by domain, path and name
         self._web_cookies: dict[tuple[str, str, str], store_login.WebCookie] = {}
@@ -72,7 +75,11 @@ class StoreSourcesController(QObject):
         if not request:
             return {}
         login = {"name": request.name, "inputKind": request.input_kind}
-        return login | {"url": request.url} if request.input_kind == "web" else login
+        if request.input_kind == "web":
+            login["url"] = request.url
+        elif request.input_kind == "device":
+            login["userCode"] = request.user_code
+        return login
 
     @Property(list, notify=changed)
     def launchers(self) -> list[dict[str, str]]:
@@ -87,6 +94,10 @@ class StoreSourcesController(QObject):
     @Property(bool, notify=changed)
     def busy(self) -> bool:
         return self._task is not None
+
+    @Property(bool, notify=changed)
+    def waiting(self) -> bool:
+        return self._approval is not None
 
     @Property(str, notify=changed)
     def error(self) -> str:
@@ -129,7 +140,7 @@ class StoreSourcesController(QObject):
 
     async def _begin(self, service_id: str) -> None:
         request = await store_login.begin(service_id)
-        if self._source != service_id:
+        if self._closed or self._source != service_id:
             await store_login.cancel(request.id)
             return
         self._request = request
@@ -139,6 +150,38 @@ class StoreSourcesController(QObject):
             self.webLoginRequested.emit()
         else:
             self.loginRequested.emit()
+        if request.input_kind == "device":
+            self._approval = start_task(self._wait_for_approval(service_id, request.id), self._prompts.error)
+            self.open_browser()
+            self.changed.emit()
+
+    async def _wait_for_approval(self, service_id: str, request_id: str) -> None:
+        try:
+            await store_login.wait_for_approval(request_id)
+        except QtrisError as error:
+            self._error = error.message
+            return
+        finally:
+            if self._approval is asyncio.current_task():
+                self._approval = None
+                self.changed.emit()
+        if self._request and self._request.id == request_id:
+            self._start(self._submit(service_id, request_id, ""))
+
+    @Slot()
+    def retry_login(self) -> None:
+        """Replace a device sign-in that expired or failed with a new code."""
+        if self._request and self._request.input_kind == "device" and not self._task and not self._approval:
+            self._start(self._retry(self._source, self._request.id))
+
+    async def _retry(self, service_id: str, request_id: str) -> None:
+        self._error = ""
+        await store_login.cancel(request_id)
+        try:
+            await self._begin(service_id)
+        except QtrisError as error:
+            # The dialog stays open for another try
+            self._error = error.message
 
     @Slot(QQuickWebEngineProfile)
     def attach_web_profile(self, profile: QQuickWebEngineProfile) -> None:
@@ -160,24 +203,9 @@ class StoreSourcesController(QObject):
     @Slot(QUrl)
     def web_url_changed(self, url: QUrl) -> None:
         """Finish the sign-in when the web view reaches an address that is the response."""
-        if self._web_response(url) == "url":
-            self._submit_web(url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
-
-    @Slot(QUrl, result=bool)
-    def web_wants_page_text(self, url: QUrl) -> bool:
-        """Return whether the page the web view loaded holds the response; QML then
-        passes its text to web_page_text()."""
-        return self._web_response(url) == "page"
-
-    def _web_response(self, url: QUrl) -> store_login.WebResponse | None:
-        request = self._request
-        if not request or self._task:
-            return None
-        return store_login.web_response(request.id, url.toString(QUrl.ComponentFormattingOption.FullyEncoded))
-
-    @Slot(str)
-    def web_page_text(self, text: str) -> None:
-        self._submit_web(text)
+        address = url.toString(QUrl.ComponentFormattingOption.FullyEncoded)
+        if self._request and not self._task and store_login.is_web_response(self._request.id, address):
+            self._submit_web(address)
 
     def _submit_web(self, value: str) -> None:
         if self._request and not self._task:
@@ -220,8 +248,16 @@ class StoreSourcesController(QObject):
         self.loginClosed.emit()
         await self._reload(service_id)
 
+    def shutdown(self) -> None:
+        # Tasks keep the application running, and an approval can take ten minutes
+        self._closed = True
+        self.close_login()
+
     @Slot()
     def close_login(self) -> None:
+        if self._approval:
+            self._approval.cancel()
+            self._approval = None
         if self._request and not self._task:
             request, self._request = self._request, None
             self._web_cookies.clear()

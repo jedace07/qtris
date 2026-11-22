@@ -44,9 +44,10 @@ command = args[0]
 if command == "auth" and "--delete" in args:
     os.remove(os.path.join(config, "user.json"))
 elif command == "auth":
-    if option("--code") != "epic-code":
+    if option("--token") != "epic-code":
+        # The real legendary exits successfully here
         print("[cli] ERROR: Login attempt failed, please see log for details.", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(0)
     save(os.path.join(config, "user.json"), {"displayName": "Tester"})
 elif command == "list":
     print(json.dumps([{"app_name": "Sugar", "app_title": "Sugar Rush", "metadata": {

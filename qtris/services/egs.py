@@ -12,7 +12,7 @@ from qtris.game import Game
 from qtris.services.base import SERVICE_LOGIN, OnlineService, StoreLaunch
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
-from qtris.util import legendary
+from qtris.util import epic_auth, legendary
 from qtris.util.images import paste_overlay, thumbnail_image
 from qtris.util.log import logger
 from qtris.util.store_cli import StoreClientError
@@ -150,13 +150,6 @@ class EpicGamesStoreService(OnlineService):
     default_format = "game_banner_small"
     # legendary keeps the library's metadata itself
     cache_path = ""
-    # legendary signs in with the same client as the Epic Games Launcher
-    login_url = (
-        "https://www.epicgames.com/id/login?redirectUrl="
-        "https%3A//www.epicgames.com/id/api/redirect%3F"
-        "clientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode"
-    )
-    redirect_uris = ["https://www.epicgames.com/id/api/redirect"]
 
     @property
     def credential_files(self) -> list[str]:
@@ -165,8 +158,14 @@ class EpicGamesStoreService(OnlineService):
     def is_authenticated(self) -> bool:
         return legendary.is_signed_in()
 
-    def sign_in(self, authorization_code: str) -> None:
-        legendary.sign_in(authorization_code)
+    def begin_sign_in(self) -> epic_auth.DeviceLogin:
+        """Get a code for the user to approve in their browser."""
+        # Before the browser opens, rather than after the user has approved
+        legendary.check_available()
+        return epic_auth.start()
+
+    def sign_in(self, session: epic_auth.ApprovedSession) -> None:
+        epic_auth.hand_over(session, legendary.sign_in)
         SERVICE_LOGIN.fire(self)
 
     def logout(self) -> None:

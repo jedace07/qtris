@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from gettext import gettext as _
 from typing import Any
 
 from qtris import settings
@@ -23,10 +24,16 @@ def is_signed_in() -> bool:
     return os.path.isfile(os.path.join(CONFIG_PATH, "user.json"))
 
 
-def sign_in(authorization_code: str) -> None:
-    CLIENT.run(["auth", "--code", authorization_code, "--disable-webview"])
+def check_available() -> None:
+    """Raise StoreClientError if legendary hasn't been downloaded."""
+    _binary = CLIENT.binary  # Finding the binary is the check
+
+
+def sign_in(exchange_code: str) -> None:
+    CLIENT.run(["auth", "--token", exchange_code, "--disable-webview"])
+    # legendary exits successfully even when Epic refuses the code
     if not is_signed_in():
-        raise StoreClientError("legendary did not accept the authorization code.")
+        raise StoreClientError(_("legendary could not sign in to Epic Games. Try again."))
 
 
 def sign_out() -> None:

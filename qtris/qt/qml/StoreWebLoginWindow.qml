@@ -128,10 +128,6 @@ ApplicationWindow {
             Layout.fillHeight: true
             profile: profilePrototype.instance()
             onUrlChanged: signIn.controller.web_url_changed(url)
-            onLoadingChanged: loadRequest => {
-                if (loadRequest.status === WebEngineView.LoadSucceededStatus && signIn.controller.web_wants_page_text(loadRequest.url))
-                    view.runJavaScript("document.body ? document.body.innerText : ''", text => signIn.controller.web_page_text(String(text ?? "")))
-            }
             // Sign-in pages that open a window, such as a third-party account's, stay in this one
             onNewWindowRequested: request => request.openIn(view)
 

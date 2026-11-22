@@ -1,7 +1,8 @@
 """Keep store sign-in handoffs and credentials inside the backend.
 
-GOG, the Epic Games Store and Amazon sign in in a web view the frontend shows:
-their sign-in ends on fixed store pages that only an embedded browser can watch.
+GOG and Amazon sign in in a web view the frontend shows: their sign-in ends on
+fixed store pages that only an embedded browser can watch. The Epic Games Store
+signs in in the host browser, where the user approves a code while Qtris waits.
 The other stores sign in in the host browser and hand back a redirect address,
 a cookie export or a key.
 """
@@ -29,21 +30,18 @@ from qtris.services.gog import GOGService
 from qtris.services.itchio import ItchIoService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.services.zoom import ZoomService
+from qtris.util import epic_auth
 from qtris.util.cookies import WebkitCookieJar
 from qtris.util.log import logger
 
-type LoginInput = Literal["web", "redirect", "api_key", "cookies", "ubisoft"]
-# How a web sign-in's last page answers: by its address or by its text
-type WebResponse = Literal["url", "page"]
+type LoginInput = Literal["web", "device", "redirect", "api_key", "cookies", "ubisoft"]
 
 _REDIRECTS = {
     "gog": (("https://embed.gog.com/on_login_success", "https://www.gog.com/on_login_success"), "code"),
     "amazon": (("https://www.amazon.com/", "https://amazon.com/"), "openid.oa2.authorization_code"),
     "zoomplatform": (("https://www.zoom-platform.com/account",), "li_token"),
 }
-# Epic shows the authorization code as JSON on this page
-_EPIC_REDIRECT = "https://www.epicgames.com/id/api/redirect"
-_WEB_LOGINS: dict[str, WebResponse] = {"gog": "url", "amazon": "url", "egs": "page"}
+_WEB_LOGINS = frozenset({"gog", "amazon"})
 # GOG's library endpoint takes the web session's cookies as well as the API token
 _WEB_COOKIE_DOMAINS = {"gog": "gog.com"}
 _COOKIE_DOMAINS = {
@@ -60,6 +58,8 @@ class BrowserLogin:
     name: str
     url: str
     input_kind: LoginInput
+    # What the user approves in the browser, for a device sign-in
+    user_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -82,6 +82,8 @@ class _PendingLogin:
     service: OnlineService
     service_id: str
     working: bool = False
+    device: epic_auth.DeviceLogin | None = None
+    approval: epic_auth.ApprovedSession | None = None
 
 
 _pending: dict[str, _PendingLogin] = {}
@@ -90,6 +92,8 @@ _pending: dict[str, _PendingLogin] = {}
 def login_input(service_id: str) -> LoginInput | None:
     if service_id in _WEB_LOGINS:
         return "web"
+    if service_id == "egs":
+        return "device"
     if service_id in _REDIRECTS:
         return "redirect"
     if service_id in _COOKIE_DOMAINS:
@@ -111,46 +115,59 @@ async def begin(service_id: str) -> BrowserLogin:
         raise QtrisError(_("A sign-in for this store is already open."))
 
     service = service_class()
-    if input_kind == "api_key":
+    device = None
+    if isinstance(service, EpicGamesStoreService):
+        device = await asyncio.to_thread(service.begin_sign_in)
+        url = device.url
+    elif input_kind == "api_key":
         url = "https://itch.io/user/settings/api-keys"
     else:
         # Amazon's address comes from Nile, which registers a new device for it
         url = await asyncio.to_thread(lambda: str(service.login_url))
-    request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind)
-    _pending[request.id] = _PendingLogin(request, service, service_id)
+    user_code = device.user_code if device else ""
+    request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind, user_code)
+    _pending[request.id] = _PendingLogin(request, service, service_id, device=device)
     return request
 
 
-def web_response(request_id: str, url: str) -> WebResponse | None:
-    """Say whether a page the sign-in web view loaded ends the sign-in, and whether
-    its address or its text is the response to pass to finish(). Plain parsing, so
-    the frontend can ask while the page loads."""
+def is_web_response(request_id: str, url: str) -> bool:
+    """Say whether an address the sign-in web view reached is the response to pass to
+    finish(). Plain parsing, so the frontend can ask while the page loads."""
     pending = _pending.get(request_id)
     if not pending or pending.request.input_kind != "web":
-        return None
-    response = _WEB_LOGINS[pending.service_id]
-    if response == "page":
-        try:
-            address = urlsplit(url)
-        except ValueError:
-            return None
-        return "page" if f"{address.scheme}://{address.netloc.lower()}{address.path}" == _EPIC_REDIRECT else None
+        return False
     try:
         _redirect_response(pending.service_id, url)
     except QtrisError:
-        return None
-    return "url"
+        return False
+    return True
+
+
+async def wait_for_approval(request_id: str) -> None:
+    """Return once the user has approved a device sign-in in their browser; finish()
+    then signs in. Cancelling this stops waiting."""
+    pending = _pending.get(request_id)
+    if not pending or not pending.device:
+        raise QtrisError(_("This sign-in request is no longer available."))
+    session = await epic_auth.wait_for_approval(pending.device)
+    if request_id not in _pending:
+        await asyncio.to_thread(epic_auth.revoke, session)
+        raise QtrisError(_("This sign-in request is no longer available."))
+    pending.approval = session
 
 
 async def cancel(request_id: str) -> None:
     pending = _pending.get(request_id)
     if pending and not pending.working:
         _pending.pop(request_id)
+        if pending.approval:
+            await asyncio.to_thread(epic_auth.revoke, pending.approval)
 
 
-async def finish(request_id: str, value: str, cookies: Sequence[WebCookie] = ()) -> None:
+async def finish(request_id: str, value: str = "", cookies: Sequence[WebCookie] = ()) -> None:
     """Validate and exchange the user's sign-in response without logging it.
-    A web sign-in passes the cookies its web view received."""
+    A web sign-in passes the cookies its web view received. A device sign-in has no
+    response; wait_for_approval() got it."""
     pending = _pending.get(request_id)
     if not pending or pending.working:
         raise QtrisError(_("This sign-in request is no longer available."))
@@ -172,12 +189,14 @@ async def finish(request_id: str, value: str, cookies: Sequence[WebCookie] = ())
 
 def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) -> None:
     service = pending.service
-    if not value or len(value) > 16384:
+    approval, pending.approval = pending.approval, None
+    if pending.request.input_kind == "device":
+        if not approval:
+            raise QtrisError(_("Approve the sign-in in your browser first."))
+    elif not value or len(value) > 16384:
         raise QtrisError(_("Enter the sign-in response from your browser."))
-    if pending.request.input_kind == "redirect" or _WEB_LOGINS.get(pending.service_id) == "url":
+    if pending.request.input_kind in ("redirect", "web"):
         value = _redirect_response(pending.service_id, value)
-    elif isinstance(service, EpicGamesStoreService):
-        value = _epic_code(value)
     elif pending.request.input_kind == "api_key" and any(character.isspace() for character in value):
         raise QtrisError(_("Enter a single API key from itch.io."))
 
@@ -187,8 +206,8 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
             _store_cookies(service, _load_cookie_file(Path(value)), _COOKIE_DOMAINS[pending.service_id])
         elif isinstance(service, GOGService):
             _sign_in_to_gog(service, value, cookies)
-        elif isinstance(service, EpicGamesStoreService):
-            service.sign_in(value)
+        elif isinstance(service, EpicGamesStoreService) and approval:
+            service.sign_in(approval)
         elif isinstance(service, ItchIoService):
             if not service.validate_api_key(value):
                 raise QtrisError(_("itch.io did not accept that API key."))
@@ -240,19 +259,6 @@ def _redirect_response(service_id: str, value: str) -> str:
     except ValueError:
         pass
     raise QtrisError(_("Paste the full sign-in redirect URL from the store."))
-
-
-def _epic_code(value: str) -> str:
-    code = value
-    if value.startswith("{"):
-        try:
-            payload = json.loads(value)
-            code = payload.get("authorizationCode", "")
-        except ValueError:
-            code = ""
-    if isinstance(code, str) and code.isascii() and code.replace("-", "").replace("_", "").isalnum():
-        return code
-    raise QtrisError(_("Paste the authorization code or the JSON shown by Epic Games."))
 
 
 def _sign_in_to_gog(service: GOGService, redirect: str, cookies: tuple[WebCookie, ...]) -> None:

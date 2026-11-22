@@ -637,7 +637,7 @@ class LibraryController(QObject):
 
     def shutdown(self) -> None:
         self._closed = True
-        self._store_sources.close_login()
+        self._store_sources.shutdown()
         self._installers.close_installers()
         self.runtime_updates_controller.shutdown()
         self._cloud_saves.shutdown()

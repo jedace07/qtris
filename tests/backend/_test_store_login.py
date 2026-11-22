@@ -14,6 +14,7 @@ from qtris.exceptions import QtrisError
 from qtris.services.gog import GOGService
 from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.ubisoft import UbisoftConnectService
+from qtris.util import epic_auth
 from qtris.util.credentials import save_credentials
 from qtris.util.test_config import setup_test_environment
 from qtris.util.ubisoft.client import UbisoftConnectClient
@@ -53,15 +54,15 @@ def test_gog_signs_in_from_its_web_view_and_keeps_only_gog_cookies(
             "https://embed.gog.com@other.example/on_login_success?code=secret",
             "https://embed.gog.com/on_login_success?code=one&code=two",
         ):
-            assert store_login.web_response(request.id, page) is None
+            assert not store_login.is_web_response(request.id, page)
             with pytest.raises(QtrisError, match="full sign-in redirect URL"):
                 await store_login.finish(request.id, page)
-        assert store_login.web_response(request.id, redirect) == "url"
+        assert store_login.is_web_response(request.id, redirect)
         assert not responses
         await store_login.finish(request.id, redirect, cookies)
         with pytest.raises(QtrisError, match="no longer available"):
             await store_login.finish(request.id, redirect)
-        assert store_login.web_response(request.id, redirect) is None
+        assert not store_login.is_web_response(request.id, redirect)
         assert (await services.get_source_status("gog")).signed_in
 
     asyncio.run(run())
@@ -105,11 +106,10 @@ def test_amazon_signs_in_through_nile(
         request = await store_login.begin("amazon")
         assert request.input_kind == "web"
         assert "openid.oa2.code_challenge" in parse_qs(urlsplit(request.url).query)
-        assert store_login.web_response(request.id, request.url) is None
-        assert store_login.web_response(request.id, "https://www.amazon.com/ap/signin?openid.mode=x") is None
-        assert (
-            store_login.web_response(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code")
-            == "url"
+        assert not store_login.is_web_response(request.id, request.url)
+        assert not store_login.is_web_response(request.id, "https://www.amazon.com/ap/signin?openid.mode=x")
+        assert store_login.is_web_response(
+            request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code"
         )
         with pytest.raises(QtrisError, match="full sign-in redirect URL"):
             await store_login.finish(request.id, "https://www.amazon.com.example/?openid.oa2.authorization_code=x")
@@ -122,31 +122,73 @@ def test_amazon_signs_in_through_nile(
     assert "SECRET-TOKEN" not in caplog.text
 
 
-def test_epic_signs_in_through_legendary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_epic_signs_in_through_the_browser_and_legendary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install_store_clients(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+    session = epic_auth.ApprovedSession("refresh")
+    device = epic_auth.DeviceLogin("https://www.epicgames.com/activate?userCode=CODE", "CODE", "device")
+    codes = ["wrong-code", "epic-code"]
+
+    async def approve(login: epic_auth.DeviceLogin) -> epic_auth.ApprovedSession:
+        assert login == device
+        return session
+
+    monkeypatch.setattr(epic_auth, "start", lambda: device)
+    monkeypatch.setattr(epic_auth, "wait_for_approval", approve)
+    monkeypatch.setattr(epic_auth, "hand_over", lambda approved, accept: accept(codes.pop(0)))
 
     async def run() -> None:
         request = await store_login.begin("egs")
-        assert request.input_kind == "web" and urlsplit(request.url).netloc == "www.epicgames.com"
-        # The sign-in page carries the redirect page's address in its own query
-        assert store_login.web_response(request.id, request.url) is None
-        assert (
-            store_login.web_response(
-                request.id, "https://www.epicgames.com/id/api/redirect?clientId=x&responseType=code"
-            )
-            == "page"
-        )
-        with pytest.raises(QtrisError, match="authorization code"):
-            await store_login.finish(request.id, '{"redirectUrl": "https://localhost", "authorizationCode": null}')
-        with pytest.raises(QtrisError, match="Login attempt failed"):
-            await store_login.finish(request.id, '{"authorizationCode": "wrong-code"}')
-        await store_login.finish(request.id, '{"redirectUrl": "https://localhost", "authorizationCode": "epic-code"}')
+        assert (request.input_kind, request.user_code, request.url) == ("device", "CODE", device.url)
+        assert not store_login.is_web_response(request.id, request.url)
+        with pytest.raises(QtrisError, match="Approve the sign-in"):
+            await store_login.finish(request.id)
+        await store_login.wait_for_approval(request.id)
+        # legendary reports a refused code only in its output, with exit status 0
+        with pytest.raises(QtrisError, match="legendary could not sign in"):
+            await store_login.finish(request.id)
+        assert not (await services.get_source_status("egs")).signed_in
+        # An approval is good for one try
+        with pytest.raises(QtrisError, match="Approve the sign-in"):
+            await store_login.finish(request.id)
+        await store_login.wait_for_approval(request.id)
+        await store_login.finish(request.id)
         assert (await services.get_source_status("egs")).signed_in
         await services.disconnect_source("egs")
         assert not (await services.get_source_status("egs")).signed_in
 
     asyncio.run(run())
+
+
+def test_cancelling_an_approved_epic_sign_in_revokes_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    install_store_clients(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+    session = epic_auth.ApprovedSession("refresh")
+    revoked: list[epic_auth.ApprovedSession] = []
+
+    async def approve(login: epic_auth.DeviceLogin) -> epic_auth.ApprovedSession:
+        return session
+
+    monkeypatch.setattr(epic_auth, "start", lambda: epic_auth.DeviceLogin("https://epic.test", "CODE", "device"))
+    monkeypatch.setattr(epic_auth, "wait_for_approval", approve)
+    monkeypatch.setattr(epic_auth, "revoke", revoked.append)
+
+    async def run() -> None:
+        request = await store_login.begin("egs")
+        await store_login.wait_for_approval(request.id)
+        await store_login.cancel(request.id)
+
+    asyncio.run(run())
+    assert revoked == [session]
+
+
+def test_epic_checks_for_legendary_before_opening_the_browser(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "RUNTIME_DIR", str(tmp_path))
+    started: list[bool] = []
+    monkeypatch.setattr(epic_auth, "start", lambda: started.append(True))
+    with pytest.raises(QtrisError, match="hasn't been downloaded"):
+        asyncio.run(store_login.begin("egs"))
+    assert not started
 
 
 def test_cookie_import_only_persists_the_selected_stores_cookies(

@@ -33,6 +33,7 @@ from qtris.backend.models import ArtworkSettings, ServiceInfo, SourceSetting, St
 from qtris.database import categories as categories_db
 from qtris.database import games as games_db
 from qtris.database import sql
+from qtris.exceptions import QtrisError
 from qtris.game import LOG_BUFFERS, Game
 from qtris.installer import interpreter
 from qtris.qt import store_sources
@@ -1010,9 +1011,9 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
         # A blank page keeps the web view off the network
         return store_login.BrowserLogin("request", "GOG", "about:blank", "web")
 
-    def web_response(request_id: str, url: str) -> store_login.WebResponse | None:
+    def is_web_response(request_id: str, url: str) -> bool:
         assert request_id == "request"
-        return "url" if url == redirect else None
+        return url == redirect
 
     async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
         nonlocal signed_in
@@ -1031,7 +1032,7 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
     monkeypatch.setattr(services, "get_source_status", status)
     monkeypatch.setattr(services, "sync_source", sync)
     monkeypatch.setattr(store_login, "begin", begin)
-    monkeypatch.setattr(store_login, "web_response", web_response)
+    monkeypatch.setattr(store_login, "is_web_response", is_web_response)
     monkeypatch.setattr(store_login, "finish", finish)
     monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
 
@@ -1086,55 +1087,116 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
     asyncio.run(run())
 
 
-def test_qml_web_view_passes_the_final_page_text(
-    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("ending", ["approve", "expire", "reject", "cancel", "shutdown"])
+def test_qml_signs_in_to_epic_in_the_host_browser(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch, ending: str
 ) -> None:
-    page = 'data:application/json,{"authorizationCode":"epic-code"}'
-    finished: list[str] = []
+    opened: list[str] = []
+    cancelled: list[str] = []
+    synced: list[str] = []
+    stopped: list[str] = []
+    begun = 0
+    signed_in = False
 
     async def list_sources() -> list[ServiceInfo]:
         return [ServiceInfo("egs", "Epic Games Store", True)]
 
     async def status(source_id: str) -> services.SourceStatus:
-        return services.SourceStatus("Epic Games Store", True, bool(finished), True)
+        return services.SourceStatus("Epic Games Store", True, signed_in, True)
 
     async def begin(source_id: str) -> store_login.BrowserLogin:
-        return store_login.BrowserLogin("request", "Epic Games Store", page, "web")
+        nonlocal begun
+        begun += 1
+        url = f"https://www.epicgames.com/activate?userCode=CODE{begun}"
+        return store_login.BrowserLogin(f"request{begun}", "Epic Games Store", url, "device", f"CODE{begun}")
 
-    def web_response(request_id: str, url: str) -> store_login.WebResponse | None:
-        return "page" if url.startswith("data:") else None
+    async def wait_for_approval(request_id: str) -> None:
+        try:
+            # Long enough to see the dialog waiting
+            await asyncio.sleep(30 if ending in ("cancel", "shutdown") else 0.2)
+        except asyncio.CancelledError:
+            stopped.append(request_id)
+            raise
+        if ending == "expire" and request_id == "request1":
+            raise QtrisError("The code expired.")
 
-    async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
-        finished.append(value)
+    async def finish(request_id: str, value: str = "", cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
+        nonlocal signed_in
+        assert value == ""
+        if ending == "reject" and request_id == "request1":
+            raise QtrisError("legendary refused.")
+        signed_in = True
+
+    async def cancel(request_id: str) -> None:
+        cancelled.append(request_id)
 
     async def sync(source_id: str) -> None:
-        pass
+        synced.append(source_id)
+
+    class Desktop:
+        @staticmethod
+        def openUrl(url: QUrl) -> bool:  # noqa: N802
+            opened.append(url.toString())
+            return True
 
     monkeypatch.setattr(services, "list_services", list_sources)
     monkeypatch.setattr(services, "get_source_status", status)
     monkeypatch.setattr(services, "sync_source", sync)
     monkeypatch.setattr(store_login, "begin", begin)
-    monkeypatch.setattr(store_login, "web_response", web_response)
+    monkeypatch.setattr(store_login, "wait_for_approval", wait_for_approval)
     monkeypatch.setattr(store_login, "finish", finish)
+    monkeypatch.setattr(store_login, "cancel", cancel)
+    monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
 
     async def run() -> None:
         window = MainWindow()
         window.show()
+        sources = window.controller._store_sources
+
+        def find(name: str) -> QObject | None:
+            return window.window.findChild(QObject, name)
+
+        def shown(name: str) -> bool:
+            item = find(name)
+            return bool(item and item.property("visible"))
+
+        async def click(name: str) -> None:
+            await wait_for_qml(qt_application, lambda: shown(name))
+            button = find(name)
+            assert button is not None and QMetaObject.invokeMethod(button, "clicked")
+
         try:
             await settle(window)
             window.controller.select_view(window.controller.sidebar.find_row({"service": "egs"}))
-            await wait_for_qml(
-                qt_application,
-                lambda: bool(
-                    (button := window.window.findChild(QObject, "storeSignIn")) and button.property("visible")
-                ),
-            )
-            button = window.window.findChild(QObject, "storeSignIn")
-            assert button is not None and QMetaObject.invokeMethod(button, "clicked")
-            await wait_for_qml(qt_application, lambda: bool(finished))
-            assert finished == ['{"authorizationCode":"epic-code"}']
+            await click("storeSignIn")
+            await wait_for_qml(qt_application, lambda: len(opened) == 1 and shown("storeLoginCode"))
+            code = find("storeLoginCode")
+            assert code is not None and code.property("text") == "CODE1"
+            assert opened == ["https://www.epicgames.com/activate?userCode=CODE1"]
+            # Nothing to paste, and waiting leaves Cancel working
+            assert not shown("storeLoginResponse") and not shown("finishStoreLogin")
+            assert sources.waiting and not sources.busy and not shown("retryDeviceLogin")
+            assert find("storeWebLoginWindow") is None
+
+            if ending in ("cancel", "shutdown"):
+                # Let the approval start waiting before stopping it
+                await asyncio.sleep(0.05)
+                if ending == "shutdown":
+                    window.shutdown()
+                else:
+                    dialog = find("storeLoginDialog")
+                    assert dialog is not None and QMetaObject.invokeMethod(dialog, "close")
+                await wait_for_qml(qt_application, lambda: stopped == ["request1"] and cancelled == ["request1"])
+                assert not sources.waiting and not signed_in
+                return
+            if ending in ("expire", "reject"):
+                await click("retryDeviceLogin")
+                await wait_for_qml(qt_application, lambda: len(opened) == 2)
+                assert cancelled == ["request1"] and opened[1].endswith("CODE2")
+            await wait_for_qml(qt_application, lambda: synced == ["egs"] and sources.login == {})
         finally:
-            window.shutdown()
+            if ending != "shutdown":
+                window.shutdown()
 
     asyncio.run(run())
 

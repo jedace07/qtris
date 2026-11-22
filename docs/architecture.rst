@@ -397,18 +397,28 @@ custom executables. A configured version that isn't Proton falls back to
 GE-Proton Latest, except in a Wine prefix Proton has never run in.
 
 Selecting a source in Qt exposes **Sign In**, **Sync Library**, and
-**Disconnect** as appropriate. GOG, the Epic Games Store and Amazon sign in
-in Qtris's own web view (``StoreWebLoginWindow.qml``, QtWebEngine), like
-Heroic: their sign-in ends on fixed store pages (the OAuth clients they borrow
-allow no other redirect), so the host browser can't hand the result back.
-Each sign-in gets a private, off-the-record profile whose user agent drops the
-QtWebEngine token. ``store_login.web_response()`` tells the frontend which
-page ends the sign-in: GOG's and Amazon's redirect address carries the code,
-and Epic's ``/id/api/redirect`` page shows it as JSON, which QML reads from
-the page. GOG also keeps the web session's ``gog.com`` cookies, though its API
-token alone signs in. Epic's device-code flow would work in the host browser,
-but only Epic's Fortnite client allows it, so it isn't used. The other stores
-use the system default browser. ZOOM Platform accepts its redirect URL.
+**Disconnect** as appropriate. GOG and Amazon sign in in Qtris's own web view
+(``StoreWebLoginWindow.qml``, QtWebEngine): their sign-in ends on fixed store
+pages (the OAuth clients they borrow allow no other redirect), so the host
+browser can't hand the result back. Each sign-in gets a private,
+off-the-record profile whose user agent drops the QtWebEngine token.
+``store_login.is_web_response()`` tells the frontend which address ends the
+sign-in. GOG also keeps the web session's ``gog.com`` cookies, though its API
+token alone signs in.
+
+The Epic Games Store signs in in the system default browser, because Epic's
+bot check turns the web view away and Google forbids signing in inside one.
+``qtris.util.epic_auth`` gets a device code for the Epic Games Launcher's
+client from Epic Account Services (``api.epicgames.dev``; Epic's older account
+service offers that client no device flow). The user approves the code while
+``store_login.wait_for_approval()`` polls. The session that gives can't use
+the launcher's APIs, so its refresh token is redeemed at the account service
+with ``token_type=eg1`` for a launcher session, whose exchange code goes to
+``legendary auth --token``. That launcher session isn't revoked afterwards, as
+that could end legendary's. This flow is undocumented by Epic.
+
+The other stores use the system default browser. ZOOM Platform accepts its
+redirect URL.
 itch.io uses a dedicated API key. EA App, Humble Bundle, Steam Families, Game
 Jolt and DLsite use a user-selected Netscape ``cookies.txt`` export. Qtris
 keeps only cookies from the selected store's domain. ``store_login`` retains the service instance
