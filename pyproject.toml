@@ -88,10 +88,10 @@ lint = [
     "ruff>=0.17.6",
 ]
 typing = [
-    "ty>=0.0.107",
     "types-requests>=2.33.0.20261030",
     "types-PyYAML>=6.0.12.20261113",
     "pygobject-stubs>=2.20.0",
+    "pyright[nodejs]==1.1.414",
 ]
 test = [
     "pytest>=9.2.0",
@@ -152,14 +152,6 @@ ignore = [
 fixable = ["ALL"]
 unfixable = []
 
-[tool.ty.src]
-exclude = ["**/*_pb2.py"]
-
-[tool.ty.rules]
-# Qtris reassigns attributes and variables with different types throughout
-# (mypy's `assignment` check was disabled for the same reason)
-invalid-assignment = "ignore"
-
 [tool.pytest]
 minversion = "9.0"
 testpaths = ["tests"]
@@ -167,6 +159,7 @@ python_files = ["_test_*.py"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 
 [tool.pyright]
-
+include = ["qtris", "tests", "utils", "packaging/flatpak/trim-pyside6.py", "packaging/flatpak/update-python-dependencies.py"]
+exclude = ["**/*_pb2.py"]
 typeCheckingMode = "basic"
 reportMissingImports = false

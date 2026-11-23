@@ -21,7 +21,7 @@ jobs:
         run: uv run --no-project python -m compileall -q qtris/ tests/
 
   type-checker:
-    name: ty
+    name: Pyright
     runs-on: ubuntu-latest
     # Generous: the runners' apt mirror is sometimes very slow
     timeout-minutes: 30
@@ -38,10 +38,8 @@ jobs:
       - name: Install Python dependencies
         # The tests are type checked too, so they need pytest, and the Qt frontend PySide6
         run: uv sync --locked --no-default-groups --group typing --group test
-      - name: Run ty
-        run: |
-          uv run --no-sync ty --version
-          uv run --no-sync ty check --baseline ty-baseline.json --output-format github
+      - name: Run Pyright
+        run: uv run --no-sync python utils/check-pyright.py
 
   po-checker:
     name: Translation files

@@ -3,7 +3,7 @@
 - Use numpy docstring style when asked to write docstrings.
 - Comments should start with a capital letter but not end with a period.
 - Strictly typed, target Python 3.14.
-- Follow pyright and ruff rules.
+- Follow Pyright and Ruff rules. Run `uv run python utils/check-pyright.py` to check for new type errors using the same baseline as CI.
 - Use `uv` for package management.
 - Use `uv add` to add packages.
 - Use `uv run` to run files.

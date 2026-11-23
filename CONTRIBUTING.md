@@ -107,6 +107,8 @@ uv version --bump stable
 Flatpak bundles built by CI are named after the version. Prereleases also get
 the commit they were built from (`Qtris-v0.6.0b1+g1a2b3c4-x86_64.flatpak`), or
 `+local` when built elsewhere, so two builds of the same beta can be told apart.
+Open a successful **Flatpak** run in GitHub Actions to download its bundle from
+the run summary or the **Artifacts** section.
 
 To release, bump the version, add a `<release>` entry to
 `packaging/desktop/share/metainfo/io.github.jedace07.Qtris.metainfo.xml`, push, then run the **Build
@@ -125,7 +127,7 @@ Formatting your code
 To ensure getting your contributions getting merged faster and to avoid other
 developers from going back and fixing your code, please make sure your code
 passes `uv run ruff check .`, `uv run ruff format --check .`, and
-`uv run ty check --baseline ty-baseline.json`. To sort imports and fix
+`uv run python utils/check-pyright.py`. To sort imports and fix
 formatting, run `uv run ruff check --select I --fix .` and `uv run ruff format .`.
 
 Writing tests
@@ -198,9 +200,11 @@ Build tooling
 -------------
 
 * `pyproject.toml` declares the `qtris` console command and builds the Python
-  package with `uv build`. It also configures ruff, ty, pytest and pyright.
-* ``ty-baseline.json`` lists the type errors ty already reports, so CI only
-  fails on new ones. Fix entries rather than adding to it.
+  package with `uv build`. It also configures Ruff, pytest and Pyright.
+* `pyright-baseline.json` records existing Pyright errors. CI checks for new
+  errors, and Pyright warnings are advisory. After fixing an error from the
+  baseline, use `uv run python utils/check-pyright.py --write-baseline` to
+  refresh it and review the diff.
 * `packaging/flatpak` holds the Flatpak manifest, which installs the same uv-built
   wheel. `shared-modules` is a git submodule of Flathub's shared modules.
 
