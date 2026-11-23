@@ -1,12 +1,21 @@
 """Expose live cloud-save transfer snapshots to Qt Quick."""
 
-from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+from __future__ import annotations
+
+from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import cloud_saves
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class CloudSaveController(QObject):
     changed = Signal()
 
@@ -21,7 +30,7 @@ class CloudSaveController(QObject):
             cloud_saves.CLOUD_SAVE_ENDED.register(self._refresh),
         )
 
-    @Property(list, notify=changed)
+    @Property("QVariantList", notify=changed)
     def transfers(self) -> list[dict[str, str | float | bool]]:
         return [
             {"id": entry.id, "label": entry.label, "progress": entry.progress, "canSkip": entry.can_skip}

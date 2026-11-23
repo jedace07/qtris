@@ -4,14 +4,15 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 Dialog {
     id: dialog
     objectName: "installerDialog"
 
-    required property QtObject controller
-    readonly property QtObject installation: controller.installation
+    required property InstallerController controller
+    readonly property InstallationController installation: controller.installation
 
     property bool usingExisting: false
 

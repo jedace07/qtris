@@ -1,11 +1,18 @@
 """A game's category memberships for the QML editor."""
 
+from __future__ import annotations
+
 from enum import IntEnum
 
 from PySide6.QtCore import QAbstractListModel, QByteArray, QModelIndex, Qt
+from PySide6.QtQml import QmlElement
 
 from qtris.backend.game_actions import CategoryMembership
 from qtris.qt.library_model import ModelIndex
+from qtris.qt.qml_types import QmlUncreatable
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 
 class CategoryRole(IntEnum):
@@ -13,6 +20,8 @@ class CategoryRole(IntEnum):
     INCLUDED = NAME + 1
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class CategoryModel(QAbstractListModel):
     def __init__(self) -> None:
         super().__init__()

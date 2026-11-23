@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // The game's own details on its configuration form
@@ -10,7 +11,7 @@ ScrollView {
     id: page
     objectName: "gameInfoPage"
 
-    required property QtObject controller
+    required property ConfigController controller
     readonly property var game: controller.game
 
     contentWidth: availableWidth

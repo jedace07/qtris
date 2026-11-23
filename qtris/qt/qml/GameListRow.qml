@@ -2,27 +2,14 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.impl
 import QtQuick.Layouts
 import QtrisStyle
 
-ItemDelegate {
+GameDelegate {
     id: row
 
-    required property int index
-    required property string gameTitle
-    required property string runnerText
-    required property string platformText
     required property string yearText
-    required property string lastPlayedText
     required property string installedAtText
-    required property string playTimeText
-    required property bool installed
-    required property bool running
-    required property url coverUrl
-    required property url bannerUrl
-    required property url iconUrl
-    required property string iconName
     required property var columns
     required property url placeholder
     required property bool selected
@@ -72,15 +59,13 @@ ItemDelegate {
                     visible: status === Image.Ready
                 }
 
-                IconImage {
+                IconGraphic {
                     anchors.fill: parent
                     visible: !icon.visible
                     name: row.iconName
-                    source: row.placeholder
+                    fallbackSource: row.placeholder
                     sourceSize: Qt.size(56, 56)
-                    color: "transparent"
                     opacity: 0.8
-                    Accessible.ignored: true
                 }
             }
 

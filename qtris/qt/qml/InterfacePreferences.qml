@@ -3,12 +3,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 ScrollView {
     id: page
 
-    required property QtObject controller
+    required property PreferencesController controller
     contentWidth: availableWidth
     rightPadding: 8
 

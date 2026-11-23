@@ -4,13 +4,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // One option of a configuration page; the editor depends on the option's type
 ItemDelegate {
     id: option
 
-    required property QtObject controller
+    required property ConfigController controller
     required property string optionSection
     required property string optionKey
     required property string optionType

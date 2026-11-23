@@ -2,12 +2,13 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "storeLoginDialog"
 
-    required property QtObject controller
+    required property StoreSourcesController controller
     readonly property string inputKind: controller.login.inputKind ?? ""
     readonly property bool needsCookies: inputKind === "cookies"
     readonly property bool waitsForBrowser: inputKind === "itch_oauth"

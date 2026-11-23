@@ -25,6 +25,9 @@ build-flatpak
 # Bundles, whatever they are named
 /*.flatpak
 
+# Generated PySide6 QML metadata
+/QtrisBridge/
+
 # tool caches
 .pytest_cache
 .ruff_cache

@@ -3,15 +3,16 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 ColumnLayout {
     id: list
 
-    required property QtObject controller
+    required property LibraryController controller
     readonly property bool showDetails: width >= 760
     readonly property bool showPlatform: width >= 520
-    readonly property Item selectedGame: rows.currentItem
+    readonly property GameDelegate selectedGame: rows.currentItem as GameDelegate
     // The columns after the name, which the header and rows share
     readonly property var columns: [
         { key: "", title: qsTr("Launch via"), width: 96, visible: showPlatform },
@@ -56,7 +57,7 @@ ColumnLayout {
                 visible: column.sorted
                 symbol: list.controller.sortReversed ? "arrow-up" : "arrow-down"
                 size: 12
-                color: Theme.accentText
+                tint: Theme.accentText
             }
 
             Item { Layout.fillWidth: true }

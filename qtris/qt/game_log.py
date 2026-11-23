@@ -1,21 +1,30 @@
 """Read and save live game logs for a Qt Quick dialog."""
 
+from __future__ import annotations
+
 import asyncio
 from gettext import gettext as _
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import events, games
 from qtris.exceptions import QtrisError
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 from qtris.util.notifications import NotificationRegistration
 
 if TYPE_CHECKING:
     from qtris.qt.delegates import PromptController
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class GameLogController(QObject):
     logChanged = Signal()
 

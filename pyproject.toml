@@ -55,7 +55,31 @@ source-exclude = ["qtris/locale/*.pot"]
 data = "packaging/desktop"
 
 [tool.pyside6-project]
-files = ["qtris/launcher.py", "qtris/qt/qml/Main.qml"]
+files = [
+    "qtris/launcher.py",
+    "qtris/qt/artwork_settings.py",
+    "qtris/qt/category_model.py",
+    "qtris/qt/cloud_saves.py",
+    "qtris/qt/config_model.py",
+    "qtris/qt/configuration.py",
+    "qtris/qt/delegates.py",
+    "qtris/qt/game_artwork.py",
+    "qtris/qt/game_log.py",
+    "qtris/qt/game_maintenance.py",
+    "qtris/qt/game_shortcuts.py",
+    "qtris/qt/imports.py",
+    "qtris/qt/installation.py",
+    "qtris/qt/installers.py",
+    "qtris/qt/library_controller.py",
+    "qtris/qt/library_model.py",
+    "qtris/qt/local_games.py",
+    "qtris/qt/preferences.py",
+    "qtris/qt/runner_manager.py",
+    "qtris/qt/runtime_updates.py",
+    "qtris/qt/sidebar.py",
+    "qtris/qt/store_sources.py",
+    "qtris/qt/qml/Main.qml",
+]
 
 [dependency-groups]
 # Split so CI jobs can install only what they run (`uv sync --only-group lint`

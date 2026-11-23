@@ -3,12 +3,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "artworkSettingsDialog"
 
-    required property QtObject controller
+    required property ArtworkSettingsController controller
 
     parent: Overlay.overlay
     anchors.centerIn: parent

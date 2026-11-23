@@ -1,12 +1,13 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "launchConfigurationDialog"
 
-    required property QtObject prompts
+    required property PromptController prompts
     property list<string> configurationNames
     property int selectedIndex: 0
     property bool remembered: false

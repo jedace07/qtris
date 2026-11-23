@@ -1,6 +1,7 @@
 module QtrisStyle
 singleton Theme 1.0 Theme.qml
 Icon 1.0 Icon.qml
+IconGraphic 1.0 IconGraphic.qml
 ApplicationWindow 6.0 ApplicationWindow.qml
 BusyIndicator 6.0 BusyIndicator.qml
 Button 6.0 Button.qml
@@ -35,4 +36,6 @@ ToolButton 6.0 ToolButton.qml
 ToolSeparator 6.0 ToolSeparator.qml
 ToolTip 6.0 ToolTip.qml
 internal CheckIndicator CheckIndicator.qml
+internal ControlLabel ControlLabel.qml
+internal EditorMenu EditorMenu.qml
 import QtQuick.Controls.Basic auto

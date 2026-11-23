@@ -1,5 +1,7 @@
 """Qt Quick library state and the commands that operate on it."""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Coroutine
 from gettext import gettext as _
@@ -7,8 +9,9 @@ from gettext import ngettext
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtQml import QmlElement
 
 from qtris import settings
 from qtris.backend import events, game_actions, games, installers, library, local_games, media
@@ -28,6 +31,7 @@ from qtris.qt.installers import InstallerController
 from qtris.qt.library_model import LibraryModel
 from qtris.qt.local_games import LocalGameController
 from qtris.qt.preferences import PreferencesController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.runner_manager import RunnerManagerController
 from qtris.qt.runtime_updates import RuntimeUpdatesController
 from qtris.qt.sidebar import ALL_GAMES, SidebarModel
@@ -35,10 +39,15 @@ from qtris.qt.store_sources import StoreSourcesController
 from qtris.qt.tasks import start_task
 from qtris.util import datapath
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
+
 _LAYOUTS = {"covers", "banners", "list"}
 _SORT_KEYS = {"name", "year", "lastplayed", "installed_at", "playtime"}
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class LibraryController(QObject):
     libraryChanged = Signal()
     sidebarChanged = Signal()
@@ -140,27 +149,27 @@ class LibraryController(QObject):
         self.refresh_sidebar()
         self.refresh()
 
-    @Property(QObject, constant=True)
+    @Property(GameLogController, constant=True)
     def gameLog(self) -> GameLogController:  # noqa: N802
         return self._log
 
-    @Property(QObject, constant=True)
+    @Property(CloudSaveController, constant=True)
     def cloudSaves(self) -> CloudSaveController:  # noqa: N802
         return self._cloud_saves
 
-    @Property(QObject, constant=True)
+    @Property(GameMaintenanceController, constant=True)
     def gameMaintenance(self) -> GameMaintenanceController:  # noqa: N802
         return self._maintenance
 
-    @Property(QObject, constant=True)
+    @Property(GameShortcutController, constant=True)
     def gameShortcuts(self) -> GameShortcutController:  # noqa: N802
         return self._shortcuts
 
-    @Property(QObject, constant=True)
+    @Property(LocalGameController, constant=True)
     def localGames(self) -> LocalGameController:  # noqa: N802
         return self._local_games
 
-    @Property(QObject, constant=True)
+    @Property(PreferencesController, constant=True)
     def preferences(self) -> PreferencesController:
         return self.preferences_controller
 
@@ -168,38 +177,38 @@ class LibraryController(QObject):
     def preferences_controller(self) -> PreferencesController:
         return self._preferences
 
-    @Property(QObject, constant=True)
+    @Property(StoreSourcesController, constant=True)
     def storeSources(self) -> StoreSourcesController:  # noqa: N802
         return self._store_sources
 
-    @Property(QObject, constant=True)
+    @Property(RunnerManagerController, constant=True)
     def runnerManager(self) -> RunnerManagerController:  # noqa: N802
         return self._runner_manager
 
-    @Property(QObject, constant=True)
+    @Property(RuntimeUpdatesController, constant=True)
     def runtimeUpdates(self) -> RuntimeUpdatesController:  # noqa: N802
         return self.runtime_updates_controller
 
-    @Property(QObject, constant=True)
+    @Property(ArtworkSettingsController, constant=True)
     def artworkSettings(self) -> ArtworkSettingsController:  # noqa: N802
         return self._artwork_settings
 
-    @Property(QObject, constant=True)
+    @Property(ConfigController, constant=True)
     def configuration(self) -> ConfigController:
         return self._configuration
 
-    @Property(QObject, constant=True)
+    @Property(InstallerController, constant=True)
     def installers(self) -> InstallerController:
         return self._installers
 
     async def open_store_install(self, service: str, appid: str) -> None:
         await self._installers.open_store_uri(service, appid)
 
-    @Property(QObject, constant=True)
+    @Property(LibraryModel, constant=True)
     def gamesModel(self) -> LibraryModel:  # noqa: N802
         return self.model
 
-    @Property(QObject, constant=True)
+    @Property(SidebarModel, constant=True)
     def sidebarModel(self) -> SidebarModel:  # noqa: N802
         return self.sidebar
 
@@ -223,7 +232,7 @@ class LibraryController(QObject):
     def showMedia(self) -> bool:  # noqa: N802
         return settings.SHOW_MEDIA
 
-    @Property(QObject, constant=True)
+    @Property(ImportController, constant=True)
     def gameImports(self) -> ImportController:  # noqa: N802
         return self._imports
 
@@ -352,7 +361,7 @@ class LibraryController(QObject):
         game = self.selected_game
         return game.game_id or "" if game else ""
 
-    @Property(QObject, constant=True)
+    @Property(CategoryModel, constant=True)
     def categoryModel(self) -> CategoryModel:  # noqa: N802
         return self.categories
 

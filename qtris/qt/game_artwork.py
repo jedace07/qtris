@@ -1,5 +1,7 @@
 """Expose a game's own artwork to Qt Quick, preparing chosen images with QImage."""
 
+from __future__ import annotations
+
 import asyncio
 import os
 import tempfile
@@ -7,14 +9,19 @@ from collections.abc import Coroutine
 from gettext import gettext as _
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QSize, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QImage
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import game_artwork
 from qtris.backend.models import ArtworkChoice, GameArtworkImage
 from qtris.exceptions import QtrisError
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 # The largest each kind is stored at; bigger images are scaled down to fit
 STORAGE_SIZES = {"cover": QSize(600, 900), "banner": QSize(920, 430), "icon": QSize(256, 256)}
@@ -41,6 +48,8 @@ def prepare_image(source: str, kind: str) -> str:
     return path
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class GameArtworkController(QObject):
     stateChanged = Signal()
     choicesChanged = Signal()
@@ -56,7 +65,7 @@ class GameArtworkController(QObject):
         self._choices_kind = ""
         self._loading_choices = False
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def images(self) -> list[dict[str, Any]]:
         result = []
         for kind in ("cover", "banner", "icon"):
@@ -81,7 +90,7 @@ class GameArtworkController(QObject):
     def working(self) -> bool:
         return bool(self._working)
 
-    @Property(list, notify=choicesChanged)
+    @Property("QVariantList", notify=choicesChanged)
     def choices(self) -> list[dict[str, Any]]:
         return [
             {"url": choice.url, "thumbnail": choice.thumbnail_url, "width": choice.width, "height": choice.height}

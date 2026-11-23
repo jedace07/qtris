@@ -1,18 +1,27 @@
 """Expose the application's preferences to Qt Quick."""
 
+from __future__ import annotations
+
 from gettext import gettext as _
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QmlElement
 
 from qtris import settings
 from qtris.backend import preferences
 from qtris.backend.models import SourceSetting, SteamAccount, StoragePaths, SystemInfoSection
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class PreferencesController(QObject):
     requested = Signal()
     issueReportRequested = Signal()
@@ -98,7 +107,7 @@ class PreferencesController(QObject):
         await preferences.save_issue_report(filename, description)
         self._prompts.notice(_("Issue report saved to %s") % filename, rich=False)
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def sources(self) -> list[dict[str, Any]]:
         return [
             {
@@ -111,7 +120,7 @@ class PreferencesController(QObject):
             for source in self._sources
         ]
 
-    @Property(dict, notify=stateChanged)
+    @Property("QVariantMap", notify=stateChanged)
     def storage(self) -> dict[str, Any]:
         paths = self._storage
         if not paths:
@@ -123,11 +132,11 @@ class PreferencesController(QObject):
             "cacheValid": paths.installer_cache_valid,
         }
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def steamAccounts(self) -> list[dict[str, Any]]:  # noqa: N802
         return [{"id": account.id, "name": account.name, "active": account.active} for account in self._accounts]
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def systemInfo(self) -> list[dict[str, Any]]:  # noqa: N802
         return [
             {"title": section.title, "items": [{"name": name, "value": value} for name, value in section.items]}

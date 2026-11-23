@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.ItemDelegate {
@@ -20,15 +19,9 @@ T.ItemDelegate {
     icon.height: 18
     icon.color: highlighted ? Theme.accentText : Theme.textMuted
 
-    contentItem: IconLabel {
-        spacing: control.spacing
-        mirrored: control.mirrored
-        display: control.display
-        alignment: control.display === IconLabel.IconOnly || control.display === IconLabel.TextUnderIcon
-                   ? Qt.AlignCenter : Qt.AlignLeft
-        icon: control.icon
-        text: control.text
-        font: control.font
+    contentItem: ControlLabel {
+        button: control
+        centered: control.display === T.AbstractButton.IconOnly || control.display === T.AbstractButton.TextUnderIcon
         color: control.highlighted ? Theme.accentText : Theme.text
     }
 

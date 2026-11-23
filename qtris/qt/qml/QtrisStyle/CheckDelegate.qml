@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.CheckDelegate {
@@ -25,17 +24,11 @@ T.CheckDelegate {
         y: control.topPadding + (control.availableHeight - height) / 2
     }
 
-    contentItem: IconLabel {
+    contentItem: ControlLabel {
+        button: control
         leftPadding: control.mirrored ? control.indicator.width + control.spacing : 0
         rightPadding: !control.mirrored ? control.indicator.width + control.spacing : 0
-        spacing: control.spacing
-        mirrored: control.mirrored
-        display: control.display
-        alignment: control.display === IconLabel.IconOnly || control.display === IconLabel.TextUnderIcon
-                   ? Qt.AlignCenter : Qt.AlignLeft
-        icon: control.icon
-        text: control.text
-        font: control.font
+        centered: control.display === T.AbstractButton.IconOnly || control.display === T.AbstractButton.TextUnderIcon
         color: Theme.text
     }
 

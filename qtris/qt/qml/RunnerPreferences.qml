@@ -3,13 +3,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 ColumnLayout {
     id: page
 
-    required property QtObject controller
-    required property QtObject configuration
+    required property RunnerManagerController controller
+    required property ConfigController configuration
     readonly property bool managingProton: controller.proton
 
     spacing: 12

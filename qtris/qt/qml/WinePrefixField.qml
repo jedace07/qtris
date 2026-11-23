@@ -4,12 +4,13 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 ColumnLayout {
     id: field
 
-    required property QtObject controller
+    required property InstallerController controller
     property alias text: path.text
     property string label: qsTr("Wine prefix (optional)")
 

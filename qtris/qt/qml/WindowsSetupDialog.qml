@@ -4,11 +4,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
 
-    required property QtObject controller
+    required property InstallerController controller
 
     parent: Overlay.overlay
     anchors.centerIn: parent

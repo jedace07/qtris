@@ -8,6 +8,7 @@ from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from qtris.qt.delegates import PromptController
+from qtris.qt.icon_provider import IconProvider
 from qtris.qt.library_controller import LibraryController
 
 QML_DIR = Path(__file__).with_name("qml")
@@ -23,6 +24,7 @@ class MainWindow(QObject):
             QQuickStyle.setStyle(STYLE)
         self.engine = QQmlApplicationEngine(self)
         self.engine.addImportPath(str(QML_DIR))
+        self.engine.addImageProvider("qtris-icons", IconProvider())
         self.prompts = PromptController()
         self.prompts.setParent(self)
         self.controller = LibraryController(self.prompts)

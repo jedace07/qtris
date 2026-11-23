@@ -1,11 +1,12 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.ComboBox {
     id: control
+
+    readonly property real hostWindowHeight: Window.height || height
 
     implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
                             implicitContentWidth + leftPadding + rightPadding)
@@ -35,7 +36,7 @@ T.ComboBox {
         y: control.topPadding + (control.availableHeight - height) / 2
         symbol: "chevron-down"
         size: 16
-        color: Theme.textMuted
+        tint: Theme.textMuted
     }
 
     contentItem: T.TextField {
@@ -77,7 +78,7 @@ T.ComboBox {
         y: control.height + 4
         width: Math.max(control.width, 180)
         height: Math.min(contentItem.implicitHeight + topPadding + bottomPadding,
-                         control.Window.height - topMargin - bottomMargin)
+                         control.hostWindowHeight - topMargin - bottomMargin)
         topMargin: 8
         bottomMargin: 8
         padding: 5

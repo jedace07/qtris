@@ -4,13 +4,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 Dialog {
     id: dialog
     objectName: "localGameDialog"
 
-    required property QtObject controller
+    required property LocalGameController controller
 
     parent: Overlay.overlay
     anchors.centerIn: parent

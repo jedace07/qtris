@@ -2,12 +2,13 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs as NativeDialogs
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "gameLogDialog"
 
-    required property QtObject controller
+    required property GameLogController controller
     required property string gameName
 
     parent: Overlay.overlay

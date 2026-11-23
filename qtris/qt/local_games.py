@@ -1,12 +1,21 @@
 """Expose local game registration to Qt Quick."""
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from __future__ import annotations
+
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import local_games
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class LocalGameController(QObject):
     requested = Signal()
     stateChanged = Signal()

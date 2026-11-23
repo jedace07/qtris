@@ -2,13 +2,14 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtrisBridge
 import QtrisStyle
 
 ApplicationWindow {
     id: window
 
-    required property QtObject controller
-    required property QtObject prompts
+    required property LibraryController controller
+    required property PromptController prompts
 
     title: qsTr("Qtris")
     width: 1200

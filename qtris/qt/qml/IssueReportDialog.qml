@@ -2,12 +2,13 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "issueReportDialog"
 
-    required property QtObject controller
+    required property PreferencesController controller
 
     title: qsTr("Save Issue Report")
     modal: true

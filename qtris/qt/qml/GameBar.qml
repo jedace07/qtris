@@ -2,17 +2,17 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.impl
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // The selected game, with its details and the buttons to play or install it
 Rectangle {
     id: bar
 
-    required property QtObject controller
+    required property LibraryController controller
     // The selected game's card or row, which carries its details
-    required property Item game
+    required property GameDelegate game
 
     readonly property bool active: controller.selectedRow >= 0
     readonly property string details: {
@@ -67,16 +67,14 @@ Rectangle {
                 visible: status === Image.Ready
             }
 
-            IconImage {
+            IconGraphic {
                 anchors.centerIn: parent
                 width: 28
                 height: 28
                 visible: !cover.visible
                 name: bar.game?.iconName ?? ""
-                source: bar.controller.placeholderArtwork
+                fallbackSource: bar.controller.placeholderArtwork
                 sourceSize: Qt.size(56, 56)
-                color: "transparent"
-                Accessible.ignored: true
             }
         }
 

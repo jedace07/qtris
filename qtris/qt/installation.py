@@ -1,21 +1,30 @@
 """Expose a running installation's progress and questions to Qt Quick."""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Coroutine
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import installations
 from qtris.backend.models import InstallationInfo
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 from qtris.util.notifications import NotificationRegistration
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 # How long log updates are gathered before the dialog's log is refreshed
 LOG_REFRESH_MS = 200
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class InstallationController(QObject):
     stateChanged = Signal()
     logChanged = Signal()
@@ -72,13 +81,13 @@ class InstallationController(QObject):
     def progressText(self) -> str:  # noqa: N802
         return self._info.progress_text if self._info else ""
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def extras(self) -> list[dict[str, str]]:
         if not self._info:
             return []
         return [{"id": extra.id, "source": extra.source, "label": extra.label} for extra in self._info.extras]
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def files(self) -> list[dict[str, Any]]:
         if not self._info:
             return []

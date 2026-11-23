@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // A game's cover, banner and icon, each of which can be replaced or reset
@@ -11,7 +12,7 @@ ColumnLayout {
     id: editor
     objectName: "gameArtworkEditor"
 
-    required property QtObject artwork
+    required property GameArtworkController artwork
 
     spacing: 8
 
@@ -74,7 +75,7 @@ ColumnLayout {
                         visible: slot.modelData.url.toString().length === 0
                         symbol: "image"
                         size: 28
-                        color: Theme.textSubtle
+                        tint: Theme.textSubtle
                     }
 
                     BusyIndicator {

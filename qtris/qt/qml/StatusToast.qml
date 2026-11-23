@@ -3,13 +3,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // The library's latest status and its cloud save transfers, floating over the games
 Rectangle {
     id: toast
 
-    required property QtObject controller
+    required property LibraryController controller
 
     // A running runtime update takes over the status until it's done
     readonly property string message: controller.runtimeUpdates.running ? controller.runtimeUpdates.statusText
@@ -53,7 +54,7 @@ Rectangle {
                     Icon {
                         symbol: "cloud"
                         size: 16
-                        color: Theme.accentText
+                        tint: Theme.accentText
                     }
 
                     Label {

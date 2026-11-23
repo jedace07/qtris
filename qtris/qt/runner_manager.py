@@ -5,9 +5,11 @@ from __future__ import annotations
 from gettext import gettext as _
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import runners
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
 if TYPE_CHECKING:
@@ -17,7 +19,12 @@ if TYPE_CHECKING:
 
     from qtris.qt.delegates import PromptController
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class RunnerManagerController(QObject):
     stateChanged = Signal()
     progressChanged = Signal()
@@ -35,7 +42,7 @@ class RunnerManagerController(QObject):
         self._message = ""
         self._fraction = -1.0
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def entries(self) -> list[dict[str, str | bool]]:
         return self._entries()
 
@@ -95,7 +102,7 @@ class RunnerManagerController(QObject):
     def proton(self) -> bool:
         return self._proton
 
-    @Property(list, constant=True)
+    @Property("QVariantList", constant=True)
     def protonFamilies(self) -> list[str]:  # noqa: N802
         return list(runners.PROTON_FAMILIES)
 

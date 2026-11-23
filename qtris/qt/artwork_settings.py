@@ -1,14 +1,23 @@
 """Expose where library artwork comes from, and the SteamGridDB API key, to Qt Quick."""
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from __future__ import annotations
+
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import media
 from qtris.backend.models import ArtworkSettings
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class ArtworkSettingsController(QObject):
     requested = Signal()
     stateChanged = Signal()

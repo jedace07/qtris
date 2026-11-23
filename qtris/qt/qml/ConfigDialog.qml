@@ -3,13 +3,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 Dialog {
     id: dialog
     objectName: "configDialog"
 
-    required property QtObject controller
+    required property ConfigController controller
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -68,7 +69,7 @@ Dialog {
                     anchors.verticalCenter: parent.verticalCenter
                     symbol: "search"
                     size: 16
-                    color: Theme.textSubtle
+                    tint: Theme.textSubtle
                 }
             }
 

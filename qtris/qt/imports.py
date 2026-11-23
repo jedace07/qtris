@@ -1,16 +1,25 @@
 """Drive game imports from Qt Quick."""
 
+from __future__ import annotations
+
 from collections.abc import Coroutine
 from gettext import ngettext
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import imports
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class ImportController(QObject):
     stateChanged = Signal()
 
@@ -24,7 +33,7 @@ class ImportController(QObject):
     def busy(self) -> bool:
         return self._busy
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def results(self) -> list[str]:
         return self._results[:]
 

@@ -1,13 +1,16 @@
 """Expose game, runner and system configuration forms to Qt Quick."""
 
+from __future__ import annotations
+
 from collections.abc import Coroutine
 from dataclasses import replace
 from gettext import gettext as _
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import configuration
 from qtris.backend.models import ConfigForm, ConfigOptionInfo, ConfigPage
@@ -15,9 +18,15 @@ from qtris.qt.config_model import ConfigOptionModel
 from qtris.qt.delegates import PromptController
 from qtris.qt.game_artwork import GameArtworkController
 from qtris.qt.game_maintenance import GameMaintenanceController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class ConfigController(QObject):
     requested = Signal()
     stateChanged = Signal()
@@ -40,15 +49,15 @@ class ConfigController(QObject):
         self._maintenance = GameMaintenanceController(prompts, self)
         self._maintenance.finished.connect(self._reload_moved_game)
 
-    @Property(QObject, constant=True)
+    @Property(GameMaintenanceController, constant=True)
     def maintenance(self) -> GameMaintenanceController:
         return self._maintenance
 
-    @Property(QObject, constant=True)
+    @Property(GameArtworkController, constant=True)
     def artwork(self) -> GameArtworkController:
         return self.artwork_controller
 
-    @Property(QObject, constant=True)
+    @Property(ConfigOptionModel, constant=True)
     def options(self) -> ConfigOptionModel:
         return self.model
 
@@ -68,7 +77,7 @@ class ConfigController(QObject):
     def title(self) -> str:
         return self._form.title if self._form else self._title
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def pages(self) -> list[str]:
         return self._page_titles()
 
@@ -100,7 +109,7 @@ class ConfigController(QObject):
     def isNewGame(self) -> bool:  # noqa: N802
         return bool(self._form and self._form.game and not self._game_id)
 
-    @Property(dict, notify=stateChanged)
+    @Property("QVariantMap", notify=stateChanged)
     def game(self) -> dict[str, str]:
         details = self._form.game if self._form else None
         if not details:
@@ -141,7 +150,7 @@ class ConfigController(QObject):
             self._modified = True
             self._run(configuration.reset_preferred_launch(self._form.id))
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def runnerChoices(self) -> list[dict[str, str]]:  # noqa: N802
         if not self._form:
             return []

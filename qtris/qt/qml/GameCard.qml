@@ -1,24 +1,11 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.impl
 import QtQuick.Layouts
 import QtrisStyle
 
-ItemDelegate {
+GameDelegate {
     id: card
 
-    required property int index
-    required property string gameTitle
-    required property string runnerText
-    required property string platformText
-    required property string playTimeText
-    required property string lastPlayedText
-    required property bool installed
-    required property bool running
-    required property url coverUrl
-    required property url bannerUrl
-    required property url iconUrl
-    required property string iconName
     required property bool banners
     required property bool selected
     required property bool keyboardFocus
@@ -133,14 +120,12 @@ ItemDelegate {
                             visible: status === Image.Ready
                         }
 
-                        IconImage {
+                        IconGraphic {
                             anchors.fill: parent
                             visible: !localIcon.visible
                             name: card.iconName
-                            source: card.placeholder
+                            fallbackSource: card.placeholder
                             sourceSize: Qt.size(width * 2, height * 2)
-                            color: "transparent"
-                            Accessible.ignored: true
                         }
                     }
 

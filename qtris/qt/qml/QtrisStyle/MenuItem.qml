@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.MenuItem {
@@ -22,19 +21,14 @@ T.MenuItem {
     icon.height: 18
     icon.color: Theme.textMuted
 
-    contentItem: IconLabel {
+    contentItem: ControlLabel {
+        button: control
         readonly property real arrowPadding: control.subMenu && control.arrow ? control.arrow.width + control.spacing : 0
         readonly property real indicatorPadding: control.checkable && control.indicator ? control.indicator.width + control.spacing : 0
 
         leftPadding: !control.mirrored ? indicatorPadding : arrowPadding
         rightPadding: control.mirrored ? indicatorPadding : arrowPadding
-        spacing: control.spacing
-        mirrored: control.mirrored
-        display: control.display
-        alignment: Qt.AlignLeft
-        icon: control.icon
-        text: control.text
-        font: control.font
+        centered: false
         color: Theme.text
     }
 
@@ -45,7 +39,7 @@ T.MenuItem {
         opacity: control.checked ? 1 : 0
         symbol: "check"
         size: 16
-        color: Theme.accentText
+        tint: Theme.accentText
     }
 
     arrow: Icon {
@@ -55,7 +49,7 @@ T.MenuItem {
         mirror: control.mirrored
         symbol: "chevron-right"
         size: 16
-        color: Theme.textMuted
+        tint: Theme.textMuted
     }
 
     background: Rectangle {

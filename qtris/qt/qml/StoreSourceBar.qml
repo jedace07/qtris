@@ -3,13 +3,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // The store whose games the library shows, with its account and launcher controls
 Frame {
     id: bar
 
-    required property QtObject controller
+    required property StoreSourcesController controller
     readonly property var source: controller.source
     readonly property bool hasLauncher: controller.launchers.length > 0
     readonly property string statusText: {
@@ -41,7 +42,7 @@ Frame {
                 anchors.centerIn: parent
                 symbol: "store"
                 size: 18
-                color: Theme.accentText
+                tint: Theme.accentText
             }
         }
 

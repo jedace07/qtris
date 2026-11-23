@@ -6,9 +6,11 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import game_maintenance
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
 if TYPE_CHECKING:
@@ -16,7 +18,12 @@ if TYPE_CHECKING:
 
     from qtris.qt.delegates import PromptController
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class GameMaintenanceController(QObject):
     stateChanged = Signal()
     finished = Signal()

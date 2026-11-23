@@ -1,11 +1,18 @@
 """The options of a configuration page, exposed to Qt Quick as a list model."""
 
+from __future__ import annotations
+
 from enum import IntEnum
 from typing import Any
 
 from PySide6.QtCore import QAbstractListModel, QByteArray, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtQml import QmlElement
 
 from qtris.backend.models import ConfigOptionInfo
+from qtris.qt.qml_types import QmlUncreatable
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 type ModelIndex = QModelIndex | QPersistentModelIndex
 
@@ -56,6 +63,8 @@ def _value(option: ConfigOptionInfo) -> Any:
     return option.value
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class ConfigOptionModel(QAbstractListModel):
     """Keeps its rows when the same options come back with new values, so views keep
     their delegates and scroll position while the user edits."""

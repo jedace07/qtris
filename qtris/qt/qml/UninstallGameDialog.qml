@@ -3,12 +3,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "uninstallGameDialog"
 
-    required property QtObject controller
+    required property GameMaintenanceController controller
     required property string gameName
     required property bool installed
     property bool externalFiles: false

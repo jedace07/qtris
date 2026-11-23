@@ -6,9 +6,14 @@ from dataclasses import dataclass
 from gettext import gettext as _
 
 from PySide6.QtCore import QAbstractListModel, QByteArray, QModelIndex, Qt
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import library, runners, services
 from qtris.qt.library_model import ModelIndex
+from qtris.qt.qml_types import QmlUncreatable
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 ALL_GAMES = {"category": "all"}
 _LABEL_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -51,6 +56,8 @@ class SidebarEntry:
     view: dict[str, str]
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class SidebarModel(QAbstractListModel):
     def __init__(self) -> None:
         super().__init__()

@@ -1,12 +1,19 @@
 """Plain library rows exposed to Qt Quick views."""
 
+from __future__ import annotations
+
 import time
 from enum import IntEnum
 
 from PySide6.QtCore import QAbstractListModel, QByteArray, QModelIndex, QPersistentModelIndex, Qt, QUrl
+from PySide6.QtQml import QmlElement
 
 from qtris.backend.models import LibraryGame
+from qtris.qt.qml_types import QmlUncreatable
 from qtris.util.strings import get_formatted_playtime
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 type ModelIndex = QModelIndex | QPersistentModelIndex
 type RoleValue = str | bool | QUrl | None
@@ -51,6 +58,8 @@ def _format_time(timestamp: int | None) -> str:
     return time.strftime("%x", time.localtime(timestamp)) if timestamp and timestamp > 0 else ""
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class LibraryModel(QAbstractListModel):
     def __init__(self) -> None:
         super().__init__()

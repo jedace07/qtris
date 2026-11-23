@@ -2,13 +2,14 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
+import QtrisBridge
 import QtrisStyle
 
 ToolButton {
     id: actions
     objectName: "libraryGameActions"
 
-    required property QtObject controller
+    required property LibraryController controller
     property string targetGameId: ""
     property string targetGameName: ""
     property string targetService: ""

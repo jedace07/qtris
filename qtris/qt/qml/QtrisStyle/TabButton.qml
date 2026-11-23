@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.TabButton {
@@ -18,12 +17,8 @@ T.TabButton {
     icon.height: 16
     icon.color: control.checked ? Theme.text : Theme.textMuted
 
-    contentItem: IconLabel {
-        spacing: control.spacing
-        mirrored: control.mirrored
-        display: control.display
-        icon: control.icon
-        text: control.text
+    contentItem: ControlLabel {
+        button: control
         font.pointSize: control.font.pointSize
         font.weight: control.checked ? Font.DemiBold : Font.Normal
         color: control.checked ? Theme.text : control.hovered ? Theme.text : Theme.textMuted

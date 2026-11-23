@@ -1,12 +1,15 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 
 Dialog {
     id: dialog
     objectName: "gameCategories"
 
-    required property QtObject controller
+    required property LibraryController controller
     required property string targetGameId
 
     parent: Overlay.overlay

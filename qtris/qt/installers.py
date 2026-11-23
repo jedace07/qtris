@@ -7,12 +7,14 @@ from functools import partial
 from gettext import gettext as _
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import installers, local_games
 from qtris.backend.errors import QtrisError
 from qtris.backend.installers import InstallationKind
 from qtris.qt.installation import InstallationController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
 if TYPE_CHECKING:
@@ -22,7 +24,12 @@ if TYPE_CHECKING:
     from qtris.backend.models import InstallerCatalog, InstallerSelection
     from qtris.qt.delegates import PromptController
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class InstallerController(QObject):
     requested = Signal()
     stateChanged = Signal()
@@ -47,7 +54,7 @@ class InstallerController(QObject):
         self._import_error = ""
         self.installation_controller = InstallationController(prompts, self)
 
-    @Property(QObject, constant=True)
+    @Property(InstallationController, constant=True)
     def installation(self) -> InstallationController:
         return self.installation_controller
 
@@ -59,7 +66,7 @@ class InstallerController(QObject):
     def gameName(self) -> str:  # noqa: N802
         return self._catalog.game_name if self._catalog else self._game_name
 
-    @Property(list, notify=catalogChanged)
+    @Property("QVariantList", notify=catalogChanged)
     def choices(self) -> list[dict[str, str]]:
         if not self._catalog:
             return []
@@ -104,7 +111,7 @@ class InstallerController(QObject):
     def directory(self) -> str:
         return self._directory
 
-    @Property(list, notify=stateChanged)
+    @Property("QVariantList", notify=stateChanged)
     def runnersToInstall(self) -> list[str]:  # noqa: N802
         return list(self._selection.runners_to_install) if self._selection else []
 
@@ -166,11 +173,11 @@ class InstallerController(QObject):
         self._start(partial(self._load, request))
         self.requested.emit()
 
-    @Property(list, constant=True)
+    @Property("QVariantList", constant=True)
     def windowsSetupPresets(self) -> list[dict[str, str]]:  # noqa: N802
         return [{"label": label, "value": value} for label, value in installers.WINDOWS_SETUP_PRESETS]
 
-    @Property(list, constant=True)
+    @Property("QVariantList", constant=True)
     def windowsSetupLocales(self) -> list[dict[str, str]]:  # noqa: N802
         return [{"label": label, "value": value} for label, value in installers.windows_setup_locales()]
 

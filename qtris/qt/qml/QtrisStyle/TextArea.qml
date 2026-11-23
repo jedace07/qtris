@@ -1,6 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
-import QtQuick.Controls.Basic.impl
 import QtQuick.Templates as T
 
 T.TextArea {
@@ -23,11 +21,11 @@ T.TextArea {
     selectedTextColor: Theme.textOnAccent
     selectByMouse: true
 
-    ContextMenu.menu: TextEditingContextMenu {
+    T.ContextMenu.menu: EditorMenu {
         editor: control
     }
 
-    PlaceholderText {
+    Text {
         id: placeholder
         x: control.leftPadding
         y: control.topPadding
@@ -35,13 +33,15 @@ T.TextArea {
         height: control.height - (control.topPadding + control.bottomPadding)
 
         text: control.placeholderText
+        textFormat: Text.PlainText
+        Accessible.ignored: true
         font: control.font
         color: control.placeholderTextColor
+        horizontalAlignment: control.effectiveHorizontalAlignment
         verticalAlignment: control.verticalAlignment
         visible: !control.length && !control.preeditText
         wrapMode: control.wrapMode
         elide: Text.ElideRight
-        renderType: control.renderType
     }
 
     background: Rectangle {

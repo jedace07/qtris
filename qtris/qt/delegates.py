@@ -1,5 +1,7 @@
 """Bridge synchronous launch prompts to QML dialogs."""
 
+from __future__ import annotations
+
 import asyncio
 from collections import deque
 from collections.abc import Callable
@@ -9,14 +11,21 @@ from pathlib import Path
 from threading import Event
 
 from PySide6.QtCore import QEventLoop, QObject, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend.launch_configurations import BackendLaunchUIDelegate, LaunchChoice
 from qtris.backend.models import GameInfo
 from qtris.exceptions import QtrisError
+from qtris.qt.qml_types import QmlUncreatable
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 type Notice = tuple[str, str, str, bool]
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class PromptController(QObject):
     noticeRequested = Signal(str, str, str, bool)
     inputRequested = Signal(str, str, str, str)

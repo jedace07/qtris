@@ -1,15 +1,18 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
+import QtrisBridge
 
 GridView {
     id: grid
     objectName: "libraryGrid"
 
-    required property QtObject controller
+    required property LibraryController controller
     readonly property bool banners: controller.layout === "banners"
     readonly property bool showTitle: !controller.preferences.hideGameTitles
     readonly property int columns: Math.max(1, Math.floor((width - leftMargin - rightMargin) / (banners ? 270 : 178)))
-    readonly property Item selectedGame: currentItem
+    readonly property GameDelegate selectedGame: currentItem as GameDelegate
 
     signal menuRequested()
 

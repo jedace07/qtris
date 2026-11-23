@@ -3,12 +3,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 Rectangle {
     id: sidebar
 
-    required property QtObject controller
+    required property LibraryController controller
 
     readonly property string currentTitle: (views.currentItem as SidebarItem)?.viewTitle ?? ""
     readonly property string currentIcon: (views.currentItem as SidebarItem)?.viewIcon ?? "games"

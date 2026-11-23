@@ -4,16 +4,17 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 Dialog {
     id: dialog
     objectName: "preferencesDialog"
 
-    required property QtObject controller
-    required property QtObject library
+    required property PreferencesController controller
+    required property LibraryController library
 
-    readonly property QtObject runtime: library.runtimeUpdates
+    readonly property RuntimeUpdatesController runtime: library.runtimeUpdates
     readonly property var storage: controller.storage
     readonly property var pageList: [
         { title: qsTr("Stores"), icon: "store" },

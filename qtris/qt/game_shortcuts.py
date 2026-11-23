@@ -1,18 +1,27 @@
 """Expose a game's shortcut destinations and launch targets to Qt Quick."""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtQml import QmlElement
 
 from qtris.backend import shortcuts
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
 if TYPE_CHECKING:
     from qtris.qt.delegates import PromptController
 
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
+
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class GameShortcutController(QObject):
     changed = Signal()
 
@@ -23,13 +32,13 @@ class GameShortcutController(QObject):
         self._task: asyncio.Task[None] | None = None
         self._game_id = ""
 
-    @Property(list, notify=changed)
+    @Property("QVariantList", notify=changed)
     def targets(self) -> list[dict[str, str | bool]]:
         if self._state is None:
             return []
         return [{"kind": target.kind, "label": target.label, "exists": target.exists} for target in self._state.targets]
 
-    @Property(list, notify=changed)
+    @Property("QVariantList", notify=changed)
     def configurationLabels(self) -> list[str]:  # noqa: N802
         return list(self._state.configuration_labels) if self._state else []
 

@@ -4,13 +4,14 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 ColumnLayout {
     id: page
     objectName: "installationPage"
 
-    required property QtObject installation
+    required property InstallationController installation
 
     readonly property string stage: installation.stage
     property var chosenExtras: []

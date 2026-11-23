@@ -98,6 +98,8 @@ jobs:
           enable-cache: true
       - name: Install Python dependencies
         run: uv sync --locked --no-default-groups --group test
+      - name: Lint QML
+        run: uv run --no-sync python utils/check-qml.py
       - name: Run Unit Test
         # The Qt frontend's tests run on Qt's offscreen platform
         env:

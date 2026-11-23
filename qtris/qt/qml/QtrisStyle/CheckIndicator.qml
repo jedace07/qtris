@@ -23,7 +23,7 @@ Rectangle {
         anchors.centerIn: parent
         symbol: "check"
         size: 14
-        color: Theme.textOnAccent
+        tint: Theme.textOnAccent
         visible: indicator.checkState === Qt.Checked
     }
 

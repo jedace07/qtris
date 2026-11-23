@@ -4,11 +4,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
+import QtrisBridge
 
 Item {
     id: host
 
-    required property QtObject prompts
+    required property PromptController prompts
 
     Dialog {
         id: notice

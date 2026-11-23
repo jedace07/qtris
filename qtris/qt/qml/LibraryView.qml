@@ -3,16 +3,18 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 SplitView {
     id: library
 
-    required property QtObject controller
+    required property LibraryController controller
 
     // The view showing the library, whose current item is the selected game
     // The selected game's card or row, which the game bar shows the details of
-    readonly property Item selectedGame: content.item?.selectedGame ?? null
+    readonly property GameDelegate selectedGame: (content.item as GameList)?.selectedGame
+                                                  ?? (content.item as GameGrid)?.selectedGame ?? null
 
     signal addMenuRequested(Item button)
     signal mainMenuRequested(Item button)
@@ -94,7 +96,7 @@ SplitView {
                         anchors.centerIn: parent
                         symbol: sidebar.currentIcon
                         size: 32
-                        color: Theme.textSubtle
+                        tint: Theme.textSubtle
                     }
                 }
 

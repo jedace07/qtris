@@ -7,18 +7,23 @@ import re
 from gettext import gettext as _
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Property, QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtNetwork import QNetworkCookie
+from PySide6.QtQml import QmlElement
 from PySide6.QtWebEngineQuick import QQuickWebEngineProfile
 
 from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
 from qtris.qt.delegates import PromptController
+from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
+
+QML_IMPORT_NAME = "QtrisBridge"
+QML_IMPORT_MAJOR_VERSION = 1
 
 # Stores' sign-in pages treat an unknown browser more warily than Chrome itself
 _WEB_ENGINE_TOKEN = re.compile(r"\s*QtWebEngine/\S+")
@@ -37,6 +42,8 @@ def _web_cookie(cookie: QNetworkCookie) -> store_login.WebCookie:
     )
 
 
+@QmlElement
+@QmlUncreatable("Qtris creates this type in Python")
 class StoreSourcesController(QObject):
     changed = Signal()
     gamesChanged = Signal()
@@ -81,7 +88,7 @@ class StoreSourcesController(QObject):
         finally:
             self._flathub_scan = None
 
-    @Property(dict, notify=changed)
+    @Property("QVariantMap", notify=changed)
     def source(self) -> dict[str, str | bool]:
         info = self._info
         if not info:
@@ -94,7 +101,7 @@ class StoreSourcesController(QObject):
             "hasLauncherSetup": bool(info.launcher_slug),
         }
 
-    @Property(dict, notify=changed)
+    @Property("QVariantMap", notify=changed)
     def login(self) -> dict[str, str]:
         request = self._request
         if not request:
@@ -104,7 +111,7 @@ class StoreSourcesController(QObject):
             login["url"] = request.url
         return login
 
-    @Property(list, notify=changed)
+    @Property("QVariantList", notify=changed)
     def launchers(self) -> list[dict[str, str]]:
         return [
             {

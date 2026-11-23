@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.CheckBox {
@@ -25,10 +24,13 @@ T.CheckBox {
         y: control.topPadding + (control.availableHeight - height) / 2
     }
 
-    contentItem: CheckLabel {
+    contentItem: Text {
         leftPadding: control.indicator && !control.mirrored ? control.indicator.width + control.spacing : 0
         rightPadding: control.indicator && control.mirrored ? control.indicator.width + control.spacing : 0
-        text: control.text
+        text: control.text.replace(/&(.)/g, "$1")
+        textFormat: Text.PlainText
+        verticalAlignment: Text.AlignVCenter
+        Accessible.ignored: true
         font: control.font
         color: Theme.text
         wrapMode: Text.WordWrap

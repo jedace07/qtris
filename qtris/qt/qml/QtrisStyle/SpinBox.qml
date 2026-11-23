@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls.impl
 import QtQuick.Templates as T
 
 T.SpinBox {
@@ -51,7 +50,7 @@ T.SpinBox {
             anchors.centerIn: parent
             symbol: "plus"
             size: 14
-            color: Theme.textMuted
+            tint: Theme.textMuted
         }
     }
 
@@ -67,7 +66,7 @@ T.SpinBox {
             anchors.centerIn: parent
             symbol: "minus"
             size: 14
-            color: Theme.textMuted
+            tint: Theme.textMuted
         }
     }
 

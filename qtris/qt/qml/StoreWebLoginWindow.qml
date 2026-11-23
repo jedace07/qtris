@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtWebEngine
+import QtrisBridge
 import QtrisStyle
 
 // Signs in to a store in Qtris's own browser view. The controller watches where the
@@ -10,7 +11,7 @@ ApplicationWindow {
     id: signIn
     objectName: "storeWebLoginWindow"
 
-    required property QtObject controller
+    required property StoreSourcesController controller
     readonly property string pageHost: {
         try {
             return new URL(view.url).host
@@ -68,7 +69,7 @@ ApplicationWindow {
             Icon {
                 visible: !signIn.securePage && signIn.pageHost.length > 0
                 symbol: "warning"
-                color: Theme.warning
+                tint: Theme.warning
             }
 
             Label {
@@ -95,7 +96,7 @@ ApplicationWindow {
 
                 Icon {
                     symbol: "warning"
-                    color: Theme.danger
+                    tint: Theme.danger
                 }
 
                 Label {

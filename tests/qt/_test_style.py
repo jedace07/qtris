@@ -6,8 +6,11 @@ import re
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSize, QUrl, QUrlQuery
+from PySide6.QtGui import QColor, QGuiApplication
 
 from qtris.qt import sidebar
+from qtris.qt.icon_provider import IconProvider
 from qtris.qt.main_window import QML_DIR, STYLE
 
 ICONS = QML_DIR / STYLE / "icons"
@@ -46,6 +49,25 @@ def test_views_use_the_style_rather_than_pinning_basic() -> None:
         if "import QtQuick.Controls.Basic" in path.read_text(encoding="utf-8")
     ]
     assert not pinned
+
+
+def test_missing_theme_icon_uses_the_tinted_fallback(qt_application: QGuiApplication) -> None:
+    options = QUrlQuery()
+    options.addQueryItem("name", "qtris-test-icon-not-in-system-theme")
+    options.addQueryItem("source", QUrl.fromLocalFile(str(ICONS / "menu.svg")).toString())
+    options.addQueryItem("color", "#a58bff")
+    url = QUrl("image://qtris-icons/icon")
+    url.setQuery(options)
+    extent = QSize(24, 24)
+    size = QSize()
+
+    query = url.query(QUrl.ComponentFormattingOption.FullyEncoded)
+    pixmap = IconProvider().requestPixmap(f"icon?{query}", size, extent)
+    image = pixmap.toImage()
+
+    assert size == extent
+    assert image.pixelColor(12, 11) == QColor("#a58bff")
+    assert image.pixelColor(0, 0).alpha() == 0
 
 
 def sidebar_views() -> list[dict[str, str]]:

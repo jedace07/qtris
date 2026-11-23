@@ -3,13 +3,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtrisBridge
 import QtrisStyle
 
 // The current view's title, with the search, filter, sort and layout controls of the library
 ToolBar {
     id: header
 
-    required property QtObject controller
+    required property LibraryController controller
     required property string viewTitle
     readonly property bool compact: width < 760
 
@@ -75,7 +76,7 @@ ToolBar {
                 anchors.verticalCenter: parent.verticalCenter
                 symbol: "search"
                 size: 16
-                color: Theme.textSubtle
+                tint: Theme.textSubtle
             }
 
             ToolButton {
