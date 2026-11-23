@@ -29,6 +29,7 @@ from qtris.runners import get_runner_human_name, is_valid_runner_name
 from qtris.services import SERVICES
 from qtris.services.base import OnlineService
 from qtris.services.flathub import FlathubService
+from qtris.services.gog import GOGService
 from qtris.uri import parse_installer_url
 from qtris.util import flatpak
 from qtris.util.log import logger
@@ -298,12 +299,19 @@ async def build_interpreter(
 ) -> tuple[ScriptInterpreter, InstallationKind]:
     """Build a fresh interpreter on a copy of the selected installation plan."""
     script, origin = _copy_choice(catalog_id, choice_id)
-    interpreter = await asyncio.to_thread(_build_interpreter, script, origin, delegate, wine_prefix)
+    interpreter = await asyncio.to_thread(
+        _build_interpreter, script, origin, delegate, wine_prefix, resolve_download=True
+    )
     return interpreter, origin.kind
 
 
 def _build_interpreter(
-    script: _Script, origin: _Origin, delegate: ScriptInterpreter.InterpreterUIDelegate, wine_prefix: str = ""
+    script: _Script,
+    origin: _Origin,
+    delegate: ScriptInterpreter.InterpreterUIDelegate,
+    wine_prefix: str = "",
+    *,
+    resolve_download: bool = False,
 ) -> ScriptInterpreter:
     delegate.service = origin.service
     delegate.appid = origin.appid
@@ -319,6 +327,8 @@ def _build_interpreter(
         if origin.kind == InstallationKind.INSTALL:
             if games_db.get_games(filters={"service": origin.service.id, "service_id": origin.appid, "installed": 1}):
                 raise QtrisError(_("This game is already installed."))
+            if resolve_download and isinstance(origin.service, GOGService):
+                script = origin.service.resolve_download_installer(script)
         else:
             delegate.installed_game = _installed_game(origin.game_id, str(origin.service.id), origin.appid)
     if origin.launcher_setup and SERVICES[origin.launcher_setup]().list_launchers():

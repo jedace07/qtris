@@ -69,8 +69,10 @@ def launch(interpreter: ScriptInterpreter, monkeypatch: pytest.MonkeyPatch) -> t
 def gog_plan(kind: str) -> dict[str, Any]:
     service = GOGService()
     game = {"name": "Bundled Engine Test", "appid": "123", "slug": "bundled-engine-test", "details": "{}"}
-    build = service._generate_depot_installer if kind == "depot" else service._generate_installer
-    return build("bundled-engine-test", "wine", game)
+    plan = service._generate_depot_installer("bundled-engine-test", "wine", game)
+    if kind == "offline":
+        plan["script"] = service._offline_download_script("wine")
+    return plan
 
 
 @pytest.mark.parametrize(

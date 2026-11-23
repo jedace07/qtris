@@ -25,7 +25,7 @@ from qtris.util import i18n, system
 from qtris.util.cookies import cookie_records
 from qtris.util.credentials import LegacyCredential
 from qtris.util.gog_downloader import GOGDownloader
-from qtris.util.gogdl import remove_legacy_auth_config
+from qtris.util.gogdl import is_gogdl_available, remove_legacy_auth_config
 from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 from qtris.util.strings import human_size, slugify
@@ -456,7 +456,12 @@ class GOGService(OnlineService):
         return all_extras
 
     def get_installers(
-        self, downloads: dict[str, list[dict]], runner_name: str | None, language: str = "en"
+        self,
+        downloads: dict[str, list[dict]],
+        runner_name: str | None,
+        language: str = "en",
+        *,
+        allow_other_os: bool = True,
     ) -> list[dict]:
         """Return available installers for a GOG game"""
         # Mac installers are never usable; Linux ones are preferred over Windows ones.
@@ -468,7 +473,7 @@ class GOGService(OnlineService):
         if runner_name:
             preferred_os = self.runner_to_os_dict[self._normalize_runner_name(runner_name)]
             selected_installers = [installer for installer in all_installers if installer["os"] == preferred_os]
-        if not selected_installers:
+        if not selected_installers and (not runner_name or allow_other_os):
             # Fall back to the installers for the other OS; scripts may deliberately want
             # those (data extraction, engine reimplementations), and plenty of games have
             # no native Linux build to offer a Linux runner.
@@ -567,7 +572,9 @@ class GOGService(OnlineService):
     def _get_installer_links(self, installer: "QtrisInstaller", downloads: dict) -> list[dict]:
         """Return links to downloadable files from a list of downloads"""
         try:
-            gog_installers = self.get_installers(downloads, installer.runner)
+            gog_installers = self.get_installers(
+                downloads, installer.runner, allow_other_os=not installer.script.get("gog_offline_download")
+            )
             if not gog_installers:
                 return []
             if len(gog_installers) > 1:
@@ -659,23 +666,36 @@ class GOGService(OnlineService):
         return str(root_elem.attrib["name"]), str(root_elem.attrib["md5"])
 
     def generate_installer(self, db_game: dict[str, Any]) -> dict[str, Any]:
+        installers = self.generate_installers(db_game)
+        return installers[0] if installers else {}
+
+    def generate_installers(self, db_game: dict[str, Any]) -> list[dict[str, Any]]:
         details = json.loads(db_game["details"])
         slug = details["slug"]
         platforms = [platform.casefold() for platform, is_supported in details["worksOn"].items() if is_supported]
-        if "linux" in platforms:
-            return self._generate_depot_installer(slug, "linux", db_game)
-        else:
-            return self._generate_depot_installer(slug, "wine", db_game)
+        return [self._generate_depot_installer(slug, runner, db_game) for runner in self._get_runners(platforms)]
 
-    def generate_installers(self, db_game: dict[str, Any]) -> list[dict]:
-        details = json.loads(db_game["details"])
-        slug = details["slug"]
-        platforms = [platform.casefold() for platform, is_supported in details["worksOn"].items() if is_supported]
+    def resolve_download_installer(self, installer: dict[str, Any]) -> dict[str, Any]:
+        """Choose the download method for a generated platform installer when it starts."""
+        if not installer.get("gog_platform_download"):
+            return installer
+        runner = installer["runner"]
+        if is_gogdl_available() and (runner == "linux" or self._should_use_windows_depot(str(installer["gogid"]))):
+            return installer
+        return {**installer, "script": self._offline_download_script(runner)}
 
-        runners = self._get_runners(platforms)
-        return [self._generate_depot_installer(slug, runner, db_game) for runner in runners] + [
-            self._generate_installer(slug, runner, db_game) for runner in runners
-        ]
+    @staticmethod
+    def _should_use_windows_depot(game_id: str) -> bool:
+        # Match gogdl's build lookup, which can also return generation 1 builds
+        url = f"https://content-system.gog.com/products/{game_id}/os/windows/builds?generation=2"
+        try:
+            builds = Request(url, timeout=5).get().json
+        except (HTTPError, UnauthorizedAccessError, ValueError) as error:
+            if isinstance(error, HTTPError) and error.code == 404:
+                return False
+            logger.warning("Could not check GOG builds for %s: %s", game_id, error)
+            return True
+        return not isinstance(builds, dict) or (builds.get("total_count") != 0 and builds.get("items") != [])
 
     @staticmethod
     def _get_runners(platforms: list[str]) -> list[str]:
@@ -702,6 +722,7 @@ class GOGService(OnlineService):
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,
             "gogid": db_game["appid"],
+            "gog_platform_download": True,
             "script": {
                 "game": game_config,
                 "installer": [
@@ -715,8 +736,8 @@ class GOGService(OnlineService):
             },
         }
 
-    def _generate_installer(self, slug: str, runner: str, db_game: dict[str, Any]) -> dict[str, Any]:
-        system_config = {}
+    @staticmethod
+    def _offline_download_script(runner: str) -> dict[str, Any]:
         if runner == "linux":
             game_config = {"exe": AUTO_ELF_EXE}
             script = [
@@ -729,18 +750,11 @@ class GOGService(OnlineService):
                 {"autosetup_gog_game": "goginstaller"},
             ]
         return {
-            "name": db_game["name"],
-            "version": _("Linux offline installer") if runner == "linux" else _("Windows offline installer"),
-            "slug": slug,
-            "game_slug": self.get_installed_slug(db_game),
-            "runner": runner,
-            "gogid": db_game["appid"],
-            "script": {
-                "game": game_config,
-                "system": system_config,
-                "files": [{"goginstaller": "N/A:Select the installer from GOG"}],
-                "installer": script,
-            },
+            "game": game_config,
+            "gog_offline_download": True,
+            "system": {},
+            "files": [{"goginstaller": "N/A:Select the installer from GOG"}],
+            "installer": script,
         }
 
     def get_installed_runner_name(self, db_game: dict) -> str:

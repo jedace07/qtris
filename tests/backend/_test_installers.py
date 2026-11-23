@@ -1,6 +1,9 @@
 """Find and select install scripts for library games without running them."""
 
+from __future__ import annotations
+
 import asyncio
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +17,7 @@ from qtris.database import games as games_db
 from qtris.exceptions import QtrisError
 from qtris.installer import commands
 from qtris.installer.interpreter import ScriptInterpreter
+from qtris.services import gog
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.util import game_finder, magic
 from qtris.util.test_config import setup_test_environment
@@ -124,10 +128,73 @@ def test_closed_and_evicted_catalogs_are_forgotten(scripts: list[dict[str, Any]]
     asyncio.run(run())
 
 
+@pytest.mark.parametrize(
+    ("has_gogdl", "builds_status", "builds", "offline_platforms"),
+    [
+        (True, 200, [{"generation": 1}], ()),
+        (True, 200, [], ("wine",)),
+        (True, 404, [], ("wine",)),
+        (True, 503, [], ()),
+        (False, 200, [], ("linux", "wine")),
+    ],
+)
+def test_gog_catalog_has_one_download_per_platform(
+    monkeypatch: pytest.MonkeyPatch,
+    has_gogdl: bool,
+    builds_status: int,
+    builds: list[dict[str, int]],
+    offline_platforms: tuple[str, ...],
+) -> None:
+    details = {"slug": "gog-download-test", "worksOn": {"Windows": True, "Mac": True, "Linux": True}}
+    game = {"name": "GOG Download Test", "appid": "1234567", "details": json.dumps(details)}
+    monkeypatch.setattr(installers.ServiceGameCollection, "get_game", lambda *_args: game)
+    monkeypatch.setattr(gog.GOGService, "is_authenticated", lambda self: True)
+    monkeypatch.setattr(gog, "is_gogdl_available", lambda: has_gogdl)
+    build_lookups: list[str] = []
+
+    def request_builds(url: str, *, timeout: int) -> SimpleNamespace:
+        assert has_gogdl
+        assert url.endswith("/1234567/os/windows/builds?generation=2")
+        build_lookups.append(url)
+        if builds_status != 200:
+            raise gog.HTTPError("Build lookup failed", code=builds_status)
+        return SimpleNamespace(get=lambda: SimpleNamespace(json={"items": builds}))
+
+    monkeypatch.setattr(gog, "Request", request_builds)
+
+    async def run() -> None:
+        catalog = await installers.find_store_installers("gog", "1234567")
+        try:
+            assert [choice.version for choice in catalog.choices] == ["Linux download", "Windows download"]
+            assert [choice.runner for choice in catalog.choices] == ["linux", "wine"]
+            for choice in catalog.choices:
+                selection = await installers.select_installer(catalog.id, choice.id)
+                assert selection.creates_game_folder
+            assert not build_lookups
+            for choice in catalog.choices:
+                interpreter, _kind = await installers.build_interpreter(
+                    catalog.id, choice.id, ScriptInterpreter.InterpreterUIDelegate()
+                )
+                script = interpreter.installer.script
+                if choice.runner in offline_platforms:
+                    assert interpreter.installer.script_files[0].id == "goginstaller"
+                    platform = "linux" if choice.runner == "linux" else "windows"
+                    other_platform = "windows" if platform == "linux" else "linux"
+                    downloads = {"installers": [{"os": other_platform, "language": "en"}]}
+                    service = interpreter.installer.service
+                    assert isinstance(service, gog.GOGService)
+                    assert service._get_installer_links(interpreter.installer, downloads) == []
+                else:
+                    assert "gogdl_setup" in script["installer"][0]
+            assert len(build_lookups) == int(has_gogdl)
+        finally:
+            await installers.close_catalog(catalog.id)
+
+    asyncio.run(run())
+
+
 def test_store_content_targets_the_selected_installation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from qtris.installer import InstallationKind
-    from qtris.installer.interpreter import ScriptInterpreter
-    from qtris.services.gog import GOGService
 
     slug = "shared-install-slug"
     first = tmp_path / "first"
@@ -139,8 +206,8 @@ def test_store_content_targets_the_selected_installation(tmp_path: Path, monkeyp
         name="GOG game", slug=slug, installed=1, directory=str(second), service="gog", service_id="4780", runner="linux"
     )
     script = {**make_script("Patch", extends=slug), "game_slug": slug}
-    monkeypatch.setattr(GOGService, "is_authenticated", lambda self: True)
-    monkeypatch.setattr(GOGService, "get_update_installers", lambda self, row: [script])
+    monkeypatch.setattr(gog.GOGService, "is_authenticated", lambda self: True)
+    monkeypatch.setattr(gog.GOGService, "get_update_installers", lambda self, row: [script])
 
     async def run() -> None:
         catalog = await installers.find_store_installers("gog", "4780", str(expected), InstallationKind.UPDATE)

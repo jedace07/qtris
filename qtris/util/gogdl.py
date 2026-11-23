@@ -50,7 +50,7 @@ NOTHING_TO_DO_RE = re.compile(r"^\[(V1|V2|LINUX)\] INFO: (Nothing to do|All file
 BROKEN_FILES_RE = re.compile(r"^\[(V1|V2)\] INFO: Found (?P<count>\d+) broken files")
 
 
-def _get_gogdl_binary():
+def _get_gogdl_binary() -> str:
     """Return the path to the gogdl binary that Qtris downloads with its other components."""
     binary = os.path.join(GOGDL_DIR, "gogdl")
     if os.path.isfile(binary) and os.access(binary, os.X_OK):
@@ -58,6 +58,14 @@ def _get_gogdl_binary():
     raise FileNotFoundError(
         "gogdl hasn't been downloaded yet. Check for updates in Preferences → Updates, then try again."
     )
+
+
+def is_gogdl_available() -> bool:
+    try:
+        _get_gogdl_binary()
+    except FileNotFoundError:
+        return False
+    return True
 
 
 def _write_auth_config(auth_path: Path) -> dict[str, Any]:
