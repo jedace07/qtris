@@ -281,3 +281,82 @@ def test_windows_setup_uses_the_chosen_prefix_for_tasks_and_launch(
             await installers.close_catalog(catalog.id)
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("source_id", "slug", "exe", "args"),
+    [
+        (
+            "battlenet",
+            "battlenet",
+            "Program Files (x86)/Battle.net/Battle.net.exe",
+            [r"--installpath=C:\Program Files (x86)\Battle.net", "--lang=enUS"],
+        ),
+        ("ea_app", "ea-app", "Program Files/Electronic Arts/EA Desktop/EA Desktop/EALauncher.exe", ["/S"]),
+        ("ubisoft", "ubisoft-connect", "Program Files (x86)/Ubisoft/Ubisoft Game Launcher/UbisoftConnect.exe", ["/S"]),
+    ],
+)
+def test_store_launcher_setup_saves_a_launchable_ge_proton_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_id: str, slug: str, exe: str, args: list[str]
+) -> None:
+    from qtris.config import QtrisConfig
+    from qtris.installer.errors import ScriptingError
+    from qtris.services.base import BaseService
+    from qtris.util.strings import split_arguments
+    from qtris.util.wine.wine import GE_PROTON_LATEST
+
+    config_dir = tmp_path / "config"
+    (config_dir / "games").mkdir(parents=True)
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(config_dir))
+    monkeypatch.setattr(BaseService, "list_launchers", lambda self: [])
+    monkeypatch.setattr(ScriptInterpreter, "get_wine_path", lambda self: "/test/bin/wine")
+    task_arguments: dict[str, Any] = {}
+    monkeypatch.setattr(commands, "import_task", lambda *_args: lambda **kwargs: task_arguments.update(kwargs))
+    target = tmp_path / slug
+    expected = target / "drive_c" / exe
+    setup = tmp_path / "vendor setup.exe"
+    setup.touch()
+
+    async def run() -> None:
+        catalog = await installers.prepare_store_launcher(source_id)
+        try:
+            selection = await installers.select_installer(catalog.id, "0")
+            assert selection.creates_game_folder and not selection.can_choose_wine_prefix
+            assert Path(selection.default_directory).name == slug
+            interpreter, _ = await installers.build_interpreter(
+                catalog.id, "0", ScriptInterpreter.InterpreterUIDelegate()
+            )
+            assert interpreter.installer.script_files[0].url.startswith("https://")
+            interpreter.target_path = str(target)
+            interpreter.game_files = {"setup": str(setup)}
+            commands = interpreter.installer.script["installer"]
+            interpreter.task(dict(commands[0]["task"]))
+            assert split_arguments(task_arguments["args"]) == args
+            expected_env = {"PROTON_ENABLE_WAYLAND": "0"}
+            if source_id == "battlenet":
+                expected_env["WINE_SIMULATE_WRITECOPY"] = "1"
+            assert task_arguments["env"] == expected_env
+            assert task_arguments["prefix"] == str(target) and task_arguments["executable"] == str(setup)
+            runner = task_arguments["runner"]
+            assert runner.runner_config["version"] == GE_PROTON_LATEST and runner.runner_config["Graphics"] == "x11"
+
+            with pytest.raises(ScriptingError, match="launcher was not installed"):
+                interpreter.finish_launcher_setup(commands[1]["finish_launcher_setup"])
+            expected.parent.mkdir(parents=True)
+            expected.touch()
+            interpreter.finish_launcher_setup(commands[1]["finish_launcher_setup"])
+            game_id, config = interpreter.installer.save()
+            try:
+                assert config["game"]["exe"] == str(expected)
+                assert config["game"]["prefix"] == str(target)
+                assert config["system"]["env"] == expected_env
+                row = games_db.get_game_by_field(game_id, "id")
+                assert row and row["installer_slug"] == slug
+                saved = QtrisConfig(runner_slug="wine", game_config_id=row["configpath"])
+                assert saved.runner_config["version"] == GE_PROTON_LATEST
+            finally:
+                games_db.delete_game(game_id)
+        finally:
+            await installers.close_catalog(catalog.id)
+
+    asyncio.run(run())

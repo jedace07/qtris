@@ -665,6 +665,11 @@ async def start_installation(
         raise QtrisError(_("Unknown shortcut destinations: %s") % ", ".join(sorted(unknown)))
     delegate = _InterpreterDelegate()
     interpreter, kind = await installers.build_interpreter(catalog_id, choice_id, delegate, wine_prefix=wine_prefix)
+    if interpreter.launcher_setup and any(
+        active.active and active.interpreter.launcher_setup == interpreter.launcher_setup
+        for active in _installations.values()
+    ):
+        raise QtrisError(_("This launcher is already being installed."))
     installation = _Installation(interpreter, delegate, directory, shortcut_kinds, kind)
     _installations[installation.id] = installation
     installation.start(installation.prepare(include_extras=include_extras))

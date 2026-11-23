@@ -11,10 +11,18 @@ Frame {
 
     required property QtObject controller
     readonly property var source: controller.source
-    readonly property string statusText: controller.busy ? qsTr("Working…")
-                                    : source.signedIn ? qsTr("Signed in")
-                                    : Boolean(source.online) && !source.canSignIn ? qsTr("Browser sign-in unavailable")
-                                    : Boolean(source.online) ? qsTr("Not signed in") : qsTr("Local library")
+    readonly property bool hasLauncher: controller.launchers.length > 0
+    readonly property string statusText: {
+        if (controller.busy)
+            return qsTr("Working…");
+        if (source.signedIn)
+            return qsTr("Signed in");
+        if (source.hasLauncherSetup)
+            return hasLauncher ? qsTr("Sign in inside the launcher") : qsTr("Launcher required");
+        if (!source.online)
+            return qsTr("Local library");
+        return source.canSignIn ? qsTr("Not signed in") : qsTr("Browser sign-in unavailable");
+    }
 
     visible: Boolean(source.name)
     padding: 10
@@ -106,7 +114,17 @@ Frame {
         }
 
         Button {
-            visible: bar.controller.launchers.length > 0
+            objectName: "storeInstallLauncher"
+            visible: Boolean(bar.source.hasLauncherSetup) && !bar.hasLauncher
+            enabled: !bar.controller.busy
+            highlighted: true
+            text: qsTr("Install Launcher…")
+            onClicked: bar.controller.install_launcher()
+        }
+
+        Button {
+            objectName: "storeRunLauncher"
+            visible: bar.hasLauncher
             enabled: !bar.controller.busy
             text: qsTr("Run Launcher")
             icon.source: Theme.icon("external")
@@ -124,10 +142,10 @@ Frame {
 
         Button {
             objectName: "storeSignIn"
-            visible: Boolean(bar.source.canSignIn) && !bar.source.signedIn
+            visible: Boolean(bar.source.canSignIn) && !bar.source.signedIn && (!bar.source.hasLauncherSetup || bar.hasLauncher)
             enabled: !bar.controller.busy
-            highlighted: true
-            text: qsTr("Sign In…")
+            highlighted: !bar.source.hasLauncherSetup
+            text: bar.source.hasLauncherSetup ? qsTr("Connect Library…") : qsTr("Sign In…")
             icon.source: Theme.icon("sign-in")
             onClicked: bar.controller.sign_in()
         }

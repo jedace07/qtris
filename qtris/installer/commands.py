@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from qtris.cache import is_file_in_custom_cache
+from qtris.config import QtrisConfig
 from qtris.exceptions import UnspecifiedVersionError
 from qtris.installer.errors import ScriptingError
 from qtris.installer.installer import QtrisInstaller
@@ -22,6 +23,7 @@ from qtris.util.gogdl import clear_stale_manifest, run_gogdl
 from qtris.util.jobs import schedule_repeating_at_idle
 from qtris.util.log import logger
 from qtris.util.store_cli import StoreClientError
+from qtris.util.wine.launchers import LAUNCHER_SETUPS, repair_ea_launcher
 from qtris.util.wine.wine import WINE_DEFAULT_ARCH, get_proton_version_or_default, get_wine_path_for_version
 
 
@@ -33,6 +35,7 @@ class CommandsMixin:
     target_path: str
     interpreter_ui_delegate: Any
     cancelled: bool
+    launcher_setup: str
 
     def get_wine_path(self) -> str:
         """Return the program that runs Wine during the installation: the Proton build
@@ -259,10 +262,20 @@ class CommandsMixin:
 
         if wine_prefix:
             data["prefix"] = wine_prefix
+        launcher = self.installer.required_game
+        if (
+            task_name == "wineexec"
+            and runner_name == "wine"
+            and (self.launcher_setup or (launcher and getattr(self.installer.service, "client_installer", None)))
+        ):
+            config = QtrisConfig(runner_slug="wine", game_config_id=launcher["configpath"] if launcher else None)
+            config.runner_config.update(self.installer.script.get("wine", {}))
+            config.system_config["env"] = (config.system_config.get("env") or {}) | data["env"]
+            data["runner"] = wine(config, prefix=data["prefix"])
         task = import_task(runner_name, task_name)
         command = task(**data)
         if isinstance(command, MonitoredCommand):
-            if wine_prefix:
+            if wine_prefix or self.launcher_setup:
                 self.abort_current_task = command.stop
                 if self.cancelled:
                     command.stop()
@@ -272,6 +285,14 @@ class CommandsMixin:
             schedule_repeating_at_idle(self._monitor_task, command, interval_seconds=1.0)
             return "STOP"
         return None
+
+    def finish_launcher_setup(self, service_id: str) -> None:
+        setup = LAUNCHER_SETUPS[service_id]
+        prefix = Path(self.target_path)
+        executable = prefix / setup.executable
+        repair_ea_launcher(prefix, executable)
+        if not executable.is_file():
+            raise ScriptingError(_("The launcher was not installed. Expected to find %s.") % executable)
 
     def _monitor_task(self, command):
         if self.cancelled:

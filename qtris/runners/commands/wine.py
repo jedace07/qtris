@@ -7,6 +7,7 @@ import shlex
 import tempfile
 import time
 from gettext import gettext as _
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from qtris import settings
@@ -18,6 +19,7 @@ from qtris.util.log import logger
 from qtris.util.shell import get_shell_command
 from qtris.util.strings import split_arguments
 from qtris.util.wine import proton
+from qtris.util.wine.launchers import repair_ea_launcher
 from qtris.util.wine.prefix import WinePrefixManager
 from qtris.util.wine.wine import (
     WINE_DEFAULT_ARCH,
@@ -305,6 +307,9 @@ def wineexec(
     if arch == "win32" and (proton.is_umu_path(wine_path) or proton.is_proton_path(wine_path)):
         logger.warning("Proton is not compatible with 32-bit prefixes, forcing win64")
         arch = "win64"
+
+    if prefix and os.path.isabs(executable):
+        repair_ea_launcher(Path(prefix), Path(executable))
 
     if not working_dir:
         if os.path.isfile(executable):

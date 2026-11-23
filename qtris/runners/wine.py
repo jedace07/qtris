@@ -7,6 +7,7 @@ import os
 import shlex
 from collections.abc import Callable, Iterable
 from gettext import gettext as _
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
@@ -42,6 +43,7 @@ from qtris.util.strings import split_arguments
 from qtris.util.wine import proton, proton_releases, rolling_proton
 from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
+from qtris.util.wine.launchers import repair_ea_launcher
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
 from qtris.util.wine.wine import (
     GE_PROTON_LATEST,
@@ -655,7 +657,7 @@ class wine(Runner):
                 version = get_proton_version_or_default(version)
         # If the installer is an extension, use the wine version from the base game
         elif installer.requires:
-            db_game = get_game_by_field(installer.requires, field="installer_slug")
+            db_game = installer.required_game or get_game_by_field(installer.requires, field="installer_slug")
             if not db_game:
                 db_game = get_game_by_field(installer.requires, field="slug")
             if not db_game:
@@ -869,6 +871,8 @@ class wine(Runner):
     def prelaunch(self):
         prefix_path = self.prefix_path
         if prefix_path:
+            if (exe := self.game_config.get("exe")) and os.path.isabs(exe):
+                repair_ea_launcher(Path(prefix_path), Path(exe))
             if os.path.islink(prefix_path) and not os.path.exists(prefix_path):
                 raise SymlinkNotUsableError(
                     message=f"Link {prefix_path} couldn't be used, please check permissions or broken link.",

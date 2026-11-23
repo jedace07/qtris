@@ -21,6 +21,7 @@ from qtris.util.jobs import AsyncCall
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import unpack_dependencies
+from qtris.util.wine.launchers import reserve_launcher_prefix
 
 # Fired with the ScriptInterpreter once the runners its script needs are installed
 RUNNERS_INSTALLED = NotificationSource()
@@ -61,6 +62,7 @@ class ScriptInterpreter(CommandsMixin):
     def __init__(self, installer, interpreter_ui_delegate=None):
         super().__init__()
         self.target_path = None
+        self.launcher_setup = ""
         self.interpreter_ui_delegate = interpreter_ui_delegate or ScriptInterpreter.InterpreterUIDelegate()
         self.service = self.interpreter_ui_delegate.service
         _appid = self.interpreter_ui_delegate.appid
@@ -292,6 +294,8 @@ class ScriptInterpreter(CommandsMixin):
         if self.installer.wine_prefix:
             self.installer.prefix_install_started_at = time_ns()
         self.create_game_folder()
+        if self.launcher_setup:
+            reserve_launcher_prefix(self.target_path, self.launcher_setup)
 
         os.makedirs(self.cache_path, exist_ok=True)
 
@@ -480,7 +484,7 @@ class ScriptInterpreter(CommandsMixin):
             except Exception as ex:
                 error_function(ex)
 
-        if self.installer.runner.startswith("wine") and not self.installer.wine_prefix:
+        if self.installer.runner.startswith("wine") and not (self.installer.wine_prefix or self.launcher_setup):
             AsyncCall(self.task, on_complete, {"name": "winekill"})
         else:
             on_complete(None, None)

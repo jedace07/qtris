@@ -45,6 +45,7 @@ class StoreSourcesController(QObject):
     webLoginRequested = Signal()
     loginClosed = Signal()
     launcherRequested = Signal(str)
+    launcherInstallRequested = Signal(str, str)
 
     def __init__(self, prompts: PromptController, parent: QObject) -> None:
         super().__init__(parent)
@@ -90,6 +91,7 @@ class StoreSourcesController(QObject):
             "online": info.online,
             "signedIn": info.signed_in,
             "canSignIn": info.can_sign_in,
+            "hasLauncherSetup": bool(info.launcher_slug),
         }
 
     @Property(dict, notify=changed)
@@ -144,6 +146,15 @@ class StoreSourcesController(QObject):
     async def _choose_launcher(self, service_id: str, game_id: str) -> None:
         await services.set_source_launcher(service_id, game_id)
         await self._load(service_id)
+
+    def refresh_launchers(self, slug: str | None = None) -> None:
+        if self._info and self._info.launcher_slug and (slug is None or slug == self._info.launcher_slug):
+            start_task(self._load(self._source), self._prompts.error)
+
+    @Slot()
+    def install_launcher(self) -> None:
+        if self._info and self._info.launcher_slug and not self._launchers and not self._task:
+            self.launcherInstallRequested.emit(self._source, self._info.name)
 
     @Slot()
     def run_launcher(self) -> None:

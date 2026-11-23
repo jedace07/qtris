@@ -157,6 +157,15 @@ class InstallerController(QObject):
         self._start(partial(self._load, request))
         self.requested.emit()
 
+    @Slot(str, str)
+    def open_store_launcher(self, service_id: str, name: str) -> None:
+        if self.installation_controller.active or self._importing:
+            return
+        self._reset(name)
+        request = partial(installers.prepare_store_launcher, service_id)
+        self._start(partial(self._load, request))
+        self.requested.emit()
+
     @Property(list, constant=True)
     def windowsSetupPresets(self) -> list[dict[str, str]]:  # noqa: N802
         return [{"label": label, "value": value} for label, value in installers.WINDOWS_SETUP_PRESETS]

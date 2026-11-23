@@ -1779,3 +1779,71 @@ def test_qml_itchio_accepts_browser_callback_or_api_key(
             window.shutdown()
 
     asyncio.run(run())
+
+
+def test_qml_can_install_a_launcher_before_connecting_the_library(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop
+) -> None:
+    from qtris.backend import games
+    from qtris.services.ea_app import EAAppService
+
+    registered: list[games_db.DbGameDict] = []
+
+    async def list_sources() -> list[ServiceInfo]:
+        return [ServiceInfo("ea_app", "EA App", True)]
+
+    monkeypatch.setattr(services, "list_services", list_sources)
+    monkeypatch.setattr(EAAppService, "list_launchers", lambda self: registered)
+    monkeypatch.setattr(EAAppService, "is_authenticated", lambda self: False)
+
+    async def run() -> None:
+        window = MainWindow()
+        window.show()
+        root = window.window
+        assert root is not None
+
+        def shown(name: str) -> bool:
+            item = root.findChild(QObject, name)
+            return bool(item and item.property("visible"))
+
+        def launcher_refreshed() -> bool:
+            fake_main_loop.run_pending()
+            return shown("storeRunLauncher")
+
+        try:
+            await settle(window)
+            window.controller.select_view(window.controller.sidebar.find_row({"service": "ea_app"}))
+            await wait_for_qml(qt_application, lambda: shown("storeInstallLauncher"))
+            assert not shown("storeSignIn")
+            button = root.findChild(QObject, "storeInstallLauncher")
+            assert button is not None and QMetaObject.invokeMethod(button, "clicked")
+            await wait_for_qml(
+                qt_application,
+                lambda: shown("installerDialog") and bool(window.controller._installers.property("selected")),
+            )
+            assert window.controller._installers.gameName == "EA App"
+            assert not window.controller._installers.canChooseWinePrefix
+            window.controller._installers.close_installers()
+
+            game_id = games_db.add_game(
+                name="EA App",
+                slug="ea-app",
+                installer_slug="ea-app",
+                runner="wine",
+                installed=1,
+                configpath="test-launcher",
+            )
+            try:
+                row = games_db.get_game_by_field(str(game_id), "id")
+                assert row is not None
+                registered.append(row)
+                events.GAME_INSTALLED.fire(games.to_game_info(row))
+                await wait_for_qml(qt_application, launcher_refreshed)
+                assert not shown("storeInstallLauncher")
+                assert shown("storeSignIn")
+            finally:
+                games_db.delete_game(game_id)
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())

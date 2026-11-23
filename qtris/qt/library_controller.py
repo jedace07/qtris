@@ -73,6 +73,7 @@ class LibraryController(QObject):
         self._preferences.sourcesChanged.connect(self._on_sources_changed)
         self._store_sources = StoreSourcesController(prompts, self)
         self._store_sources.gamesChanged.connect(self.refresh)
+        self._store_sources.launcherInstallRequested.connect(self._installers.open_store_launcher)
         self._store_sources.launcherRequested.connect(lambda game_id: self.launch(game_id, False))
         self._runner_manager = RunnerManagerController(prompts, self)
         self.runtime_updates_controller = RuntimeUpdatesController(prompts, self)
@@ -573,12 +574,14 @@ class LibraryController(QObject):
         if game and game.game_id and game.game_id in self._running_ids:
             self._start_task(games.stop_game(game.game_id))
 
-    def _on_game_changed(self, _game: GameInfo) -> None:
+    def _on_game_changed(self, game: GameInfo) -> None:
         if not self._closed:
+            self._store_sources.refresh_launchers(game.installer_slug or game.slug)
             self._refresh_timer.start()
 
     def _on_game_removed(self, _game_id: str) -> None:
         if not self._closed:
+            self._store_sources.refresh_launchers()
             self._refresh_timer.start()
 
     def _on_game_launching(self, game: GameInfo) -> None:

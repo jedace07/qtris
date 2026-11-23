@@ -33,7 +33,8 @@ from qtris.uri import parse_installer_url
 from qtris.util import flatpak
 from qtris.util.log import logger
 from qtris.util.strings import slugify
-from qtris.util.wine.wine import prepare_wine_prefix
+from qtris.util.wine.launchers import LAUNCHER_SETUPS
+from qtris.util.wine.wine import GE_PROTON_LATEST, prepare_wine_prefix
 
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
@@ -58,6 +59,7 @@ class _Origin:
     game_id: str = ""
     kind: InstallationKind = InstallationKind.INSTALL
     launcher: games_db.DbGameDict | None = None
+    launcher_setup: str = ""
 
 
 @dataclass(frozen=True)
@@ -177,6 +179,37 @@ def windows_setup_locales() -> list[tuple[str, str]]:
     return sysoptions.get_locale_choices()
 
 
+async def prepare_store_launcher(service_id: str) -> InstallerCatalog:
+    """Download a store's own Windows launcher into a dedicated GE-Proton prefix."""
+    service_class = SERVICES.get(service_id)
+    setup = LAUNCHER_SETUPS.get(service_id)
+    if service_class is None or not service_class.client_installer or setup is None:
+        raise QtrisError(_("This store has no launcher installer."))
+    service = service_class()
+    if await asyncio.to_thread(service.list_launchers):
+        raise QtrisError(_("A launcher for %s is already registered.") % service.name)
+    slug = service_class.client_installer
+    script = {
+        "name": str(service.name),
+        "version": _("Official launcher"),
+        "slug": slug,
+        "game_slug": slug,
+        "runner": "wine",
+        "notes": _("If the installer opens the launcher, close it to finish setup."),
+        "script": {
+            "game": {"exe": f"$GAMEDIR/{setup.executable}", "prefix": "$GAMEDIR"},
+            "wine": {"version": GE_PROTON_LATEST, "Graphics": "x11"},
+            "system": {"env": setup.environment()},
+            "files": [{"setup": {"url": setup.url, "filename": setup.filename}}],
+            "installer": [
+                {"task": {"name": "wineexec", "executable": "$setup", "args": setup.args}},
+                {"finish_launcher_setup": service_id},
+            ],
+        },
+    }
+    return _catalog_from_scripts([script], _Origin(launcher_setup=service_id))
+
+
 async def prepare_windows_setup(
     name: str, executable: str, windows_version: str = "win10", locale: str = ""
 ) -> InstallerCatalog:
@@ -288,7 +321,11 @@ def _build_interpreter(
                 raise QtrisError(_("This game is already installed."))
         else:
             delegate.installed_game = _installed_game(origin.game_id, str(origin.service.id), origin.appid)
+    if origin.launcher_setup and SERVICES[origin.launcher_setup]().list_launchers():
+        raise QtrisError(_("A launcher for this store is already registered."))
     interpreter = ScriptInterpreter(script, delegate)
+    if origin.launcher_setup:
+        interpreter.launcher_setup = origin.launcher_setup
     if origin.service and origin.service.local:
         interpreter.target_path = origin.service.get_game_directory(script)
     installer = interpreter.installer
@@ -307,6 +344,7 @@ def _can_choose_wine_prefix(interpreter: ScriptInterpreter, kind: InstallationKi
         kind == InstallationKind.INSTALL
         and interpreter.installer.runner == "wine"
         and interpreter.installer.creates_game_folder
+        and not interpreter.launcher_setup
     )
 
 

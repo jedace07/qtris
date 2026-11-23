@@ -15,6 +15,7 @@ from qtris.services.base import AuthTokenExpiredError, BaseService, OnlineServic
 from qtris.services.flathub import FlathubService
 from qtris.util.flatpak import FlatpakError
 from qtris.util.log import logger
+from qtris.util.wine.launchers import LAUNCHER_SETUPS
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class SourceStatus:
     online: bool
     signed_in: bool
     can_sign_in: bool
+    launcher_slug: str = ""
 
 
 @dataclass(frozen=True)
@@ -58,7 +60,8 @@ def _get_source_status(service_id: str) -> SourceStatus:
     service = _get_service(service_id)
     online = isinstance(service, OnlineService)
     signed_in = isinstance(service, OnlineService) and bool(service.is_authenticated())
-    return SourceStatus(str(service.name), online, signed_in, login_input(service_id) is not None)
+    launcher_slug = service.client_installer if service_id in LAUNCHER_SETUPS else ""
+    return SourceStatus(str(service.name), online, signed_in, login_input(service_id) is not None, launcher_slug or "")
 
 
 async def sync_source(service_id: str) -> None:
