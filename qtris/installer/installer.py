@@ -66,8 +66,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         if "steam" in self.runner and "steam" in SERVICES:
             return SERVICES["steam"]()
         version = self.version.lower()
-        if "humble" in version and "humblebundle" in SERVICES:
-            return SERVICES["humblebundle"]()
         if "gog" in version and "gog" in SERVICES:
             return SERVICES["gog"]()
         if ("itch.io" in version or "itchio" in version or "itch io" in version) and "itchio" in SERVICES:
@@ -86,8 +84,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         game_config = self.script.get("game", {})
         if self.service.id == "gog":
             service_id = game_config.get("gogid") or installer.get("gogid") or installer.get("service_id")
-        if self.service.id == "humblebundle":
-            service_id = game_config.get("humbleid") or installer.get("humblestoreid") or installer.get("service_id")
         if self.service.id == "itchio":
             service_id = game_config.get("itchid") or installer.get("itchid") or installer.get("service_id")
         if service_id:

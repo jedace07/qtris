@@ -5,27 +5,26 @@ from __future__ import annotations
 import json
 import os
 import time
-import typing
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from urllib.error import HTTPError as ResponseError
 from urllib.parse import parse_qs, urlsplit
 
 from qtris import settings
-from qtris.exceptions import AuthenticationError
+from qtris.exceptions import AuthenticationError, QtrisError, UnavailableGameError
 from qtris.installer import AUTO_ELF_EXE, AUTO_WIN32_EXE
 from qtris.installer.installer_file import InstallerFile
 from qtris.installer.installer_file_collection import InstallerFileCollection
 from qtris.runners import get_runner_human_name
-from qtris.services.base import SERVICE_LOGIN, OnlineService
+from qtris.services.base import SERVICE_LOGIN, AuthTokenExpiredError, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
-from qtris.util import system
 from qtris.util.credentials import LegacyCredential
-from qtris.util.http import HTTPError, Request
+from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 from qtris.util.strings import computer_size
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from qtris.installer.installer import QtrisInstaller
 
 
@@ -46,16 +45,14 @@ class ZoomGame(ServiceGame):
     service = "zoomplatform"
 
     @classmethod
-    def new_from_zoom_game(cls, zoom_game):
+    def new_from_zoom_game(cls, zoom_game: dict[str, Any]) -> ZoomGame:
         """Return a Zoom game instance from the API info"""
         service_game = ZoomGame()
         service_game.appid = str(zoom_game["id"])
         service_game.game_id = str(zoom_game["id"])
         service_game.slug = zoom_game["slug"]
         service_game.name = zoom_game["name"]
-        details = zoom_game
-        details["image"] = zoom_game["poster_url"]
-        details["slug"] = zoom_game["slug"]
+        details = {**zoom_game, "image": zoom_game.get("poster_url")}
         service_game.details = json.dumps(details)
         return service_game
 
@@ -76,7 +73,6 @@ class ZoomService(OnlineService):
 
     redirect_uris = ["https://www.zoom-platform.com/account?li_token="]
 
-    login_success_url = "https://www.zoom-platform.com/account?li_token="
     credential_field = "token"
     token_path = os.path.join(settings.CACHE_DIR, ".zoom.token")
     cookies_path = os.path.join(settings.CACHE_DIR, ".zoom.auth")
@@ -85,7 +81,7 @@ class ZoomService(OnlineService):
     runner_to_os_dict = {"wine": "windows", "linux": "linux"}
 
     @property
-    def login_url(self):
+    def login_url(self) -> str:
         """Return authentication URL"""
         return f"{self.embed_url}/login?li=qtris&return_li_token=true"
 
@@ -97,117 +93,107 @@ class ZoomService(OnlineService):
         """Return whether the user is authenticated and if the service is available"""
 
         try:
-            request = self.make_request(f"{self.api_url}/li/loggedin")
+            self.make_request(f"{self.api_url}/li/loggedin")
         except AuthenticationError:
-            logger.debug("User is not authenticated")
             return False
-
-        logger.debug("User is authenticated: %s", request)
         return True
+
+    def reload(self) -> None:
+        """Refresh the catalog without clearing it before the network requests succeed."""
+        if self.is_loading:
+            return
+        self.is_loading = True
+        try:
+            self.load()
+            self.load_icons()
+        finally:
+            self.is_loading = False
 
     def load(self) -> list[ZoomGame]:
         """Load the user game library from the Zoom API"""
-        if not self.is_connected():
-            logger.error("User not connected to Zoom")
-            return []
-        games = [ZoomGame.new_from_zoom_game(game) for game in self.get_library()]
+        try:
+            games = [ZoomGame.new_from_zoom_game(game) for game in self.get_library()]
+        except AuthenticationError as error:
+            raise AuthTokenExpiredError(str(error)) from error
+        self.wipe_game_cache()
         for game in games:
             game.save()
         return games
 
-    def login_callback(self, url) -> None:
+    def login_callback(self, url: str) -> None:
         tokens = parse_qs(urlsplit(url).query).get("li_token", [])
-        if not tokens:
-            logger.error("Login callback URL does not contain 'li_token'")
-            return
-
-        self.credentials.update(token=tokens[0])
-
-        assert not self.is_login_in_progress
+        if len(tokens) != 1:
+            raise AuthenticationError(_("ZOOM did not return a sign-in token."))
+        token = tokens[0]
+        self.make_request(f"{self.api_url}/li/loggedin", token=token)
+        self.credentials.update(token=token)
         SERVICE_LOGIN.fire(self)
 
     def load_token(self) -> str:
         """Load token from disk"""
         token = self.credentials.read().get("token")
         if not isinstance(token, str) or not token:
-            raise AuthenticationError("No Zoom token available")
+            raise AuthenticationError(_("Sign in to ZOOM Platform first."))
         return token
 
-    def make_request(self, url: str) -> Any:
-        """Send a token authenticated HTTP request to Zoom"""
+    def make_request(self, url: str, *, token: str | None = None) -> dict[str, Any]:
+        """Send an authenticated request, honoring short ZOOM rate-limit delays."""
+        headers = {"Authorization": f"Bearer {token or self.load_token()}", "Accept": "application/json"}
+        for attempt in range(3):
+            request = Request(url, headers=headers)
+            try:
+                request.get()
+            except UnauthorizedAccessError:
+                raise AuthenticationError(_("ZOOM rejected this session. Sign in again.")) from None
+            except HTTPError as error:
+                if error.code != 429:
+                    raise QtrisError(_("Could not connect to ZOOM Platform.")) from error
+                cause = error.__cause__
+                retry_after = cause.headers.get("Retry-After", "") if isinstance(cause, ResponseError) else ""
+                delay = int(retry_after) if retry_after.isascii() and retry_after.isdecimal() else 1
+                if attempt == 2 or delay > 30:
+                    raise QtrisError(_("ZOOM is limiting requests. Try again in a moment.")) from None
+                time.sleep(delay)
+                continue
+            try:
+                response = request.json
+            except ValueError:
+                raise QtrisError(_("ZOOM returned an invalid response.")) from None
+            if not isinstance(response, dict):
+                raise QtrisError(_("ZOOM returned an invalid response."))
+            return response
+        raise AssertionError("Rate limit retry loop exhausted")
 
-        token = self.load_token()
-        headers = {"Authorization": "Bearer " + token, "Accept": "application/json"}
-
-        request = Request(url, headers=headers)
-        request.get()
-        return request.json
-
-    def get_library(self) -> list[dict]:
-        """Return the user's library of Zoom games"""
-        if system.path_exists(self.cache_path):
-            logger.debug("Returning cached Zoom library")
-            with open(self.cache_path, "r", encoding="utf-8") as zoom_cache:
-                return json.load(zoom_cache)
-
+    def get_library(self) -> list[dict[str, Any]]:
+        """Fetch every page of the user's ZOOM library."""
         url = f"{self.api_url}/li/games"
         response = self.make_request(url)
         current_page = response.get("current_page", 0)
-        total_pages = response.get("total_pages", 0)
-
-        games = response["games"]
-        while current_page < total_pages - 1:
-            time.sleep(1)  # Avoid hitting the API too fast, until HTTP 429 is handled in the Request class
-            logger.debug("Fetching additional pages of Zoom library")
-            current_page += 1
-            next_page_url = f"{url}?page={current_page}"
-            response = self.make_request(next_page_url)
-            games.extend(response["games"])
-
-        # print(games)
-        with open(self.cache_path, "w", encoding="utf-8") as zoom_cache:
-            json.dump(games, zoom_cache)
-
-        return games
+        total_pages = response.get("total_pages", current_page)
+        games = {game["id"]: game for game in response["games"]}
+        for page in range(current_page + 1, total_pages + 1):
+            response = self.make_request(f"{url}?page={page}")
+            games.update((game["id"], game) for game in response["games"])
+        return list(games.values())
 
     def get_extras(self, appid: str) -> dict[str, list[dict]]:
         """Return a list of bonus content available for a Zoom ID and its DLCs"""
         logger.debug("Download extras for Zoom ID %s and its DLCs", appid)
-        return {"extras": self._get_extra(appid)}
-
-    def _get_extra(self, appid: str) -> list[dict]:
-        # fetch the extra files urls and then parse the response to get the download url
-
         files_request = self.make_request(f"{self.api_url}/li/game/{appid}/files")
-        # print(product_request)
-
-        all_extras = []
-        for extra_type in ["manual", "misc", "soundtrack"]:
-            files = files_request[extra_type]
-            for file in files:
-                try:
-                    download_request = self.make_request(f"{self.api_url}/li/download/{file['id']}")
-                except HTTPError as ex:
-                    logger.exception("Unable to locate extra '%s': %s", file.get("name"), ex)
-                    continue
-
-                extra_file_dict = {
-                    "name": file["name"],
-                    "url": download_request["url"],
-                    "filename": file["name"],  # we cannot use "path" here as it can include a directory
-                    "total_size": computer_size(file["size"]),
-                }
-                all_extras.append(extra_file_dict)
-        return all_extras
+        extras = [
+            {
+                "id": file["id"],
+                "name": file["name"],
+                "total_size": computer_size(file["size"]),
+            }
+            for category in ("manual", "misc", "soundtrack")
+            for file in files_request.get(category, [])
+        ]
+        return {"extras": extras} if extras else {}
 
     def generate_installer(self, db_game: dict[str, Any]) -> dict[str, Any]:
-        logger.debug("Generating installer for %s", db_game)
-        details = json.loads(db_game["details"])
-        platforms = details["operating_systems"]
-        if "linux" in platforms:
-            return self._generate_installer("linux", db_game)
-        else:
-            return self._generate_installer("wine", db_game)
+        installers = self.generate_installers(db_game)
+        return installers[0] if installers else {}
 
     def generate_installers(self, db_game: dict[str, Any]) -> list[dict]:
         details = json.loads(db_game["details"])
@@ -230,18 +216,7 @@ class ZoomService(OnlineService):
 
     def _generate_installer(self, runner: str, db_game: dict[str, Any]) -> dict[str, Any]:
         slug = db_game["slug"]
-        system_config = {}
-        if runner == "linux":
-            game_config = {"exe": AUTO_ELF_EXE}
-            script = [
-                {"extract": {"file": "zoominstaller", "dst": "$CACHE"}},
-                {"merge": {"src": "$CACHE", "dst": "$GAMEDIR"}},
-            ]
-        else:
-            game_config = {"exe": AUTO_WIN32_EXE}
-            script = [
-                {"autosetup_zoom_platform": "zoominstaller"},
-            ]
+        game_config = {"exe": AUTO_ELF_EXE if runner == "linux" else AUTO_WIN32_EXE}
         return {
             "name": db_game["name"],
             "version": "Zoom",
@@ -251,52 +226,85 @@ class ZoomService(OnlineService):
             "zoomid": db_game["appid"],
             "script": {
                 "game": game_config,
-                "system": system_config,
                 "files": [{"zoominstaller": "N/A:Select the installer from Zoom"}],
-                "installer": script,
+                "installer": [{"autosetup_zoom_platform": "zoominstaller"}],
             },
         }
 
     def get_installer_files(self, installer: "QtrisInstaller", installer_file_id: str) -> list[InstallerFileCollection]:
-        logger.debug("Getting installer files for %s", installer_file_id)
-        platform = installer.runner
-        if platform == "wine":
-            platform = "windows"
-
-        installer_files = self._get_installers(platform, installer.game_slug, installer.service_appid)
-        return [InstallerFileCollection(installer.game_slug, installer_file_id, installer_files)]
+        platform = self.runner_to_os_dict.get(installer.runner)
+        if not platform or not installer.service_appid:
+            return []
+        try:
+            installers = self._get_installers(platform, installer.game_slug, installer.service_appid, installer_file_id)
+        except AuthenticationError:
+            raise
+        except QtrisError as error:
+            raise UnavailableGameError(error.message) from error
+        return [InstallerFileCollection(installer.game_slug, installer_file_id, installers)] if installers else []
 
     def get_extras_files(self, installer: "QtrisInstaller", selected_extras: list[dict]) -> list[InstallerFile]:
         extras = []
-        for selected_extra in selected_extras:
-            extras.append(InstallerFile(installer.game_slug, selected_extra["name"], selected_extra))
+        for index, extra in enumerate(selected_extras):
+            filename = extra["name"]
+            try:
+                self._check_filename(filename)
+                url = self._get_download_url(extra["id"])
+            except AuthenticationError:
+                raise
+            except QtrisError as error:
+                logger.warning("Unable to locate ZOOM extra '%s': %s", filename, error)
+                continue
+            extras.append(
+                InstallerFile(
+                    installer.game_slug,
+                    f"zoomextra_{index}",
+                    {"filename": filename, "url": url, "total_size": extra["total_size"]},
+                )
+            )
         return extras
 
-    def _get_installers(self, platform: str, game_slug: str, appid: str) -> list[InstallerFile]:
-        # fetch the installer url and then parse the response to get the download url
+    @staticmethod
+    def _check_filename(name: str) -> None:
+        if name in ("", ".", "..") or "/" in name or "\\" in name:
+            raise UnavailableGameError(_("ZOOM returned an invalid download filename."))
 
-        files_request = self.make_request(f"{self.api_url}/li/game/{appid}/files")
-        # print(json)
+    def _get_download_url(self, file_id: str) -> str:
+        url = self.make_request(f"{self.api_url}/li/download/{file_id}").get("url")
+        if not isinstance(url, str) or not url.startswith("https://"):
+            raise UnavailableGameError(_("ZOOM did not return a valid download link."))
+        return url
 
-        file_list = []
-        files = files_request[platform]
-        print(files)
-        assert len(files) == 1, "More than one file found for %s" % platform  # TODO: Handle multiple files
-        json = self.make_request(f"{self.api_url}/li/download/{files[0]['id']}")
+    def _get_installers(self, platform: str, game_slug: str, appid: str, file_id: str) -> list[InstallerFile]:
+        files = self.make_request(f"{self.api_url}/li/game/{appid}/files").get(platform, [])
+        if not files:
+            return []
 
-        installer_file_dict = {
-            "url": json["url"],
-            "filename": files[0]["name"],
-            "total_size": computer_size(files[0]["size"]),
-        }
+        names = [file["name"] for file in files]
+        for name in names:
+            self._check_filename(name)
+        if len({name.casefold() for name in names}) != len(names):
+            raise UnavailableGameError(_("ZOOM returned duplicate installer filenames."))
 
-        installer_file = InstallerFile(
-            game_slug,
-            "zoominstaller",
-            installer_file_dict,
-        )
-        file_list.append(installer_file)
-        return file_list
+        primary = 0
+        if platform == "windows":
+            primary = next((index for index, name in enumerate(names) if name.casefold().endswith(".exe")), -1)
+            if primary < 0:
+                raise UnavailableGameError(_("ZOOM did not provide a Windows setup executable."))
+
+        return [
+            InstallerFile(
+                game_slug,
+                file_id if index == primary else f"{file_id}_part_{index}",
+                {
+                    "url": self._get_download_url(file["id"]),
+                    "filename": file["name"],
+                    "size": computer_size(file["size"]),
+                },
+                cache_id=file_id.replace("-", "_"),
+            )
+            for index, file in enumerate(files)
+        ]
 
     def get_service_game(self, zoom_game: dict) -> ZoomGame:
         return ZoomGame.new_from_zoom_game(zoom_game)

@@ -448,14 +448,14 @@ custom executables. A configured version that isn't Proton falls back to
 GE-Proton Latest, except in a Wine prefix Proton has never run in.
 
 Selecting a source in Qt exposes **Sign In**, **Sync Library**, and
-**Disconnect** as appropriate. GOG and Amazon sign in in Qtris's own web view
-(``StoreWebLoginWindow.qml``, QtWebEngine): their sign-in ends on fixed store
-pages (the OAuth clients they borrow allow no other redirect), so the host
-browser can't hand the result back. Each sign-in gets a private,
+**Disconnect** as appropriate. GOG, Amazon and ZOOM Platform sign in in
+Qtris's own web view (``StoreWebLoginWindow.qml``, QtWebEngine) to capture the
+response from the store's sign-in redirect. Each sign-in gets a private,
 off-the-record profile whose user agent drops the QtWebEngine token.
 ``store_login.is_web_response()`` tells the frontend which address ends the
 sign-in. GOG also keeps the web session's ``gog.com`` cookies, though its API
-token alone signs in.
+token alone signs in. Qtris captures ZOOM's token before the callback page
+can redirect again and validates it with ZOOM before saving it.
 
 The Epic Games Store uses Legendary's sign-in page in the system default
 browser. The user copies the final JSON response and returns to Qtris.
@@ -463,8 +463,7 @@ While the Epic sign-in dialog is open, Qtris checks for a newly copied
 ``authorizationCode``. The dialog also accepts a code entered manually.
 Qtris passes the code to ``legendary auth --code`` to save the session.
 
-The other stores use the system default browser. ZOOM Platform accepts its
-redirect URL. EA App, Humble Bundle, Game Jolt and DLsite accept JSON and
+EA App signs in through the system default browser and accepts JSON and
 Netscape cookie exports. Qtris keeps current cookies for the selected store
 and its subdomains.
 

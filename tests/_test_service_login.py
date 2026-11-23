@@ -1,6 +1,5 @@
 """Logging in to services, and runner actions, ask the user through delegates."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,17 +7,15 @@ import pytest
 from qtris import settings
 from qtris.delegates import Delegate, InstallUIDelegate, ServiceLoginUIDelegate
 from qtris.services.base import SERVICE_LOGIN, OnlineService
-from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.itchio import ItchIoService
 
 
 class RecordingLoginDelegate(ServiceLoginUIDelegate):
     """Answers with canned replies and records what it was asked."""
 
-    def __init__(self, answer=False, text=None, cookies=None, file=None):
+    def __init__(self, answer=False, text=None, file=None):
         self.answer = answer
         self.text = text
-        self.cookies = cookies
         self.file = file
         self.calls = []
 
@@ -33,10 +30,6 @@ class RecordingLoginDelegate(ServiceLoginUIDelegate):
     def ask_for_file(self, message, default_path=None):
         self.calls.append("ask_for_file")
         return self.file
-
-    def ask_for_humble_bundle_cookies(self):
-        self.calls.append("ask_for_humble_bundle_cookies")
-        return self.cookies
 
     def show_web_login(self, service):
         self.calls.append("show_web_login")
@@ -84,32 +77,6 @@ def test_itch_io_preserves_the_saved_key_when_the_user_cancels(tmp_path, monkeyp
     assert logins == []
 
 
-def test_humble_bundle_uses_the_cookies_the_user_provides(tmp_path, monkeypatch, fake_main_loop, logins):
-    service = HumbleBundleService()
-    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
-    monkeypatch.setattr(service, "cookies_path", str(tmp_path / "cookies"))
-    delegate = RecordingLoginDelegate(answer=True, cookies=".humblebundle.com\tTRUE\t/\tTRUE\t0\tsession\tfixture\n")
-
-    service.login(delegate)
-    fake_main_loop.run_pending()
-
-    assert delegate.calls == ["ask_question", "ask_for_humble_bundle_cookies"]
-    (cookie,) = json.loads(service.credentials.path.read_text(encoding="utf-8"))["cookies"]
-    assert (cookie["domain"], cookie["value"]) == (".humblebundle.com", "fixture")
-    assert logins == [service]
-
-
-def test_humble_bundle_falls_back_to_the_web_login(tmp_path, monkeypatch, fake_main_loop):
-    service = HumbleBundleService()
-    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
-    monkeypatch.setattr(service, "cookies_path", str(tmp_path / "cookies"))
-    delegate = RecordingLoginDelegate(answer=False)
-
-    service.login(delegate)
-
-    assert delegate.calls == ["ask_question", "show_web_login"]
-
-
 def test_service_with_a_launcher_installs_it_before_logging_in(monkeypatch):
     service = OnlineService()
     monkeypatch.setattr(service, "client_installer", "some-launcher")
@@ -126,7 +93,6 @@ def test_default_delegates_never_wait_for_a_user():
     assert delegate.ask_question("Title", "Really?") is False
     assert delegate.ask_for_text("Title", "Name?") is None
     assert delegate.ask_for_file("Pick one") is None
-    assert delegate.ask_for_humble_bundle_cookies() is None
     delegate.show_notice("Hello")
     delegate.show_web_login(MagicMock())
     # The installer's own yes/no question still defaults to yes

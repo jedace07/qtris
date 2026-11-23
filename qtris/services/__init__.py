@@ -5,13 +5,10 @@ from typing import TYPE_CHECKING
 from qtris import settings
 from qtris.services.amazon import AmazonService
 from qtris.services.battlenet import BattleNetService
-from qtris.services.dlsite import DlsiteService
 from qtris.services.ea_app import EAAppService
 from qtris.services.egs import EpicGamesStoreService
 from qtris.services.flathub import FlathubService
-from qtris.services.gamejolt import GameJoltService
 from qtris.services.gog import GOGService
-from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.itchio import ItchIoService
 from qtris.services.steam import SteamService
 from qtris.services.ubisoft import UbisoftConnectService
@@ -32,14 +29,11 @@ def get_services() -> dict[str, "type[BaseService]"]:
     _services = {
         "gog": GOGService,
         "zoomplatform": ZoomService,
-        "humblebundle": HumbleBundleService,
         "egs": EpicGamesStoreService,
-        "gamejolt": GameJoltService,
         "itchio": ItchIoService,
         "ea_app": EAAppService,
         "ubisoft": UbisoftConnectService,
         "amazon": AmazonService,
-        "dlsite": DlsiteService,
     }
     _services["battlenet"] = BattleNetService
     if not LINUX_SYSTEM.is_flatpak():

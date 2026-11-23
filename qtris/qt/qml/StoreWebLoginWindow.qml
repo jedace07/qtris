@@ -126,6 +126,10 @@ ApplicationWindow {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
+            onNavigationRequested: request => {
+                if (request.isMainFrame && signIn.controller.web_navigation_requested(request.url))
+                    request.reject();
+            }
             onUrlChanged: signIn.controller.web_url_changed(url)
             // Sign-in pages that open a window, such as a third-party account's, stay in this one
             onNewWindowRequested: request => request.openIn(view)

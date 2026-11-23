@@ -11,11 +11,11 @@ import pytest
 from qtris import settings
 from qtris.backend import services, store_login
 from qtris.exceptions import QtrisError
-from qtris.services.gamejolt import GameJoltService
+from qtris.services.ea_app import EAAppService
 from qtris.services.gog import GOGService
-from qtris.services.humblebundle import HumbleBundleService
 from qtris.services.ubisoft import UbisoftConnectService
-from qtris.util.http import Request
+from qtris.services.zoom import ZoomService
+from qtris.util.http import Request, UnauthorizedAccessError
 from qtris.util.test_config import setup_test_environment
 from qtris.util.ubisoft.client import UbisoftConnectClient
 from tests.store_clients import install_store_clients
@@ -57,7 +57,7 @@ def test_gog_signs_in_from_its_web_view_and_keeps_only_gog_cookies(
             "https://embed.gog.com/on_login_success?code=one&code=two",
         ):
             assert not store_login.is_web_response(request.id, page)
-            with pytest.raises(QtrisError, match="full sign-in redirect URL"):
+            with pytest.raises(QtrisError, match="valid sign-in redirect URL"):
                 await store_login.finish(request.id, page)
         assert store_login.is_web_response(request.id, redirect)
         assert not responses
@@ -124,7 +124,7 @@ def test_amazon_signs_in_through_nile(
         assert store_login.is_web_response(
             request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code"
         )
-        with pytest.raises(QtrisError, match="full sign-in redirect URL"):
+        with pytest.raises(QtrisError, match="valid sign-in redirect URL"):
             await store_login.finish(request.id, "https://www.amazon.com.example/?openid.oa2.authorization_code=x")
         await store_login.finish(request.id, "https://www.amazon.com/?openid.oa2.authorization_code=amazon-code")
         assert (await services.get_source_status("amazon")).signed_in
@@ -133,6 +133,50 @@ def test_amazon_signs_in_through_nile(
         asyncio.run(run())
     # Nile prints the tokens it gets; they must never reach the log
     assert "SECRET-TOKEN" not in caplog.text
+
+
+def test_zoom_captures_the_web_redirect_and_validates_before_saving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr(ZoomService, "token_path", str(tmp_path / ".zoom.token"))
+    credentials = ZoomService().credentials
+    credentials.update(token="previous")
+
+    def validate(request: Request) -> Request:
+        assert request.url == "https://www.zoom-platform.com/li/loggedin"
+        assert credentials.read()["token"] == "previous"
+        if request.headers["Authorization"] != "Bearer accepted":
+            raise UnauthorizedAccessError("Rejected by ZOOM")
+        request.content = b'{"name": "Account"}'
+        return request
+
+    monkeypatch.setattr(Request, "get", validate)
+
+    async def run() -> None:
+        request = await store_login.begin("zoomplatform")
+        assert request.input_kind == "web" and "return_li_token=true" in request.url
+        account_url = "https://www.zoom-platform.com/account"
+        for invalid in (
+            account_url,
+            f"{account_url}?li_token=one&li_token=two",
+            "https://www.zoom-platform.com.example/account?li_token=accepted",
+        ):
+            assert not store_login.is_web_response(request.id, invalid, before_navigation=True)
+
+        with pytest.raises(QtrisError, match="ZOOM rejected this session"):
+            await store_login.finish(request.id, f"{account_url}?li_token=rejected")
+        assert credentials.read()["token"] == "previous"
+        redirect = f"{account_url}?li_token=accepted"
+        assert store_login.is_web_response(request.id, redirect, before_navigation=True)
+        assert store_login.is_web_response(request.id, redirect)
+        await store_login.finish(request.id, redirect)
+        assert not store_login.is_web_response(request.id, redirect)
+
+    asyncio.run(run())
+    assert credentials.read() == {"token": "accepted"}
+    assert credentials.path.stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.parametrize("response", ['{"authorizationCode": "epic-code"}', "epic-code"])
@@ -187,33 +231,33 @@ def test_epic_checks_for_legendary_before_opening_the_browser(tmp_path: Path, mo
 def test_cookie_import_only_persists_the_selected_stores_cookies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, format_name: str
 ) -> None:
-    target = tmp_path / ".humblebundle.auth"
+    target = tmp_path / ".ea-cookies"
     if format_name == "netscape":
         source = tmp_path / "cookies.txt"
         source.write_text(
             "# Netscape HTTP Cookie File\n"
-            "#HttpOnly_.humblebundle.com\tTRUE\t/library\tTRUE\t4000000000\tsession\thumble-session\n"
+            "#HttpOnly_.ea.com\tTRUE\t/library\tTRUE\t4000000000\tsession\tea-session\n"
             ".other.example\tTRUE\t/\tTRUE\t0\tsession\tunrelated-session\n"
-            ".humblebundle.com\tTRUE\t/\tTRUE\t1\texpired\told\n",
+            ".ea.com\tTRUE\t/\tTRUE\t1\texpired\told\n",
             encoding="utf-8",
         )
     else:
         source = tmp_path / "cookies.json"
         records = [
             {
-                "domain": "humblebundle.com",
+                "domain": "ea.com",
                 "hostOnly": False,
                 "name": "session",
-                "value": "humble-session",
+                "value": "ea-session",
                 "path": "/library",
                 "secure": True,
                 "httpOnly": True,
                 "expirationDate": 4_000_000_000.5,
             },
-            {"domain": ".humblebundle.com.example", "name": "session", "value": "unrelated-session"},
-            {"domain": ".humblebundle.com", "name": "expired", "value": "old", "expirationDate": 1},
+            {"domain": ".ea.com.example", "name": "session", "value": "unrelated-session"},
+            {"domain": ".ea.com", "name": "expired", "value": "old", "expirationDate": 1},
             {
-                "domain": ".humblebundle.com",
+                "domain": ".ea.com",
                 "name": "partitioned",
                 "value": "scoped",
                 "partitionKey": {"topLevelSite": "https://other.example"},
@@ -222,21 +266,22 @@ def test_cookie_import_only_persists_the_selected_stores_cookies(
         source.write_text(json.dumps({"cookies": records} if format_name == "wrapped" else records), encoding="utf-8")
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
-    monkeypatch.setattr(HumbleBundleService, "cookies_path", str(target))
+    monkeypatch.setattr(EAAppService, "cookies_path", str(target))
+    monkeypatch.setattr(EAAppService, "get_access_token", lambda self, cookies: {"access_token": "fixture"})
 
     async def run() -> None:
-        request = await store_login.begin("humblebundle")
+        request = await store_login.begin("ea_app")
         await store_login.finish(request.id, str(source))
-        assert (await services.get_source_status("humblebundle")).signed_in
+        assert (await services.get_source_status("ea_app")).signed_in
 
     asyncio.run(run())
-    cookies = HumbleBundleService().load_cookies()
+    cookies = EAAppService().load_cookies()
     assert cookies is not None
     (cookie,) = cookies
-    assert (cookie.domain, cookie.name, cookie.value) == (".humblebundle.com", "session", "humble-session")
+    assert (cookie.domain, cookie.name, cookie.value) == (".ea.com", "session", "ea-session")
     assert cookie.secure and cookie.has_nonstandard_attr("HttpOnly")
     assert cookie.path == "/library" and cookie.expires == 4_000_000_000
-    path = HumbleBundleService().credentials.path
+    path = EAAppService().credentials.path
     (saved,) = json.loads(path.read_text(encoding="utf-8"))["cookies"]
     assert saved["name"] == "session" and saved["httpOnly"]
     assert path.stat().st_mode & 0o777 == 0o600
@@ -244,36 +289,37 @@ def test_cookie_import_only_persists_the_selected_stores_cookies(
 
 
 def test_cookie_import_keeps_saved_session_if_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    target = tmp_path / ".gamejolt.auth"
-    legacy = ".gamejolt.com\tTRUE\t/\tTRUE\t0\tsession\tprevious\n"
+    target = tmp_path / ".ea-cookies"
+    legacy = ".ea.com\tTRUE\t/\tTRUE\t0\tsession\tprevious\n"
     target.write_text(legacy, encoding="utf-8")
     source = tmp_path / "cookies.json"
 
-    def is_connected(service: GameJoltService) -> bool:
-        jar = service.load_cookies()
-        assert jar is not None
-        return any(cookie.value == "accepted" for cookie in jar)
+    def get_access_token(service: EAAppService, cookies) -> dict[str, str]:
+        if not any(cookie.value == "accepted" for cookie in cookies):
+            raise QtrisError("EA rejected the session")
+        return {"access_token": "fixture"}
 
     monkeypatch.setattr(settings, "CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
-    monkeypatch.setattr(GameJoltService, "cookies_path", str(target))
-    monkeypatch.setattr(GameJoltService, "is_connected", is_connected)
+    monkeypatch.setattr(EAAppService, "cookies_path", str(target))
+    monkeypatch.setattr(EAAppService, "get_access_token", get_access_token)
 
     async def run() -> None:
-        request = await store_login.begin("gamejolt")
+        request = await store_login.begin("ea_app")
         source.write_text('{"cookies": [', encoding="utf-8")
         with pytest.raises(QtrisError, match="Select a JSON or Netscape cookie export"):
             await store_login.finish(request.id, str(source))
-        source.write_text('[{"domain": "gamejolt.com", "name": "session", "value": "rejected"}]', encoding="utf-8")
-        with pytest.raises(QtrisError, match="did not accept those cookies"):
+        source.write_text('[{"domain": "ea.com", "name": "session", "value": "rejected"}]', encoding="utf-8")
+        with pytest.raises(QtrisError, match="EA rejected the session"):
             await store_login.finish(request.id, str(source))
-        assert target.read_text(encoding="utf-8") == legacy
-        source.write_text('[{"domain": "gamejolt.com", "name": "session", "value": "accepted"}]', encoding="utf-8")
+        jar = EAAppService().load_cookies()
+        assert jar is not None and [cookie.value for cookie in jar] == ["previous"]
+        source.write_text('[{"domain": "ea.com", "name": "session", "value": "accepted"}]', encoding="utf-8")
         await store_login.finish(request.id, str(source))
 
     asyncio.run(run())
     assert not target.exists()
-    (saved,) = GameJoltService().credentials.read()["cookies"]
+    (saved,) = EAAppService().credentials.read()["cookies"]
     assert saved["hostOnly"] and saved["session"] and saved["value"] == "accepted"
 
 

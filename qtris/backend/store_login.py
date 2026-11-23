@@ -1,10 +1,9 @@
 """Keep store sign-in handoffs and credentials inside the backend.
 
-GOG and Amazon sign in in a web view the frontend shows: their sign-in ends on
+GOG, Amazon and ZOOM sign in in a web view the frontend shows: their sign-in ends on
 fixed store pages that only an embedded browser can watch. The Epic Games Store
 signs in in the host browser and hands the copied authorization code to Legendary.
-The other stores sign in in the host browser and hand back a redirect address,
-a cookie export or a key.
+The other stores use the host browser for sign-in.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ if TYPE_CHECKING:
 
     from requests.cookies import RequestsCookieJar
 
-type LoginInput = Literal["web", "epic_code", "redirect", "api_key", "itch_oauth", "cookies", "ubisoft"]
+type LoginInput = Literal["web", "epic_code", "api_key", "itch_oauth", "cookies", "ubisoft"]
 
 _EPIC_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,255}")
 _MAX_LOGIN_RESPONSE = 16384
@@ -47,13 +46,7 @@ _REDIRECTS = {
     "amazon": (("https://www.amazon.com/", "https://amazon.com/"), "openid.oa2.authorization_code"),
     "zoomplatform": (("https://www.zoom-platform.com/account",), "li_token"),
 }
-_WEB_LOGINS = frozenset({"gog", "amazon"})
-_COOKIE_DOMAINS = {
-    "humblebundle": "humblebundle.com",
-    "ea_app": "ea.com",
-    "gamejolt": "gamejolt.com",
-    "dlsite": "dlsite.com",
-}
+_COOKIE_DOMAINS = {"ea_app": "ea.com"}
 
 
 @dataclass(frozen=True)
@@ -92,12 +85,10 @@ _starting: set[str] = set()
 
 
 def login_input(service_id: str) -> LoginInput | None:
-    if service_id in _WEB_LOGINS:
+    if service_id in _REDIRECTS:
         return "web"
     if service_id == "egs":
         return "epic_code"
-    if service_id in _REDIRECTS:
-        return "redirect"
     if service_id in _COOKIE_DOMAINS:
         return "cookies"
     if service_id == "itchio":
@@ -137,11 +128,13 @@ async def begin(service_id: str, *, use_api_key: bool = False) -> BrowserLogin:
         _starting.discard(service_id)
 
 
-def is_web_response(request_id: str, url: str) -> bool:
+def is_web_response(request_id: str, url: str, *, before_navigation: bool = False) -> bool:
     """Say whether an address the sign-in web view reached is the response to pass to
     finish(). Plain parsing, so the frontend can ask while the page loads."""
     pending = _pending.get(request_id)
     if not pending or pending.request.input_kind != "web":
+        return False
+    if before_navigation and pending.service_id != ZoomService.id:
         return False
     try:
         _redirect_response(pending.service_id, url)
@@ -209,7 +202,7 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
     service = pending.service
     if not value or len(value) > _MAX_LOGIN_RESPONSE:
         raise QtrisError(_("Enter the sign-in response from your browser."))
-    if pending.request.input_kind in ("redirect", "web"):
+    if pending.request.input_kind == "web":
         value = _redirect_response(pending.service_id, value)
     elif pending.request.input_kind == "api_key" and any(character.isspace() for character in value):
         raise QtrisError(_("Enter a single API key from itch.io."))
@@ -276,7 +269,7 @@ def _redirect_response(service_id: str, value: str) -> str:
             return f"{target}?{urlencode({key: response[0]})}"
     except ValueError:
         pass
-    raise QtrisError(_("Paste the full sign-in redirect URL from the store."))
+    raise QtrisError(_("The store did not return a valid sign-in redirect URL."))
 
 
 def _sign_in_to_gog(service: GOGService, redirect: str, cookies: tuple[WebCookie, ...]) -> None:

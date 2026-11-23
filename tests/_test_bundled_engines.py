@@ -203,3 +203,23 @@ def test_zoom_installers_launch_the_engine_they_bundle(
     assert command == ["umu-run", str(target / exe), *arguments]
     assert runner.working_dir == str(target)
     assert runner.prefix_path == str(target / "pfx")
+
+
+def test_zoom_linux_archive_uses_its_launch_script(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = home / "installed"
+    game = {"name": "Example", "appid": "123", "slug": "example", "details": '{"operating_systems": ["linux"]}'}
+    interpreter = make_interpreter(ZoomService().generate_installer(game), target)
+    launch_script = target / "Example" / "start.sh"
+
+    def unpack(spec: dict[str, str]) -> None:
+        assert spec == {"file": "zoominstaller", "dst": "$GAMEDIR"}
+        put(launch_script, "#!/bin/sh\n")
+
+    monkeypatch.setattr(interpreter, "extract", unpack)
+    interpreter.autosetup_zoom_platform("zoominstaller")
+
+    assert interpreter.installer.script["game"] == {
+        "exe": str(launch_script),
+        "working_dir": str(launch_script.parent),
+    }
+    assert launch_script.stat().st_mode & 0o100

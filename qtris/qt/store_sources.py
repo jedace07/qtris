@@ -238,14 +238,22 @@ class StoreSourcesController(QObject):
     @Slot(QUrl)
     def web_url_changed(self, url: QUrl) -> None:
         """Finish the sign-in when the web view reaches an address that is the response."""
-        address = url.toString(QUrl.ComponentFormattingOption.FullyEncoded)
-        if self._request and not self._task and store_login.is_web_response(self._request.id, address):
-            self._submit_web(address)
+        self._handle_web_url(url)
 
-    def _submit_web(self, value: str) -> None:
-        if self._request and not self._task:
-            cookies = tuple(self._web_cookies.values())
-            self._start(self._submit(self._source, self._request.id, value, cookies))
+    @Slot(QUrl, result=bool)
+    def web_navigation_requested(self, url: QUrl) -> bool:
+        """Capture responses that may disappear before navigation commits."""
+        return self._handle_web_url(url, before_navigation=True)
+
+    def _handle_web_url(self, url: QUrl, *, before_navigation: bool = False) -> bool:
+        address = url.toString(QUrl.ComponentFormattingOption.FullyEncoded)
+        if not self._request or self._task:
+            return False
+        if not store_login.is_web_response(self._request.id, address, before_navigation=before_navigation):
+            return False
+        cookies = tuple(self._web_cookies.values())
+        self._start(self._submit(self._source, self._request.id, address, cookies))
+        return True
 
     @Slot()
     def clear_error(self) -> None:

@@ -13,6 +13,7 @@ from qtris.database import sql
 from qtris.database.services import ServiceGameCollection
 from qtris.game import Game
 from qtris.services.flathub import FlathubService
+from qtris.services.steam import SteamService
 from qtris.util.test_config import setup_test_environment
 
 setup_test_environment()
@@ -95,6 +96,7 @@ def test_games_are_found_by_id_or_slug(library):
 
 
 def test_service_games_know_whether_they_are_installed(library, monkeypatch):
+    monkeypatch.setitem(services.SERVICES, "steam", SteamService)
     service_games = [
         {"id": 1, "service": "steam", "appid": "4242", "name": "Installed", "slug": "a", "details": "{}"},
         {"id": 2, "service": "steam", "appid": "7", "name": "Not installed", "slug": "b", "details": None},
@@ -104,6 +106,27 @@ def test_service_games_know_whether_they_are_installed(library, monkeypatch):
     listed = asyncio.run(services.list_service_games("steam"))
     assert [(game.appid, game.installed) for game in listed] == [("4242", True), ("7", False)]
     assert [game.appid for game in asyncio.run(services.list_service_games("steam", installed_only=True))] == ["4242"]
+
+
+@pytest.mark.parametrize("source", ["humblebundle", "gamejolt", "dlsite"])
+def test_removed_sources_hide_catalog_rows_but_keep_installed_games(
+    source: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    catalog_game = {"id": 1, "service": source, "appid": "123", "name": "Retired", "slug": "retired"}
+    monkeypatch.setattr(ServiceGameCollection, "get_service_games", classmethod(lambda _cls: [catalog_game]))
+    game_id = games_db.add_game(
+        name="Retired", slug="retired", runner="wine", installed=1, service=source, service_id="123"
+    )
+
+    try:
+        assert source not in services.SERVICES
+        assert asyncio.run(services.list_service_games(source)) == []
+        assert asyncio.run(services.list_service_games()) == []
+        installed = asyncio.run(games.get_game(str(game_id)))
+        assert installed is not None and installed.installed and installed.runner == "wine"
+        assert Game(game_id).get_service() is None
+    finally:
+        games_db.delete_game(game_id)
 
 
 def test_flathub_is_a_source_but_not_a_visible_runner(monkeypatch: pytest.MonkeyPatch) -> None:

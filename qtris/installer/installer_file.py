@@ -15,9 +15,10 @@ from qtris.util.log import logger
 class InstallerFile:
     """Representation of a file in the `files` sections of an installer"""
 
-    def __init__(self, game_slug, file_id, file_meta):
+    def __init__(self, game_slug, file_id, file_meta, *, cache_id: str | None = None):
         self.game_slug = game_slug
         self.id = file_id.replace("-", "_")  # pylint: disable=invalid-name
+        self._cache_id = cache_id or self.id
         self._file_meta = file_meta
         self._dest_file_override = None  # Used to override the destination
         self._dest_file_found = None  # Lazy storage for the resolved destination file
@@ -33,7 +34,7 @@ class InstallerFile:
         if isinstance(_file_meta, dict):
             _file_meta = _file_meta.copy()
 
-        file = InstallerFile(self.game_slug, self.id, _file_meta)
+        file = InstallerFile(self.game_slug, self.id, _file_meta, cache_id=self._cache_id)
         file._dest_file_override = self._dest_file_override
         file._dest_file_found = self._dest_file_found
         file._downloader = self._downloader
@@ -237,13 +238,13 @@ class InstallerFile:
     @property
     def _cache_path(self):
         """Return the directory used as a cache for the duration of the installation"""
-        return get_url_cache_path(self.url, self.id, self.game_slug)
+        return get_url_cache_path(self.url, self._cache_id, self.game_slug)
 
     def prepare(self):
         """Prepare the file for download. If we've not been redirected to an existing file,
         anwe will create directories to contain the cached file."""
         if not self.is_dest_file_overridden:
-            get_url_cache_path(self.url, self.id, self.game_slug, prepare=True)
+            get_url_cache_path(self.url, self._cache_id, self.game_slug, prepare=True)
 
     def create_download(self) -> SingleFileDownload:
         """Return the download that fetches this file to its destination."""

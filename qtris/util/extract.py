@@ -34,7 +34,7 @@ def extract_archive(
         extract_nested: When True and merge_single is True, an archive containing a
             single file that is itself an archive is extracted recursively. Off by
             default because installer scripts often extract such an inner file in
-            a later step (e.g. a MojoSetup installer inside a Humble zip).
+            a later step, such as a self-extracting installer inside a zip.
 
     Returns:
         A tuple of (archive_path, to_directory).
@@ -60,7 +60,7 @@ def extract_archive(
 
     if os.path.isfile(temp_path):
         # If extraction produced a single file that is itself an archive
-        # (e.g. tar.gz-wrapped zip from GameJolt), extract it recursively.
+        # (e.g. a tar.gz-wrapped zip), extract it recursively
         inner_extractor = _get_nested_extractor(temp_path) if extract_nested else None
         if inner_extractor:
             logger.debug("Nested archive detected (%s), extracting inner layer", inner_extractor)

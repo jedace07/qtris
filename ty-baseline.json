@@ -403,14 +403,6 @@
         "lineCount": 1
       }
     ],
-    "qtris/services/dlsite.py": [
-      {
-        "rule": "possibly-missing-submodule",
-        "startColumn": 15,
-        "endColumn": 27,
-        "lineCount": 1
-      }
-    ],
     "qtris/services/ea_app.py": [
       {
         "rule": "missing-union-attribute",
@@ -496,14 +488,6 @@
         "rule": "no-matching-overload",
         "startColumn": 21,
         "endColumn": 59,
-        "lineCount": 1
-      }
-    ],
-    "qtris/services/gamejolt.py": [
-      {
-        "rule": "invalid-argument-type",
-        "startColumn": 25,
-        "endColumn": 35,
         "lineCount": 1
       }
     ],

@@ -7,7 +7,7 @@ gaming systems. By combining native builds, compatibility layers, web games
 and apps from Flathub, emulators included, it gives you a central interface
 to launch all your games.
 
-The client can connect with existing services like Humble Bundle, GOG and Steam
+The client can connect with existing services like ZOOM Platform, GOG and Steam
 to make your game libraries easily available. Connected stores supply the game
 files and installation options.
 

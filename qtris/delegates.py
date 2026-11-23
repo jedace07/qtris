@@ -192,8 +192,3 @@ class ServiceLoginUIDelegate(Delegate):
     def show_web_login(self, service: "OnlineService") -> None:
         """Offer the service's browser sign-in flow."""
         logger.warning("Can't log in to %s without a user to show its login page to", service.name)
-
-    def ask_for_humble_bundle_cookies(self) -> str | None:
-        """Ask the user for their Humble Bundle cookies, exported from a browser in which
-        they're logged in. Returns the cookies file's contents, or None if they cancel."""
-        return None

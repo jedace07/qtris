@@ -1036,34 +1036,34 @@ def test_qml_manages_ge_proton_from_preferences(
 def test_qml_signs_in_via_the_host_browser_and_syncs(
     qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = "https://auth.gog.com/auth"
-    redirect = "https://embed.gog.com/on_login_success?code=fixture"
+    target = "https://itch.io/user/settings/api-keys"
+    api_key = "fixture"
     actions: list[str] = []
     signed_in = False
 
     async def list_sources() -> list[ServiceInfo]:
-        return [ServiceInfo("gog", "GOG", True)]
+        return [ServiceInfo("itchio", "itch.io", True)]
 
     async def status(source_id: str) -> services.SourceStatus:
-        assert source_id == "gog"
-        return services.SourceStatus("GOG", True, signed_in, True)
+        assert source_id == "itchio"
+        return services.SourceStatus("itch.io", True, signed_in, True)
 
     async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
-        assert source_id == "gog"
-        return store_login.BrowserLogin("request", "GOG", target, "redirect")
+        assert source_id == "itchio"
+        return store_login.BrowserLogin("request", "itch.io", target, "api_key")
 
-    async def finish(request_id: str, value: str, cookie_file: str = "") -> None:
+    async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
         nonlocal signed_in
-        assert (request_id, value) == ("request", redirect)
+        assert (request_id, value) == ("request", api_key)
         signed_in = True
 
     async def sync(source_id: str) -> None:
-        assert source_id == "gog" and signed_in
+        assert source_id == "itchio" and signed_in
         actions.append("sync")
 
     async def disconnect(source_id: str) -> None:
         nonlocal signed_in
-        assert source_id == "gog"
+        assert source_id == "itchio"
         signed_in = False
 
     class Desktop:
@@ -1085,7 +1085,7 @@ def test_qml_signs_in_via_the_host_browser_and_syncs(
         window.show()
         try:
             await settle(window)
-            window.controller.select_view(window.controller.sidebar.find_row({"service": "gog"}))
+            window.controller.select_view(window.controller.sidebar.find_row({"service": "itchio"}))
 
             async def click(name: str) -> None:
                 await wait_for_qml(
@@ -1102,7 +1102,7 @@ def test_qml_signs_in_via_the_host_browser_and_syncs(
             await click("storeSignIn")
             await click("openStoreBrowser")
             response = window.window.findChild(QObject, "storeLoginResponse")
-            assert response is not None and response.setProperty("text", redirect)
+            assert response is not None and response.setProperty("text", api_key)
             await click("finishStoreLogin")
             await wait_for_qml(qt_application, lambda: actions == [target, "sync"])
             await click("storeSync")
@@ -1115,29 +1115,36 @@ def test_qml_signs_in_via_the_host_browser_and_syncs(
     asyncio.run(run())
 
 
-def test_qml_signs_in_through_the_web_view_with_its_cookies(
-    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("source_id", ["gog", "zoomplatform"])
+def test_qml_signs_in_through_the_web_view(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch, source_id: str
 ) -> None:
-    redirect = "https://embed.gog.com/on_login_success?origin=client&code=fixture"
+    zoom = source_id == "zoomplatform"
+    store_name = "ZOOM Platform" if zoom else "GOG"
+    redirect = (
+        "https://www.zoom-platform.example/account?li_token=fixture"
+        if zoom
+        else "https://embed.gog.com/on_login_success?origin=client&code=fixture"
+    )
     finished: list[tuple[str, tuple[store_login.WebCookie, ...]]] = []
     signed_in = False
 
     async def list_sources() -> list[ServiceInfo]:
-        return [ServiceInfo("gog", "GOG", True)]
+        return [ServiceInfo(source_id, store_name, True)]
 
     async def status(source_id: str) -> services.SourceStatus:
-        return services.SourceStatus("GOG", True, signed_in, True)
+        return services.SourceStatus(store_name, True, signed_in, True)
 
     async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
         # A blank page keeps the web view off the network
-        return store_login.BrowserLogin("request", "GOG", "about:blank", "web")
+        return store_login.BrowserLogin("request", store_name, "about:blank", "web")
 
     async def cancel(request_id: str) -> None:
         assert request_id == "request"
 
-    def is_web_response(request_id: str, url: str) -> bool:
+    def is_web_response(request_id: str, url: str, *, before_navigation: bool = False) -> bool:
         assert request_id == "request"
-        return url == redirect
+        return before_navigation == zoom and url == redirect
 
     async def finish(request_id: str, value: str, cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
         nonlocal signed_in
@@ -1166,7 +1173,7 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
         window.show()
         try:
             await settle(window)
-            window.controller.select_view(window.controller.sidebar.find_row({"service": "gog"}))
+            window.controller.select_view(window.controller.sidebar.find_row({"service": source_id}))
             root = window.window
             assert root is not None
             await wait_for_qml(
@@ -1205,19 +1212,23 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
             assert profile.isOffTheRecord()
             assert profile is not first_profile and profile is not QQuickWebEngineProfile.defaultProfile()
             assert "QtWebEngine" not in profile.httpUserAgent()
-            cookie = QNetworkCookie(b"gog-al", b"session")
-            cookie.setDomain(".gog.com")
-            cookie.setSecure(True)
-            profile.cookieStore().setCookie(cookie, QUrl("https://www.gog.com/"))
-            await wait_for_qml(qt_application, lambda: bool(window.controller._store_sources._web_cookies))
-
             # Only the final page ends the sign-in
             assert view.setProperty("url", QUrl("about:blank#not-yet"))
             await wait_for_qml(qt_application, lambda: view.property("url") == QUrl("about:blank#not-yet"))
             assert not finished
-            window.controller._store_sources.web_url_changed(QUrl(redirect))
+            if zoom:
+                assert view.setProperty("url", QUrl(redirect))
+                expected_cookies = ()
+            else:
+                cookie = QNetworkCookie(b"gog-al", b"session")
+                cookie.setDomain(".gog.com")
+                cookie.setSecure(True)
+                profile.cookieStore().setCookie(cookie, QUrl("https://www.gog.com/"))
+                await wait_for_qml(qt_application, lambda: bool(window.controller._store_sources._web_cookies))
+                window.controller._store_sources.web_url_changed(QUrl(redirect))
+                expected_cookies = (store_login.WebCookie(".gog.com", "gog-al", "session", secure=True),)
             await wait_for_qml(qt_application, lambda: bool(finished) and not window.controller._store_sources.busy)
-            assert finished == [(redirect, (store_login.WebCookie(".gog.com", "gog-al", "session", secure=True),))]
+            assert finished == [(redirect, expected_cookies)]
 
             await wait_for_qml(qt_application, window_closed)
             assert window.controller._store_sources.login == {}

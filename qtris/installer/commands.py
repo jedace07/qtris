@@ -4,6 +4,7 @@ import glob
 import json
 import multiprocessing
 import os
+import shlex
 import shutil
 from gettext import gettext as _
 from pathlib import Path
@@ -429,11 +430,18 @@ class CommandsMixin:
         )
         return " ".join(f'-conf "{name}"' for name in configs)
 
-    def autosetup_zoom_platform(self, file_id, silent=False):
-        """Automatically guess the best way to install a ZOOM Platofrm game by inspecting its contents.
-        DOS and ScummVM games are extracted, as Proton runs the engine they bundle.
-        Linux setup files don't use innosetup, they can be unzipped instead.
-        """
+    def autosetup_zoom_platform(self, file_id: str, silent: bool = False) -> Any:
+        """Set up a native ZOOM build or run its Windows installer."""
+        if self.installer.runner == "linux":
+            self.extract({"file": file_id, "dst": "$GAMEDIR"})
+            target = Path(self.target_path)
+            launchers = sorted(target.rglob("start.sh"), key=lambda path: (len(path.parts), path))
+            if launchers:
+                launcher = launchers[0]
+                system.make_executable(str(launcher))
+                self.installer.script["game"].update(exe=str(launcher), working_dir=str(launcher.parent))
+            return None
+
         file_path = self.game_files[file_id]
         file_list = extract.get_innoextract_list(file_path)
         dosbox_found = False
@@ -466,10 +474,12 @@ class CommandsMixin:
                 }
             )
         else:
-            args = "/SP- /NOCANCEL"
+            install_dir = "Z:" + self.target_path.replace("/", "\\")
+            args = f"/SP- /NOCANCEL /NORESTART /NOICONS {shlex.quote(f'/DIR={install_dir}')}"
             if silent:
                 args += " /SUPPRESSMSGBOXES /VERYSILENT /NOGUI"
             return self.task({"name": "wineexec", "prefix": "$GAMEDIR", "executable": file_id, "args": args})
+        return None
 
     def legendary_setup(self, data):
         """Download, update or repair an Epic Games Store game with legendary.
