@@ -1,5 +1,7 @@
 """Module for handling the Zoom service"""
 
+from __future__ import annotations
+
 import json
 import os
 import time
@@ -18,7 +20,7 @@ from qtris.services.base import SERVICE_LOGIN, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util import system
-from qtris.util.credentials import save_credentials
+from qtris.util.credentials import LegacyCredential
 from qtris.util.http import HTTPError, Request
 from qtris.util.log import logger
 from qtris.util.strings import computer_size
@@ -75,6 +77,7 @@ class ZoomService(OnlineService):
     redirect_uris = ["https://www.zoom-platform.com/account?li_token="]
 
     login_success_url = "https://www.zoom-platform.com/account?li_token="
+    credential_field = "token"
     token_path = os.path.join(settings.CACHE_DIR, ".zoom.token")
     cookies_path = os.path.join(settings.CACHE_DIR, ".zoom.auth")
     cache_path = os.path.join(settings.CACHE_DIR, "zoom-library.json")
@@ -87,8 +90,8 @@ class ZoomService(OnlineService):
         return f"{self.embed_url}/login?li=qtris&return_li_token=true"
 
     @property
-    def credential_files(self) -> list[str]:
-        return [self.token_path]
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        return (*super().legacy_credentials, LegacyCredential("token", self.token_path, "text"))
 
     def is_connected(self) -> bool:
         """Return whether the user is authenticated and if the service is available"""
@@ -118,23 +121,17 @@ class ZoomService(OnlineService):
             logger.error("Login callback URL does not contain 'li_token'")
             return
 
-        save_credentials(self.token_path, tokens[0])
+        self.credentials.update(token=tokens[0])
 
         assert not self.is_login_in_progress
         SERVICE_LOGIN.fire(self)
 
     def load_token(self) -> str:
         """Load token from disk"""
-        if not os.path.exists(self.token_path):
+        token = self.credentials.read().get("token")
+        if not isinstance(token, str) or not token:
             raise AuthenticationError("No Zoom token available")
-
-        with open(self.token_path, encoding="utf-8") as token_file:
-            token_content = token_file.read()
-
-        if not token_content:
-            raise AuthenticationError("No Zoom token available")
-
-        return token_content
+        return token
 
     def make_request(self, url: str) -> Any:
         """Send a token authenticated HTTP request to Zoom"""

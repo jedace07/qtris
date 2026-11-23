@@ -1048,7 +1048,7 @@ def test_qml_signs_in_via_the_host_browser_and_syncs(
         assert source_id == "gog"
         return services.SourceStatus("GOG", True, signed_in, True)
 
-    async def begin(source_id: str) -> store_login.BrowserLogin:
+    async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
         assert source_id == "gog"
         return store_login.BrowserLogin("request", "GOG", target, "redirect")
 
@@ -1128,7 +1128,7 @@ def test_qml_signs_in_through_the_web_view_with_its_cookies(
     async def status(source_id: str) -> services.SourceStatus:
         return services.SourceStatus("GOG", True, signed_in, True)
 
-    async def begin(source_id: str) -> store_login.BrowserLogin:
+    async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
         # A blank page keeps the web view off the network
         return store_login.BrowserLogin("request", "GOG", "about:blank", "web")
 
@@ -1244,7 +1244,7 @@ def test_qml_signs_in_to_epic_in_the_host_browser(
     async def status(source_id: str) -> services.SourceStatus:
         return services.SourceStatus("Epic Games Store", True, signed_in, True)
 
-    async def begin(source_id: str) -> store_login.BrowserLogin:
+    async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
         return store_login.BrowserLogin("request", "Epic Games Store", login_url, "epic_code")
 
     async def finish(request_id: str, value: str = "", cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
@@ -1679,6 +1679,102 @@ def test_qml_shortcuts_submit_the_destination_and_configuration(
             assert remove is not None and QMetaObject.invokeMethod(remove, "clicked")
             await wait_for_qml(qt_application, lambda: len(changes) == 2)
             assert changes == [(kind, True, "Windowed"), (kind, False, "")]
+        finally:
+            window.shutdown()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("use_api_key", [False, True])
+def test_qml_itchio_accepts_browser_callback_or_api_key(
+    qt_application: QGuiApplication, monkeypatch: pytest.MonkeyPatch, use_api_key: bool
+) -> None:
+    browser_url = "https://itch.io/user/oauth?client_id=fixture"
+    key_url = "https://itch.io/user/settings/api-keys"
+    opened: list[str] = []
+    cancelled: list[str] = []
+    submitted: list[tuple[str, str]] = []
+    synced: list[str] = []
+    callback: asyncio.Future[str]
+
+    async def list_sources() -> list[ServiceInfo]:
+        return [ServiceInfo("itchio", "itch.io", True)]
+
+    async def status(source_id: str) -> services.SourceStatus:
+        return services.SourceStatus("itch.io", True, bool(submitted), True)
+
+    async def begin(source_id: str, *, use_api_key: bool = False) -> store_login.BrowserLogin:
+        if use_api_key:
+            return store_login.BrowserLogin("key", "itch.io", key_url, "api_key")
+        return store_login.BrowserLogin("browser", "itch.io", browser_url, "itch_oauth")
+
+    async def finish(request_id: str, value: str = "", cookies: tuple[store_login.WebCookie, ...] = ()) -> None:
+        submitted.append((request_id, value))
+
+    async def wait_for_browser(request_id: str) -> str:
+        assert request_id == "browser"
+        return await callback
+
+    async def cancel(request_id: str) -> None:
+        cancelled.append(request_id)
+        callback.cancel()
+
+    async def sync(source_id: str) -> None:
+        synced.append(source_id)
+
+    class Desktop:
+        @staticmethod
+        def openUrl(url: QUrl) -> bool:  # noqa: N802
+            opened.append(url.toString())
+            return True
+
+    monkeypatch.setattr(services, "list_services", list_sources)
+    monkeypatch.setattr(services, "get_source_status", status)
+    monkeypatch.setattr(services, "sync_source", sync)
+    monkeypatch.setattr(store_login, "begin", begin)
+    monkeypatch.setattr(store_login, "finish", finish)
+    monkeypatch.setattr(store_login, "wait_for_itchio", wait_for_browser)
+    monkeypatch.setattr(store_login, "cancel", cancel)
+    monkeypatch.setattr(store_sources, "QDesktopServices", Desktop)
+
+    async def run() -> None:
+        nonlocal callback
+        callback = asyncio.get_running_loop().create_future()
+        window = MainWindow()
+        window.show()
+        root = window.window
+        assert root is not None
+
+        async def visible(name: str) -> QObject:
+            await wait_for_qml(
+                qt_application, lambda: bool((item := root.findChild(QObject, name)) and item.property("visible"))
+            )
+            item = root.findChild(QObject, name)
+            assert item is not None
+            return item
+
+        try:
+            await settle(window)
+            window.controller.select_view(window.controller.sidebar.find_row({"service": "itchio"}))
+            assert QMetaObject.invokeMethod(await visible("storeSignIn"), "clicked")
+            fallback = await visible("useItchIoApiKey")
+            assert opened == [browser_url]
+            response = root.findChild(QObject, "storeLoginResponse")
+            assert response is not None and not response.property("visible")
+
+            if use_api_key:
+                assert QMetaObject.invokeMethod(fallback, "clicked")
+                await visible("storeLoginResponse")
+                assert response.setProperty("text", "manual-key")
+                assert QMetaObject.invokeMethod(await visible("finishStoreLogin"), "clicked")
+                expected = [("key", "manual-key")]
+            else:
+                callback.set_result("oauth-code")
+                expected = [("browser", "oauth-code")]
+
+            await wait_for_qml(qt_application, lambda: synced == ["itchio"])
+            assert submitted == expected
+            assert cancelled == (["browser"] if use_api_key else [])
         finally:
             window.shutdown()
 

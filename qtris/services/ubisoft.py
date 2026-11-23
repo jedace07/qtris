@@ -1,5 +1,7 @@
 """Ubisoft Connect service"""
 
+from __future__ import annotations
+
 import glob
 import json
 import os
@@ -15,7 +17,7 @@ from qtris.game import Game
 from qtris.services.base import SERVICE_LOGIN, SERVICE_LOGIN_REQUIRED, SERVICE_LOGOUT, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
-from qtris.util.credentials import save_credentials
+from qtris.util.credentials import LegacyCredential
 from qtris.util.jobs import AsyncCall
 from qtris.util.log import logger
 from qtris.util.strings import slugify
@@ -90,6 +92,7 @@ class UbisoftConnectService(OnlineService):
     runner = "wine"
     client_installer = "ubisoft-connect"
     cookies_path = os.path.join(settings.CACHE_DIR, "ubisoft/.auth")
+    credential_field = "token"
     token_path = os.path.join(settings.CACHE_DIR, "ubisoft/.token")
     cache_path = os.path.join(settings.CACHE_DIR, "ubisoft/library/")
     login_url = consts.LOGIN_URL
@@ -188,18 +191,15 @@ class UbisoftConnectService(OnlineService):
         return ubi_games
 
     @property
-    def credential_files(self):
-        """Return a list of all files used for authentication"""
-        return [self.token_path]
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        return (*super().legacy_credentials, LegacyCredential("token", self.token_path, "json"))
 
     def store_credentials(self, credentials: dict[str, Any]) -> None:
-        save_credentials(self.token_path, json.dumps(credentials, indent=2))
+        self.credentials.update(token=credentials)
 
-    def load_credentials(self):
-        logger.debug("Loading credentials from %s", self.token_path)
-        with open(self.token_path, encoding="utf-8") as auth_file:
-            credentials = json.load(auth_file)
-        return credentials
+    def load_credentials(self) -> dict[str, Any]:
+        token = self.credentials.read().get("token")
+        return token if isinstance(token, dict) else {}
 
     def install_from_ubisoft(self, ubisoft_connect, game):
         app_name = game["name"]

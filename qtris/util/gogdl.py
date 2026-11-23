@@ -12,21 +12,28 @@ This module handles:
 - Reading back refreshed tokens after gogdl operations
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re
 import subprocess
 import threading
 import time
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 
 from qtris import settings
+from qtris.util.credentials import save_credentials
 from qtris.util.log import logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any
 
 # Where the component updates install gogdl
 GOGDL_DIR = os.path.join(settings.RUNTIME_DIR, "gogdl")
-
-# Auth config file written for gogdl
-GOGDL_AUTH_PATH = os.path.join(settings.CACHE_DIR, "gogdl-auth.json")
 
 # GOG client ID (same for both Qtris and gogdl)
 GOG_CLIENT_ID = "46899977096215655"
@@ -53,7 +60,7 @@ def _get_gogdl_binary():
     )
 
 
-def _write_auth_config():
+def _write_auth_config(auth_path: Path) -> dict[str, Any]:
     """Read Qtris's GOG token and write it in gogdl's expected format."""
     from qtris.services.gog import GOGService
 
@@ -77,53 +84,49 @@ def _write_auth_config():
         }
     }
 
-    os.makedirs(os.path.dirname(GOGDL_AUTH_PATH), exist_ok=True)
-    with open(GOGDL_AUTH_PATH, "w", encoding="utf-8") as f:
-        json.dump(gogdl_auth, f)
-
-    return GOGDL_AUTH_PATH
+    save_credentials(auth_path, json.dumps(gogdl_auth))
+    remove_legacy_auth_config()
+    return token
 
 
-def _read_back_token():
-    """After a gogdl invocation, check if the token was refreshed and
-    update Qtris's token file accordingly."""
-    if not os.path.exists(GOGDL_AUTH_PATH):
+def remove_legacy_auth_config() -> None:
+    try:
+        Path(settings.CACHE_DIR, "gogdl-auth.json").unlink(missing_ok=True)
+    except OSError:
+        logger.warning("Could not remove GOG's legacy gogdl auth file")
+
+
+def _read_back_token(auth_path: Path, current_token: dict[str, Any]) -> None:
+    """Save a token refreshed by gogdl if Qtris still has the original session."""
+    try:
+        gogdl_auth = json.loads(auth_path.read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        logger.warning("Could not read refreshed credentials from gogdl")
         return
 
-    with open(GOGDL_AUTH_PATH, encoding="utf-8") as f:
-        gogdl_auth = json.load(f)
-
-    creds = gogdl_auth.get(GOG_CLIENT_ID)
-    if not creds:
+    creds = gogdl_auth.get(GOG_CLIENT_ID) if isinstance(gogdl_auth, dict) else None
+    if not isinstance(creds, dict) or not creds.get("access_token") or not creds.get("refresh_token"):
         return
 
     from qtris.services.gog import GOGService
-
-    service = GOGService()
-    try:
-        current_token = service.load_token()
-    except Exception:
-        return
 
     if creds.get("access_token") != current_token.get("access_token"):
         updated_token = dict(current_token)
         updated_token["access_token"] = creds["access_token"]
         updated_token["refresh_token"] = creds["refresh_token"]
         updated_token["expires_in"] = creds.get("expires_in", 3600)
-        with open(service.token_path, "w", encoding="utf-8") as f:
-            json.dump(updated_token, f)
-        logger.info("Updated Qtris GOG token from gogdl refresh")
+        if GOGService().store_refreshed_token(updated_token, current_token):
+            logger.info("Updated Qtris GOG token from gogdl refresh")
 
 
-def _build_command(command, game_id, path, platform="windows", lang=None, dlcs=None):
+def _build_command(command, game_id, path, auth_path, platform="windows", lang=None, dlcs=None):
     """Build the gogdl command line arguments."""
     binary = _get_gogdl_binary()
-    auth_path = _write_auth_config()
 
     cmd = [
         binary,
         "--auth-config-path",
-        auth_path,
+        str(auth_path),
         command,
         str(game_id),
     ]
@@ -207,18 +210,28 @@ def run_gogdl(command, game_id, path, platform="windows", lang=None, dlcs=None, 
         FileNotFoundError: if gogdl runtime component is not installed
         RuntimeError: if gogdl fails (with gogdl's error output as the message)
     """
-    cmd = _build_command(command, game_id, path, platform, lang, dlcs)
+    with TemporaryDirectory(prefix="qtris-gogdl-") as folder:
+        auth_path = Path(folder, "auth.json")
+        original_token = _write_auth_config(auth_path)
+        cmd = _build_command(command, game_id, path, auth_path, platform, lang, dlcs)
+        try:
+            return _run_command(cmd, command, progress_callback)
+        finally:
+            _read_back_token(auth_path, original_token)
 
+
+def _run_command(
+    cmd: list[str], command: str, progress_callback: Callable[[GogdlProgress], None] | None
+) -> dict[str, Any] | GogdlProgress:
     env = os.environ.copy()
     config_path = os.path.join(settings.CACHE_DIR, "gogdl")
     os.makedirs(config_path, exist_ok=True)
     env["GOGDL_CONFIG_PATH"] = config_path
 
-    logger.info("Running gogdl: %s", " ".join(cmd))
+    logger.info("Running gogdl %s", command)
 
     if command == "info":
         result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
-        _read_back_token()
         if result.returncode != 0:
             error_msg = result.stderr.strip() or "gogdl info failed (exit code %d)" % result.returncode
             logger.error("gogdl info failed: %s", error_msg)
@@ -259,8 +272,6 @@ def run_gogdl(command, game_id, path, platform="windows", lang=None, dlcs=None, 
     process.wait()
     stderr_thread.join(timeout=5)
     stdout_thread.join(timeout=5)
-
-    _read_back_token()
 
     if process.returncode != 0:
         if error_lines:

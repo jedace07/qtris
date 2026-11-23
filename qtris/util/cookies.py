@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING
 
 from requests.cookies import RequestsCookieJar
 
-from qtris.util.credentials import save_credentials
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
@@ -61,8 +59,7 @@ def make_cookie(
     )
 
 
-def _json_cookies(text: str) -> Iterable[Cookie]:
-    data = json.loads(text)
+def _json_cookies(data: object) -> Iterable[Cookie]:
     if isinstance(data, dict):
         data = data.get("cookies")
     if not isinstance(data, list):
@@ -129,11 +126,19 @@ def _cookie_jar(cookies: Iterable[Cookie]) -> RequestsCookieJar:
 def parse_cookies(text: str) -> RequestsCookieJar:
     """Read a JSON cookie export or a legacy Netscape export."""
     text = text.removeprefix("\ufeff")
-    cookies = _json_cookies(text) if text.lstrip().startswith(("[", "{")) else _netscape_cookies(text)
     try:
-        return _cookie_jar(cookies)
+        if text.lstrip().startswith(("[", "{")):
+            return cookies_from_records(json.loads(text))
+        return _cookie_jar(_netscape_cookies(text))
     except OverflowError, RecursionError:
         raise ValueError("Invalid cookie export") from None
+
+
+def cookies_from_records(records: object) -> RequestsCookieJar:
+    try:
+        return _cookie_jar(_json_cookies(records))
+    except OverflowError, RecursionError:
+        raise ValueError("Invalid cookie records") from None
 
 
 def load_cookie_file(path: Path, *, max_size: int | None = None) -> RequestsCookieJar:
@@ -153,8 +158,8 @@ def select_cookies(cookies: CookieJar | Iterable[Cookie], domain: str) -> Reques
     )
 
 
-def save_cookie_file(path: Path, cookies: CookieJar) -> None:
-    records = [
+def cookie_records(cookies: CookieJar) -> list[dict[str, str | int | bool | None]]:
+    return [
         {
             "domain": cookie.domain,
             "name": "" if cookie.value is None else cookie.name,
@@ -168,4 +173,3 @@ def save_cookie_file(path: Path, cookies: CookieJar) -> None:
         }
         for cookie in cookies
     ]
-    save_credentials(str(path), json.dumps(records, indent=2))

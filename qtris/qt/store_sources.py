@@ -54,6 +54,7 @@ class StoreSourcesController(QObject):
         self._launchers: tuple[services.SourceLauncher, ...] = ()
         self._request: store_login.BrowserLogin | None = None
         self._task: asyncio.Task[None] | None = None
+        self._itch_oauth_wait: asyncio.Task[None] | None = None
         self._flathub_scan: asyncio.Task[None] | None = None
         self._closed = False
         self._error = ""
@@ -154,8 +155,8 @@ class StoreSourcesController(QObject):
         if self._info and self._info.can_sign_in and not self._info.signed_in and not self._request and not self._task:
             self._start(self._begin(self._source))
 
-    async def _begin(self, service_id: str) -> None:
-        request = await store_login.begin(service_id)
+    async def _begin(self, service_id: str, *, use_api_key: bool = False) -> None:
+        request = await store_login.begin(service_id, use_api_key=use_api_key)
         if self._closed or self._source != service_id:
             await store_login.cancel(request.id)
             return
@@ -170,6 +171,31 @@ class StoreSourcesController(QObject):
             # A response already on the clipboard may belong to an earlier sign-in
             self._last_epic_code = store_login.epic_authorization_code(QGuiApplication.clipboard().text())
             self.open_browser()
+
+        elif request.input_kind == "itch_oauth":
+            self._itch_oauth_wait = start_task(self._wait_for_itchio(service_id, request.id), self._prompts.error)
+            self.open_browser()
+
+    async def _wait_for_itchio(self, service_id: str, request_id: str) -> None:
+        try:
+            code = await store_login.wait_for_itchio(request_id)
+        except QtrisError as error:
+            self._error = error.message
+            self.changed.emit()
+        else:
+            if not self._closed and self._request and self._request.id == request_id:
+                self._start(self._submit(service_id, request_id, code))
+        finally:
+            self._itch_oauth_wait = None
+
+    @Slot()
+    def use_itchio_api_key(self) -> None:
+        if self._request and self._request.input_kind == "itch_oauth" and not self._task:
+            self._start(self._switch_itchio_login(self._request.id))
+
+    async def _switch_itchio_login(self, request_id: str) -> None:
+        await store_login.cancel(request_id)
+        await self._begin("itchio", use_api_key=True)
 
     @Slot()
     def _check_epic_clipboard(self) -> None:
@@ -261,6 +287,8 @@ class StoreSourcesController(QObject):
             request, self._request = self._request, None
             self._last_epic_code = ""
             self._web_cookies.clear()
+            if self._itch_oauth_wait:
+                self._itch_oauth_wait.cancel()
             start_task(store_login.cancel(request.id), self._prompts.error)
             self.changed.emit()
 

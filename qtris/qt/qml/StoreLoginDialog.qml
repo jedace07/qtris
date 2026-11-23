@@ -10,6 +10,7 @@ Dialog {
     required property QtObject controller
     readonly property string inputKind: controller.login.inputKind ?? ""
     readonly property bool needsCookies: inputKind === "cookies"
+    readonly property bool waitsForBrowser: inputKind === "itch_oauth"
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -36,6 +37,8 @@ Dialog {
                 switch (dialog.inputKind) {
                 case "epic_code":
                     return qsTr("Sign in to Epic Games in your browser, then copy the full response from the final page and return to Qtris. You can also paste the authorization code below.");
+                case "itch_oauth":
+                    return qsTr("Approve access to your itch.io library in your browser. Qtris will complete sign-in automatically.");
                 case "api_key":
                     return qsTr("Open the browser, create an API key for Qtris, and paste it here.");
                 case "cookies":
@@ -60,7 +63,7 @@ Dialog {
             id: response
             objectName: "storeLoginResponse"
             Layout.fillWidth: true
-            visible: !dialog.needsCookies
+            visible: !dialog.needsCookies && !dialog.waitsForBrowser
             enabled: !dialog.controller.busy
             placeholderText: qsTr("Paste sign-in response")
             Accessible.name: placeholderText
@@ -92,9 +95,19 @@ Dialog {
         }
 
         Button {
+            objectName: "useItchIoApiKey"
+            visible: dialog.waitsForBrowser
+            text: qsTr("Use API Key for Collections…")
+            enabled: !dialog.controller.busy
+            DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+            onClicked: dialog.controller.use_itchio_api_key()
+        }
+
+        Button {
             id: finish
             objectName: "finishStoreLogin"
             highlighted: true
+            visible: !dialog.waitsForBrowser
 
             text: dialog.needsCookies ? qsTr("Select Cookies…") : qsTr("Sign In")
             enabled: !dialog.controller.busy && (dialog.inputKind === "cookies" || response.text.trim().length > 0)

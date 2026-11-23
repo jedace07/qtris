@@ -13,6 +13,7 @@ from gettext import gettext as _
 from typing import Any
 
 from qtris import settings
+from qtris.util.credentials import protect_config_directory
 from qtris.util.log import logger
 from qtris.util.store_cli import DownloadProgress, StoreClient, StoreClientError
 
@@ -22,7 +23,10 @@ LOGIN_URL = "https://legendary.gl/epiclogin"
 
 
 def is_signed_in() -> bool:
-    return os.path.isfile(os.path.join(CONFIG_PATH, "user.json"))
+    if not os.path.isfile(os.path.join(CONFIG_PATH, "user.json")):
+        return False
+    protect_config_directory(CONFIG_PATH)
+    return True
 
 
 def check_available() -> None:
@@ -31,6 +35,7 @@ def check_available() -> None:
 
 
 def sign_in(authorization_code: str) -> None:
+    protect_config_directory(CONFIG_PATH)
     CLIENT.run(["auth", "--code", authorization_code, "--disable-webview"], sensitive=True)
     # Legendary exits successfully even when Epic refuses the code
     if not is_signed_in():

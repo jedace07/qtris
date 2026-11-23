@@ -1,10 +1,12 @@
 """EA App service."""
 
+from __future__ import annotations
+
 import json
 import os
 import ssl
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from xml.etree import ElementTree
 
 import requests
@@ -19,10 +21,15 @@ from qtris.game import Game
 from qtris.services.base import SERVICE_LOGIN, AuthTokenExpiredError, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
-from qtris.util.credentials import save_credentials
+from qtris.util.cookies import cookie_records
+from qtris.util.credentials import LegacyCredential
 from qtris.util.images import thumbnail_image
 from qtris.util.log import logger
 from qtris.util.strings import slugify
+
+if TYPE_CHECKING:
+    from requests.cookies import RequestsCookieJar
+
 
 SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION = 1 << 18
 
@@ -268,19 +275,23 @@ class EAAppService(OnlineService):
         self.fetch_access_token()
         SERVICE_LOGIN.fire(self)
 
-    def fetch_access_token(self):
-        token_data = self.get_access_token()
-        if not token_data:
-            raise RuntimeError("Failed to get access token")
-        save_credentials(self.token_path, json.dumps(token_data, indent=2))
-        self.access_token = self.load_access_token()
+    @property
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        return (*super().legacy_credentials, LegacyCredential("token", self.token_path, "json"))
 
-    def load_access_token(self):
-        if not os.path.exists(self.token_path):
-            return ""
-        with open(self.token_path, encoding="utf-8") as token_file:
-            token_data = json.load(token_file)
-            return token_data.get("access_token", "")
+    def import_cookies(self, cookies: RequestsCookieJar) -> None:
+        token = self.get_access_token(cookies)
+        self.credentials.update(cookies=cookie_records(cookies), token=token)
+        self.access_token = token["access_token"]
+
+    def fetch_access_token(self) -> None:
+        token = self.get_access_token()
+        self.credentials.update(token=token)
+        self.access_token = token["access_token"]
+
+    def load_access_token(self) -> str:
+        token = self.credentials.read().get("token")
+        return token.get("access_token", "") if isinstance(token, dict) else ""
 
     def fetch_api(self, query, params: dict | None = None):
         result = self.session.post(
@@ -292,7 +303,7 @@ class EAAppService(OnlineService):
 
         return result
 
-    def get_access_token(self):
+    def get_access_token(self, cookies: RequestsCookieJar | None = None) -> dict[str, Any]:
         """Request an access token from EA"""
         response = self.session.get(
             "https://accounts.ea.com/connect/auth",
@@ -302,11 +313,13 @@ class EAAppService(OnlineService):
                 "redirect_uri": "nucleus:rest",
                 "prompt": "none",
             },
-            cookies=self.load_cookies(),
+            cookies=self.load_cookies() if cookies is None else cookies,
             timeout=30,
         )
         response.raise_for_status()
         token_data = response.json()
+        if not isinstance(token_data, dict) or not token_data.get("access_token"):
+            raise AuthTokenExpiredError("EA did not issue an access token")
         return token_data
 
     def _request_identity(self):

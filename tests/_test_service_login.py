@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from qtris import settings
 from qtris.delegates import Delegate, InstallUIDelegate, ServiceLoginUIDelegate
 from qtris.services.base import SERVICE_LOGIN, OnlineService
 from qtris.services.humblebundle import HumbleBundleService
@@ -55,30 +56,37 @@ def logins(fake_main_loop):
 
 def test_itch_io_saves_the_api_key_the_user_gives(tmp_path, monkeypatch, fake_main_loop, logins):
     service = ItchIoService()
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
     monkeypatch.setattr(service, "api_key_path", str(tmp_path / "api-key"))
+    monkeypatch.setattr(service, "validate_api_key", lambda key: key == "secret-key")
 
     service.login(RecordingLoginDelegate(text="secret-key"))
     fake_main_loop.run_pending()
 
-    assert (tmp_path / "api-key").read_text() == "secret-key"
+    assert service.credentials.read()["api_key"] == "secret-key"
+    assert service.credentials.path.stat().st_mode & 0o777 == 0o600
+    assert not (tmp_path / "api-key").exists()
     assert logins == [service]
 
 
-def test_itch_io_logs_out_when_the_user_cancels(tmp_path, monkeypatch, fake_main_loop, logins):
+def test_itch_io_preserves_the_saved_key_when_the_user_cancels(tmp_path, monkeypatch, fake_main_loop, logins):
     service = ItchIoService()
-    monkeypatch.setattr(service, "api_key_path", str(tmp_path / "api-key"))
-    logout = MagicMock()
-    monkeypatch.setattr(service, "logout", logout)
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
+    legacy_path = tmp_path / "api-key"
+    legacy_path.write_text("existing-key", encoding="utf-8")
+    monkeypatch.setattr(service, "api_key_path", str(legacy_path))
 
     service.login(RecordingLoginDelegate(text=None))
     fake_main_loop.run_pending()
 
-    logout.assert_called_once()
+    assert service.get_headers() == {"Authorization": "Bearer existing-key"}
+    assert not legacy_path.exists()
     assert logins == []
 
 
 def test_humble_bundle_uses_the_cookies_the_user_provides(tmp_path, monkeypatch, fake_main_loop, logins):
     service = HumbleBundleService()
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
     monkeypatch.setattr(service, "cookies_path", str(tmp_path / "cookies"))
     delegate = RecordingLoginDelegate(answer=True, cookies=".humblebundle.com\tTRUE\t/\tTRUE\t0\tsession\tfixture\n")
 
@@ -86,13 +94,14 @@ def test_humble_bundle_uses_the_cookies_the_user_provides(tmp_path, monkeypatch,
     fake_main_loop.run_pending()
 
     assert delegate.calls == ["ask_question", "ask_for_humble_bundle_cookies"]
-    (cookie,) = json.loads((tmp_path / "cookies").read_text(encoding="utf-8"))
+    (cookie,) = json.loads(service.credentials.path.read_text(encoding="utf-8"))["cookies"]
     assert (cookie["domain"], cookie["value"]) == (".humblebundle.com", "fixture")
     assert logins == [service]
 
 
 def test_humble_bundle_falls_back_to_the_web_login(tmp_path, monkeypatch, fake_main_loop):
     service = HumbleBundleService()
+    monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
     monkeypatch.setattr(service, "cookies_path", str(tmp_path / "cookies"))
     delegate = RecordingLoginDelegate(answer=False)
 

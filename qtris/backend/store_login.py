@@ -16,7 +16,6 @@ import re
 from dataclasses import dataclass
 from gettext import gettext as _
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
@@ -25,20 +24,21 @@ from qtris.exceptions import QtrisError
 from qtris.services import SERVICES
 from qtris.services.amazon import AmazonService
 from qtris.services.base import OnlineService
-from qtris.services.ea_app import EAAppService
 from qtris.services.egs import EpicGamesStoreService
 from qtris.services.gog import GOGService
 from qtris.services.itchio import ItchIoService
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.services.zoom import ZoomService
-from qtris.util.cookies import load_cookie_file, make_cookie, save_cookie_file, select_cookies
+from qtris.util import itchio_oauth
+from qtris.util.cookies import load_cookie_file, make_cookie, select_cookies
 from qtris.util.log import logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from http.cookiejar import CookieJar
 
-type LoginInput = Literal["web", "epic_code", "redirect", "api_key", "cookies", "ubisoft"]
+    from requests.cookies import RequestsCookieJar
+
+type LoginInput = Literal["web", "epic_code", "redirect", "api_key", "itch_oauth", "cookies", "ubisoft"]
 
 _EPIC_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,255}")
 _MAX_LOGIN_RESPONSE = 16384
@@ -84,9 +84,11 @@ class _PendingLogin:
     service: OnlineService
     service_id: str
     working: bool = False
+    itch_oauth: itchio_oauth.ItchOAuth | None = None
 
 
 _pending: dict[str, _PendingLogin] = {}
+_starting: set[str] = set()
 
 
 def login_input(service_id: str) -> LoginInput | None:
@@ -99,32 +101,40 @@ def login_input(service_id: str) -> LoginInput | None:
     if service_id in _COOKIE_DOMAINS:
         return "cookies"
     if service_id == "itchio":
-        return "api_key"
+        return "itch_oauth" if os.environ.get("QTRIS_ITCHIO_CLIENT_ID", "").strip() else "api_key"
     if service_id == "ubisoft":
         return "ubisoft"
     return None
 
 
-async def begin(service_id: str) -> BrowserLogin:
+async def begin(service_id: str, *, use_api_key: bool = False) -> BrowserLogin:
     """Create a sign-in request. Keep its store instance for the callback."""
-    input_kind = login_input(service_id)
+    input_kind = "api_key" if service_id == "itchio" and use_api_key else login_input(service_id)
     service_class = SERVICES.get(service_id)
     if not input_kind or not service_class or not issubclass(service_class, OnlineService):
         raise QtrisError(_("Browser sign-in is unavailable for this store."))
-    if any(item.service_id == service_id for item in _pending.values()):
+    if service_id in _starting or any(item.service_id == service_id for item in _pending.values()):
         raise QtrisError(_("A sign-in for this store is already open."))
 
-    service = service_class()
-    if isinstance(service, EpicGamesStoreService):
-        url = service.begin_sign_in()
-    elif input_kind == "api_key":
-        url = "https://itch.io/user/settings/api-keys"
-    else:
-        # Amazon's address comes from Nile, which registers a new device for it
-        url = await asyncio.to_thread(lambda: str(service.login_url))
-    request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind)
-    _pending[request.id] = _PendingLogin(request, service, service_id)
-    return request
+    _starting.add(service_id)
+    try:
+        service = service_class()
+        itch_oauth = None
+        if isinstance(service, EpicGamesStoreService):
+            url = service.begin_sign_in()
+        elif input_kind == "itch_oauth":
+            itch_oauth = await itchio_oauth.begin(os.environ["QTRIS_ITCHIO_CLIENT_ID"].strip())
+            url = itch_oauth.url
+        elif input_kind == "api_key":
+            url = "https://itch.io/user/settings/api-keys"
+        else:
+            # Amazon's address comes from Nile, which registers a new device for it
+            url = await asyncio.to_thread(lambda: str(service.login_url))
+        request = BrowserLogin(uuid4().hex, str(service.name), url, input_kind)
+        _pending[request.id] = _PendingLogin(request, service, service_id, itch_oauth=itch_oauth)
+        return request
+    finally:
+        _starting.discard(service_id)
 
 
 def is_web_response(request_id: str, url: str) -> bool:
@@ -162,6 +172,15 @@ async def cancel(request_id: str) -> None:
     pending = _pending.get(request_id)
     if pending and not pending.working:
         _pending.pop(request_id)
+        if pending.itch_oauth:
+            pending.itch_oauth.close()
+
+
+async def wait_for_itchio(request_id: str) -> str:
+    pending = _pending.get(request_id)
+    if not pending or not pending.itch_oauth:
+        raise QtrisError(_("This sign-in request is no longer available."))
+    return await pending.itch_oauth.wait()
 
 
 async def finish(request_id: str, value: str = "", cookies: Sequence[WebCookie] = ()) -> None:
@@ -198,7 +217,7 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
     try:
         service.is_login_in_progress = False
         if pending.request.input_kind == "cookies":
-            _store_cookies(service, _load_store_cookies(Path(value), _COOKIE_DOMAINS[pending.service_id]))
+            service.import_cookies(_load_store_cookies(Path(value), _COOKIE_DOMAINS[pending.service_id]))
         elif isinstance(service, GOGService):
             _sign_in_to_gog(service, value, cookies)
         elif isinstance(service, EpicGamesStoreService):
@@ -207,9 +226,10 @@ def _finish(pending: _PendingLogin, value: str, cookies: tuple[WebCookie, ...]) 
                 raise QtrisError(_("Copy the sign-in response or authorization code from Epic Games."))
             service.sign_in(code)
         elif isinstance(service, ItchIoService):
-            if not service.validate_api_key(value):
-                raise QtrisError(_("itch.io did not accept that API key."))
-            service.save_api_key(value)
+            if pending.itch_oauth:
+                service.save_oauth_token(pending.itch_oauth.exchange(value))
+            else:
+                service.sign_in_with_api_key(value)
         elif isinstance(service, AmazonService | ZoomService):
             service.login_callback(value)
         elif isinstance(service, UbisoftConnectService):
@@ -276,16 +296,10 @@ def _sign_in_to_gog(service: GOGService, redirect: str, cookies: tuple[WebCookie
         ),
         "gog.com",
     )
-    if jar:
-        _store_cookies(service, jar, gog_redirect=redirect)
-        return
-    service.login_callback(redirect)
-    if service.is_authenticated():
-        # The API token is enough for GOG and any earlier cookies belong to the previous session
-        Path(service.cookies_path).unlink(missing_ok=True)
+    service.login_callback(redirect, cookies=jar)
 
 
-def _load_store_cookies(source: Path, domain: str) -> CookieJar:
+def _load_store_cookies(source: Path, domain: str) -> RequestsCookieJar:
     try:
         if not source.is_file():
             raise ValueError("Expected a cookie export file")
@@ -296,26 +310,3 @@ def _load_store_cookies(source: Path, domain: str) -> CookieJar:
     if not selected:
         raise QtrisError(_("The file has no current cookies for %s.") % domain)
     return selected
-
-
-def _store_cookies(service: OnlineService, cookies: CookieJar, *, gog_redirect: str = "") -> None:
-    if not isinstance(service.cookies_path, str):
-        raise QtrisError(_("This store does not accept a cookie file."))
-    target = Path(service.cookies_path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(dir=target.parent) as folder:
-        staged = Path(folder) / "cookies.json"
-        save_cookie_file(staged, cookies)
-        service.cookies_path = str(staged)
-        try:
-            if isinstance(service, EAAppService):
-                service.fetch_access_token()
-            elif isinstance(service, GOGService):
-                service.login_callback(gog_redirect)
-                if not service.is_authenticated():
-                    raise QtrisError(_("GOG did not accept the sign-in response."))
-            elif not service.is_connected():
-                raise QtrisError(_("The store did not accept those cookies. Sign in again and export new cookies."))
-        finally:
-            service.cookies_path = str(target)
-        os.replace(staged, target)

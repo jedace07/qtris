@@ -87,10 +87,6 @@ class DlsiteService(OnlineService):
     cookies_path = os.path.join(settings.CACHE_DIR, ".dlsite.auth")
     cache_path = os.path.join(settings.CACHE_DIR, "dlsite-library.json")
 
-    @property
-    def credential_files(self) -> list[str]:
-        return [self.cookies_path]
-
     def login_callback(self, url):
         """Called after the user has logged in successfully"""
         SERVICE_LOGIN.fire(self)

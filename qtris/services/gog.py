@@ -1,5 +1,7 @@
 """Module for handling the GOG service"""
 
+from __future__ import annotations
+
 import json
 import os
 import time
@@ -20,13 +22,17 @@ from qtris.services.base import SERVICE_LOGIN, AuthTokenExpiredError, OnlineServ
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util import i18n, system
-from qtris.util.credentials import save_credentials
+from qtris.util.cookies import cookie_records
+from qtris.util.credentials import LegacyCredential
 from qtris.util.gog_downloader import GOGDownloader
+from qtris.util.gogdl import remove_legacy_auth_config
 from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 from qtris.util.strings import human_size, slugify
 
 if typing.TYPE_CHECKING:
+    from http.cookiejar import CookieJar
+
     from qtris.installer.installer import QtrisInstaller
 
 ### GOG Api limits requests to 50 comma-separated ids: https://gogapidocs.readthedocs.io/en/latest/galaxy.html#get--products
@@ -96,6 +102,7 @@ class GOGService(OnlineService):
 
     login_success_url = "https://www.gog.com/on_login_success"
     cookies_path = os.path.join(settings.CACHE_DIR, ".gog.auth")
+    credential_field = "token"
     token_path = os.path.join(settings.CACHE_DIR, ".gog.token")
     cache_path = os.path.join(settings.CACHE_DIR, "gog-library.json")
 
@@ -126,16 +133,8 @@ class GOGService(OnlineService):
         return "https://auth.gog.com/auth?" + urlencode(params)
 
     @property
-    def credential_files(self) -> list[str]:
-        return [self.cookies_path, self.token_path]
-
-    def is_authenticated(self) -> bool:
-        # The API token signs in; the web session's cookies are optional
-        return not self.is_login_in_progress and system.path_exists(self.token_path)
-
-    def load_cookies(self):
-        """Load the web session's cookies, if the sign-in kept any"""
-        return super().load_cookies() if system.path_exists(self.cookies_path) else None
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        return (*super().legacy_credentials, LegacyCredential("token", self.token_path, "json", "token_updated_at"))
 
     def is_connected(self) -> bool:
         """Return whether the user is authenticated and if the service is available"""
@@ -167,22 +166,23 @@ class GOGService(OnlineService):
             game.save()
         return games
 
-    def login_callback(self, url) -> None:
-        return self.request_token(url)
+    def login_callback(self, url: str, *, cookies: CookieJar | None = None) -> None:
+        self.request_token(url, cookies=cookies)
 
-    def request_token(self, url: str = "", refresh_token: str = "") -> None:
+    def request_token(self, url: str = "", refresh_token: str = "", *, cookies: CookieJar | None = None) -> None:
         """Get authentication token from GOG"""
         if refresh_token:
+            current = self.load_token()
+            if current.get("refresh_token") != refresh_token:
+                return
             grant_type = "refresh_token"
             extra_params = {"refresh_token": refresh_token}
         else:
             grant_type = "authorization_code"
             parsed_url = urlparse(url)
             response_params = dict(parse_qsl(parsed_url.query))
-            if "code" not in response_params:
-                logger.error("code not received from GOG")
-                logger.error(response_params)
-                return
+            if not response_params.get("code"):
+                raise AuthenticationError("No GOG authorization code received")
             extra_params = {
                 "code": response_params["code"],
                 "redirect_uri": self.redirect_uris[0],
@@ -195,39 +195,41 @@ class GOGService(OnlineService):
         }
         params.update(extra_params)
         url = "https://auth.gog.com/token?" + urlencode(params)
-        request = Request(url, redacted_query_parameters=("refresh_token", "code"))
+        request = Request(url, redacted_query_parameters=("client_secret", "refresh_token", "code"))
         try:
             request.get()
-        except HTTPError as http_error:
-            logger.error(http_error)
-            logger.error("Failed to get token.")
-            logger.warning("Clearing existing credentials")
-            self.logout()
-            return
+        except HTTPError:
+            raise AuthenticationError("GOG did not issue an access token") from None
 
         token = request.json
-        save_credentials(self.token_path, json.dumps(token))
-        if not refresh_token:
+        if not isinstance(token, dict) or not token.get("access_token") or not token.get("refresh_token"):
+            raise AuthenticationError("GOG did not issue an access token")
+        if refresh_token:
+            self.store_refreshed_token(token, current)
+        else:
+            self.credentials.update(
+                token=token,
+                token_updated_at=time.time(),
+                cookies=cookie_records(cookies) if cookies is not None else [],
+            )
             SERVICE_LOGIN.fire(self)
 
-    def load_token(self) -> dict:
-        """Load token from disk"""
-        if not os.path.exists(self.token_path):
+    def store_refreshed_token(self, token: dict[str, Any], previous: dict[str, Any]) -> bool:
+        return self.credentials.update(expected={"token": previous}, token=token, token_updated_at=time.time())
+
+    def logout(self) -> None:
+        remove_legacy_auth_config()
+        super().logout()
+
+    def load_token(self) -> dict[str, Any]:
+        token = self.credentials.read().get("token")
+        if not isinstance(token, dict) or not token:
             raise AuthenticationError("No GOG token available")
-
-        with open(self.token_path, encoding="utf-8") as token_file:
-            token_content = json.loads(token_file.read())
-
-        if not token_content:
-            raise AuthenticationError("No GOG token available")
-
-        return token_content
+        return token
 
     def get_token_age(self) -> float:
-        """Return age of token"""
-        token_stat = os.stat(self.token_path)
-        token_modified = token_stat.st_mtime
-        return time.time() - token_modified
+        updated_at = self.credentials.read().get("token_updated_at", 0)
+        return time.time() - updated_at
 
     def make_request(self, url: str) -> Any:
         """Send a request to GOG's web endpoints; they answer with a sign-in page

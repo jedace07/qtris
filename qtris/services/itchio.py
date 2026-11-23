@@ -1,29 +1,34 @@
 """itch.io service"""
 
+from __future__ import annotations
+
 import datetime
 import json
 import os
 from gettext import gettext as _
+from itertools import count
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote_plus, urlencode
 
 from qtris import settings
 from qtris.database import games as games_db
-from qtris.exceptions import UnavailableGameError
+from qtris.exceptions import QtrisError, UnavailableGameError
 from qtris.installer import AUTO_ELF_EXE, AUTO_WIN32_EXE
 from qtris.installer.installer_file import InstallerFile
 from qtris.runners import get_runner_human_name
-from qtris.services.base import SERVICE_LOGIN, OnlineService
+from qtris.services.base import SERVICE_LOGIN, AuthTokenExpiredError, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util import linux
-from qtris.util.credentials import save_credentials
+from qtris.util.credentials import LegacyCredential
 from qtris.util.downloader import SimpleDownloader
 from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from qtris.delegates import ServiceLoginUIDelegate
 
 
@@ -99,6 +104,7 @@ class ItchIoService(OnlineService):
     redirect_uris = ["https://itch.io/my-feed", "https://itch.io/dashboard"]
     cache_path = os.path.join(settings.CACHE_DIR, "itchio/api/")
 
+    credential_field = "api_key"
     api_key_path = os.path.join(settings.CACHE_DIR, "itchio/api-key")  # must be kept outside of cache-path
     key_cache_file = os.path.join(cache_path, "profile/owned-keys.json")
     collection_list_cache_file = os.path.join(cache_path, "profile/collections.json")
@@ -134,18 +140,21 @@ class ItchIoService(OnlineService):
 
         api_key = ui_delegate.ask_for_text(_("Itch.io API key"), question)
         if api_key:
-            self.save_api_key(api_key)
-            SERVICE_LOGIN.fire(self)
-        else:
-            self.logout()
+            self.sign_in_with_api_key(api_key.strip())
 
     @property
-    def credential_files(self):
-        """Return a list of all files used for authentication"""
-        return [self.api_key_path]
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        return (LegacyCredential("api_key", self.api_key_path, "text"),)
 
-    def save_api_key(self, api_key: str) -> None:
-        save_credentials(self.api_key_path, api_key)
+    def sign_in_with_api_key(self, api_key: str) -> None:
+        if not api_key or any(character.isspace() for character in api_key) or not self.validate_api_key(api_key):
+            raise QtrisError(_("itch.io did not accept that API key."))
+        self.credentials.update(api_key=api_key, oauth_token=None)
+        SERVICE_LOGIN.fire(self)
+
+    def save_oauth_token(self, token: str) -> None:
+        self.credentials.update(oauth_token=token, api_key=None)
+        SERVICE_LOGIN.fire(self)
 
     def validate_api_key(self, api_key: str) -> bool:
         try:
@@ -154,22 +163,15 @@ class ItchIoService(OnlineService):
             return False
         return isinstance(profile, dict) and "user" in profile
 
-    def load_api_key(self) -> str | None:
-        if not os.path.exists(self.api_key_path):
-            return None
+    def is_authenticated(self) -> bool:
+        return not self.is_login_in_progress and bool(self.get_headers())
 
-        with open(self.api_key_path, "r") as key_file:
-            return key_file.read()
+    def get_headers(self) -> dict[str, str]:
+        credentials = self.credentials.read()
+        token = credentials.get("oauth_token") or credentials.get("api_key")
+        return {"Authorization": f"Bearer {token}"} if isinstance(token, str) and token else {}
 
-    def get_headers(self):
-        api_key = self.load_api_key()
-        if api_key:
-            return {"Authorization": f"Bearer {api_key}"}
-        else:
-            return {}
-
-    def is_connected(self):
-        """Check if service is connected and can call the API"""
+    def is_connected(self) -> bool:
         if not self.is_authenticated():
             return False
         try:
@@ -177,43 +179,33 @@ class ItchIoService(OnlineService):
         except HTTPError, UnauthorizedAccessError:
             logger.warning("Not connected to itch.io account.")
             return False
-        return profile and "user" in profile
+        return isinstance(profile, dict) and "user" in profile
 
-    def load(self):
-        """Load the user's itch.io library"""
-        if not self.is_connected():
-            logger.error("User not connected to itch.io")
-            return
-
-        library = self.get_games()
+    def load(self) -> list[ItchIoGame]:
+        """Load the user's itch.io library."""
+        if not self.is_authenticated():
+            return []
+        try:
+            library = self.get_games()
+        except UnauthorizedAccessError:
+            raise AuthTokenExpiredError("itch.io credentials have expired") from None
         games = []
-        seen = set()
+        seen: set[str] = set()
         for game in library:
-            if game["title"] in seen:
+            appid = str(game["id"])
+            if appid in seen:
                 continue
-            _game = ItchIoGame.new(game)
-            games.append(_game)
-            _game.save()
-            seen.add(game["title"])
+            service_game = ItchIoGame.new(game)
+            service_game.save()
+            games.append(service_game)
+            seen.add(appid)
         return games
 
-    def make_api_request(self, path, query=None):
-        """Make API request"""
-        url = "{}/{}".format(self.api_url, path)
-        if query is not None and isinstance(query, dict):
-            url += "?{}".format(urlencode(query, quote_via=quote_plus))
-        try:
-            request = Request(
-                url,
-                headers=self.get_headers(),
-            )
-            request.get()
-            return request.json
-        except UnauthorizedAccessError:
-            # We aren't logged in, so we'll log out! This allows you to
-            # log in again.
-            self.logout()
-            raise
+    def make_api_request(self, path: str, query: dict[str, Any] | None = None) -> Any:
+        url = f"{self.api_url}/{path}"
+        if query:
+            url += "?" + urlencode(query, quote_via=quote_plus)
+        return Request(url, headers=self.get_headers()).get().json
 
     def fetch_profile(self):
         """Do API request to get users online profile"""
@@ -291,34 +283,43 @@ class ItchIoService(OnlineService):
                 owned_keys = json.load(key_file)
             fresh_data = False
         else:
-            query = {"page": 1}
-            # Basic security; I'm pretty sure itch.io will block us before that tho
-            safety = 65507
-            while safety:
-                response = self.fetch_owned_keys(query)
-                if isinstance(response["owned_keys"], list):
-                    owned_keys += response["owned_keys"]
-                    if len(response["owned_keys"]) == int(response["per_page"]):
-                        query["page"] += 1
-                    else:
-                        break
-                else:
-                    break
-                safety -= 1
+            owned_keys = list(self._iter_owned_keys())
 
             os.makedirs(os.path.join(self.cache_path, "profile/"), exist_ok=True)
             with open(self.key_cache_file, "w", encoding="utf-8") as key_file:
                 json.dump(owned_keys, key_file)
 
-        games = []
+        games: dict[int, dict[str, Any]] = {}
         for key in owned_keys:
-            game = key.get("game", {})
-            game["download_key_id"] = key["id"]
-            games.append(game)
+            game = key.get("game") if isinstance(key, dict) else None
+            if isinstance(game, dict) and isinstance(game.get("id"), int) and "id" in key:
+                games.setdefault(game["id"], {**game, "download_key_id": key["id"]})
 
         if fresh_data:
-            self._cache_games(games)
-        return games
+            self._cache_games(games.values())
+        return list(games.values())
+
+    def _iter_owned_keys(self, appid: str | None = None) -> Iterator[dict[str, Any]]:
+        query: dict[str, int | str] = {"per_page": 500}
+        if appid is not None:
+            query["game_ids"] = appid
+        seen_ids: set[int] = set()
+        for page in count(1):
+            response = self.fetch_owned_keys({**query, "page": page})
+            keys = response.get("owned_keys") if isinstance(response, dict) else None
+            if not isinstance(keys, list):
+                raise QtrisError(_("itch.io returned an invalid list of owned games."))
+            if not keys:
+                return
+            new_keys = [
+                key
+                for key in keys
+                if isinstance(key, dict) and isinstance(key.get("id"), int) and key["id"] not in seen_ids
+            ]
+            if not new_keys:
+                raise QtrisError(_("itch.io returned a repeated page of owned games."))
+            seen_ids.update(key["id"] for key in new_keys)
+            yield from new_keys
 
     def get_collection_cache(self, collection_id):
         """Create basic cache key based on collection slug and collection_id"""
@@ -376,11 +377,7 @@ class ItchIoService(OnlineService):
                 for col_game in collection["games"]:
                     game = col_game["game"]
                     game_cache_path = self.get_game_cache(game["id"])
-                    if (
-                        "can_be_bought" in game.get("traits", [])
-                        and game.get("min_price", 0) > 0
-                        and os.path.exists(game_cache_path)
-                    ):
+                    if os.path.exists(game_cache_path):
                         with open(game_cache_path, "r", encoding="utf-8") as key_file:
                             cached_game = json.load(key_file)
                             if "download_key_id" in cached_game:
@@ -412,11 +409,9 @@ class ItchIoService(OnlineService):
 
     def get_games(self):
         """Return games from the user's library"""
-        # get and cache owned games; this populates collections.json for later
         owned_games = self.get_owned_games()
-
-        # get all collections
-        collections = self.get_collection_list()
+        # itch.io does not offer the collection:view scope to third-party OAuth apps
+        collections = [] if self.credentials.read().get("oauth_token") else self.get_collection_list()
 
         # if there are collections titled "qtris" or, as Lutris used, "lutris" (case insensitive) we use only these
         qtris_collections = [
@@ -437,41 +432,23 @@ class ItchIoService(OnlineService):
                     filtered_games.append(game)
         return filtered_games
 
-    def get_key(self, appid):
-        """Retrieve cache information on a key"""
+    def get_key(self, appid: str | int) -> int | None:
+        """Find a download key for this game without enumerating the entire library."""
         if not appid:
-            raise ValueError("Missing Itch.io app ID")
+            raise ValueError("Missing itch.io app ID")
         game_filename = self.get_game_cache(appid)
-        game = {}
-
         if os.path.exists(game_filename):
             with open(game_filename, "r", encoding="utf-8") as game_file:
                 game = json.load(game_file)
-        else:
-            try:
-                game = self.fetch_game(appid).get("game", {})
-                self._cache_games([game])
-            except HTTPError:
-                return
-
-        traits = game.get("traits", [])
-        if "can_be_bought" not in traits:
-            # If game can not be bought it can not have a key
-            return
-        if "download_key_id" in game:
-            # Return cached key
-            return game["download_key_id"]
-        if not game.get("min_price", 0):
-            # We have no key but the game can be played for free
-            return
-
-        # Reload whole key library to check if a key was added
-        library = self.get_owned_games(True)
-        game = next((x for x in library if x["id"] == appid), game)
-
-        if "download_key_id" in game:
-            return game["download_key_id"]
-        return
+            key = game.get("download_key_id")
+            if isinstance(key, int):
+                return key
+            if "can_be_bought" not in game.get("traits", []) or not game.get("min_price", 0):
+                return None
+        owned_key = next(self._iter_owned_keys(str(appid)), None)
+        if owned_key is not None:
+            return owned_key["id"]
+        return None
 
     def get_extras(self, appid):
         """Return a list of bonus content for itch.io game."""
@@ -713,11 +690,6 @@ class ItchIoService(OnlineService):
     def get_installer_files(self, installer, installer_file_id):
         """Replace the user provided file with download links from itch.io"""
 
-        key = self.get_key(installer.service_appid)
-        try:
-            uploads = self.fetch_uploads(installer.service_appid, key)
-        except HTTPError as ex:
-            raise UnavailableGameError(_("Couldn't load the downloads for this game")) from ex
         filtered = []
         files = []
         link = None
@@ -736,6 +708,11 @@ class ItchIoService(OnlineService):
         }
 
         if not link:
+            try:
+                key = self.get_key(installer.service_appid)
+                uploads = self.fetch_uploads(installer.service_appid, key)
+            except HTTPError as ex:
+                raise UnavailableGameError(_("Couldn't load the downloads for this game")) from ex
             for upload in uploads["uploads"]:
                 # default =  games/tools ("executables")
                 if upload["type"] == "default" and (installer.runner in ("linux", "wine")):
@@ -755,18 +732,19 @@ class ItchIoService(OnlineService):
                 # but people COULD write custom installers.
                 # So far embedded games can be played directly on itch.io
 
-        if len(filtered) > 0 and not link:
-            filtered.sort(key=lambda upload: upload["Weight"])
-            # Qtris does not support installer selection
-            upload = filtered[0]
-            data["upload"] = str(upload["id"])
-            if "build_id" in upload:
-                data["build"] = str(upload["build_id"])
+            if filtered:
+                filtered.sort(key=lambda upload: upload["Weight"])
+                # Qtris does not support installer selection
+                upload = filtered[0]
+                data["upload"] = str(upload["id"])
+                if "build_id" in upload:
+                    data["build"] = str(upload["build_id"])
 
-            link = self.get_download_link(upload["id"], key)
-            filename = upload["filename"]
+                link = self.get_download_link(upload["id"], key)
+                filename = upload["filename"]
 
         if link:
+            headers = self.get_headers() if "upload" in data else None
             # Adding a file with some basic info for e.g. patching
             installer.script["installer"].append(
                 {"write_json": {"data": data, "file": "$GAMEDIR/.qtrisgame.json", "merge": False}}
@@ -780,7 +758,7 @@ class ItchIoService(OnlineService):
                         "url": link,
                         "filename": filename or file.filename or "setup.zip",
                         "downloader": lambda f, url=link: SimpleDownloader(
-                            url, f.download_file, overwrite=True, headers=self.get_headers()
+                            url, f.download_file, overwrite=True, headers=headers
                         ),
                     },
                 )

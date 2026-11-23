@@ -464,15 +464,26 @@ While the Epic sign-in dialog is open, Qtris checks for a newly copied
 Qtris passes the code to ``legendary auth --code`` to save the session.
 
 The other stores use the system default browser. ZOOM Platform accepts its
-redirect URL.
-itch.io uses a dedicated API key. EA App, Humble Bundle, Game Jolt and DLsite
-accept a JSON cookie export from the browser. Qtris keeps current cookies for
-the selected store and its subdomains and saves them as JSON, using the same
-format for cookies captured by GOG's web view. Netscape ``cookies.txt`` exports
-and previously saved cookies still load. ``store_login`` retains the service instance
-until the handoff completes so it can keep transient login data such as
-the device registration Nile starts for Amazon. The frontend syncs the library on successful
-sign-in.
+redirect URL. EA App, Humble Bundle, Game Jolt and DLsite accept JSON and
+Netscape cookie exports. Qtris keeps current cookies for the selected store
+and its subdomains.
+
+Qtris-managed credentials live in ``stores/<store-id>.json`` under Qtris's
+configuration folder. Qtris writes the files atomically with owner-only
+permissions and migrates old cache-based credentials on first use. GOG and
+EA App keep their tokens and cookies together. gogdl receives its auth file
+in a private temporary directory for the duration of the command.
+
+itch.io can use browser OAuth with PKCE for owned games and their downloads.
+To enable it, register a Qtris OAuth application with the callback
+``http://127.0.0.1:34567/callback`` and launch Qtris with its public client ID
+in ``QTRIS_ITCHIO_CLIENT_ID``. Qtris chooses an available loopback port during
+sign-in. Users can use a dedicated API key to include their itch.io collections.
+The API key flow is the default until a client ID is configured.
+
+``store_login`` retains the service instance until the handoff completes so it
+can keep transient login data such as the device registration Nile starts for
+Amazon. The frontend syncs the library on successful sign-in.
 
 Three stores use command-line clients that Qtris downloads from their upstream
 releases (``qtris.runtime``) and runs through ``qtris.util.store_cli``:

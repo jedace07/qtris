@@ -6,7 +6,6 @@ import concurrent.futures
 import json
 import os
 from gettext import gettext as _
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from qtris import settings
@@ -18,7 +17,7 @@ from qtris.services.base import SERVICE_LOGIN, OnlineService
 from qtris.services.service_game import ServiceGame
 from qtris.services.service_media import ServiceMedia
 from qtris.util import linux
-from qtris.util.cookies import parse_cookies, save_cookie_file, select_cookies
+from qtris.util.cookies import parse_cookies, select_cookies
 from qtris.util.http import HTTPError, Request, UnauthorizedAccessError
 from qtris.util.log import logger
 
@@ -81,7 +80,6 @@ class HumbleBundleService(OnlineService):
     redirect_uris = ["https://www.humblebundle.com/home/library"]
 
     cookies_path = os.path.join(settings.CACHE_DIR, ".humblebundle.auth")
-    token_path = os.path.join(settings.CACHE_DIR, ".humblebundle.token")
     cache_path = os.path.join(settings.CACHE_DIR, "humblebundle/library/")
 
     supported_platforms = ("linux", "windows")
@@ -113,7 +111,7 @@ class HumbleBundleService(OnlineService):
                 raise QtrisError(_("Select a JSON or Netscape cookie export from your browser.")) from None
             if not cookies:
                 raise QtrisError(_("The file has no current cookies for %s.") % "humblebundle.com")
-            save_cookie_file(Path(self.cookies_path), cookies)
+            self.store_cookies(cookies)
             SERVICE_LOGIN.fire(self)
         else:
             self.logout()

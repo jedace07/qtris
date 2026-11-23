@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from qtris import settings
+from qtris.util.credentials import protect_config_directory
 from qtris.util.store_cli import DownloadProgress, StoreClient, StoreClientError
 
 # Nile adds "nile" to the folder it's given
@@ -49,10 +50,14 @@ def _write_config(name: str, data: Any) -> None:
 
 def is_signed_in() -> bool:
     user = _read_config("current_user")
-    return isinstance(user, dict) and bool(user.get("user_id"))
+    if not isinstance(user, dict) or not user.get("user_id"):
+        return False
+    protect_config_directory(CONFIG_PATH)
+    return True
 
 
 def begin_sign_in() -> SignInRequest:
+    protect_config_directory(CONFIG_PATH)
     data = CLIENT.run_json(["auth", "--login", "--non-interactive"], timeout=60)
     try:
         return SignInRequest(data["url"], data["client_id"], data["code_verifier"], data["serial"])
@@ -75,6 +80,7 @@ def finish_sign_in(request: SignInRequest, authorization_code: str) -> None:
             request.serial,
         ],
         timeout=120,
+        sensitive=True,
     )
     if not is_signed_in():
         raise StoreClientError("Amazon did not register this device.")

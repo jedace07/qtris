@@ -19,13 +19,16 @@ from qtris.game import GAME_UPDATED, Game
 from qtris.services.service_media import BANNER_SIZE, ICON_SIZE, ServiceMedia, download_media
 from qtris.util import system
 from qtris.util.busy import BusyAsyncCall
-from qtris.util.cookies import load_cookie_file
+from qtris.util.cookies import cookie_records, cookies_from_records
+from qtris.util.credentials import LegacyCredential, StoreCredentials
 from qtris.util.jobs import AsyncCall
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import slugify
 
 if TYPE_CHECKING:
+    from http.cookiejar import CookieJar
+
     from requests.cookies import RequestsCookieJar
 
     from qtris.delegates import Delegate, ServiceLoginUIDelegate
@@ -404,7 +407,9 @@ class OnlineService(BaseService):
     """Base class for online gaming services"""
 
     online = True
-    cookies_path = NotImplemented
+    cookies_path: str | None = None
+    credential_field = "cookies"
+    _login_cookies: RequestsCookieJar | None = None
     cache_path = NotImplemented
 
     login_url = NotImplemented
@@ -420,9 +425,19 @@ class OnlineService(BaseService):
         return any(url.startswith(r) for r in self.redirect_uris)
 
     @property
-    def credential_files(self):
-        """Return a list of all files used for authentication"""
-        return [self.cookies_path]
+    def credential_files(self) -> list[str]:
+        """Return credential files owned by external clients."""
+        return []
+
+    @property
+    def legacy_credentials(self) -> tuple[LegacyCredential, ...]:
+        if self.cookies_path:
+            return (LegacyCredential("cookies", self.cookies_path, "cookies"),)
+        return ()
+
+    @property
+    def credentials(self) -> StoreCredentials:
+        return StoreCredentials(Path(settings.CONFIG_DIR, "stores", f"{self.id}.json"), self.legacy_credentials)
 
     def login(self, ui_delegate: "ServiceLoginUIDelegate") -> None:
         """Log in, asking the user through `ui_delegate`; SERVICE_LOGIN fires once logged in."""
@@ -459,7 +474,7 @@ class OnlineService(BaseService):
         if self.is_login_in_progress:
             logger.warning("Tried to get auth status while login in progress")
             return False
-        return all(system.path_exists(path) for path in self.credential_files)
+        return self._login_cookies is not None or bool(self.credentials.read().get(self.credential_field))
 
     def is_connected(self) -> bool:
         return bool(self.is_authenticated())
@@ -477,21 +492,37 @@ class OnlineService(BaseService):
     def logout(self):
         """Disconnect from the service by removing all credentials"""
         self.wipe_game_cache()
+        self.credentials.clear()
         for auth_file in self.credential_files:
             try:
                 os.remove(auth_file)
+            except FileNotFoundError:
+                continue
             except OSError:
                 logger.warning("Unable to remove %s", auth_file)
         logger.debug("logged out from %s", self.id)
         SERVICE_LOGOUT.fire(self)
 
+    def store_cookies(self, cookies: CookieJar) -> None:
+        self.credentials.update(cookies=cookie_records(cookies))
+
+    def import_cookies(self, cookies: RequestsCookieJar) -> None:
+        self._login_cookies = cookies
+        try:
+            if not self.is_connected():
+                raise QtrisError(_("The store did not accept those cookies. Sign in again and export new cookies."))
+            self.store_cookies(cookies)
+        finally:
+            self._login_cookies = None
+
     def load_cookies(self) -> RequestsCookieJar | None:
-        """Load cookies from disk"""
-        cookie_path = self.cookies_path
-        if not isinstance(cookie_path, str) or not system.path_exists(cookie_path):
-            logger.warning("No cookies found in %s, please authenticate first", cookie_path)
+        """Use the candidate cookies during sign-in, or read the saved session."""
+        if self._login_cookies is not None:
+            return self._login_cookies
+        records = self.credentials.read().get("cookies")
+        if not records:
             return None
         try:
-            return load_cookie_file(Path(cookie_path))
-        except OSError, ValueError:
+            return cookies_from_records(records)
+        except ValueError:
             raise QtrisError(_("Could not read saved cookies for %s. Sign in again.") % self.name) from None
