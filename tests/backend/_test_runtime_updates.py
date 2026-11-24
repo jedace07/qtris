@@ -128,7 +128,6 @@ def test_versions_include_store_tools_and_omit_proton_and_missing_tools(
         "legendary": "0.20.34",
         "nile": "v1.1.2",
         "umu": "1.2.3",
-        "umu-games": "",
     }
 
 

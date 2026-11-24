@@ -1,9 +1,3 @@
-# Standard Library
-import binascii
-import struct
-
-# Qtris Modules
-from qtris.util.gamecontrollerdb import GameControllerDB
 from qtris.util.log import logger
 
 try:
@@ -47,35 +41,3 @@ def read_button(device):
             sticks = (0, 1, 3, 4)
             if event.code not in sticks or abs(event.value) > 5000:
                 print("axis %s (%s): %s" % (event.code, hex(event.code), event.value))
-
-
-def get_sdl_identifier(device_info):
-    device_identifier = struct.pack(
-        "<LLLL",
-        device_info.bustype,
-        device_info.vendor,
-        device_info.product,
-        device_info.version,
-    )
-    return binascii.hexlify(device_identifier).decode()
-
-
-def get_controller_mappings():
-    devices = get_devices()
-    if not devices:
-        return []
-
-    try:
-        controller_db = GameControllerDB()
-    except (OSError, ValueError) as ex:
-        logger.warning("Unable to read the controller mappings database: %s", ex)
-        return []
-
-    controllers = []
-
-    for device in devices:
-        guid = get_sdl_identifier(device.info)
-        if guid in controller_db.controllers:
-            controllers.append((device, controller_db[guid]))
-
-    return controllers

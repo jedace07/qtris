@@ -41,7 +41,6 @@ from qtris.util.log import logger
 from qtris.util.process import Process
 from qtris.util.strings import split_arguments
 from qtris.util.wine import proton, proton_releases, rolling_proton
-from qtris.util.wine.dgvoodoo2 import dgvoodoo2Manager
 from qtris.util.wine.extract_icon import PEFILE_AVAILABLE, IconExtractor
 from qtris.util.wine.launchers import repair_ea_launcher
 from qtris.util.wine.prefix import DEFAULT_DLL_OVERRIDES, WinePrefixManager, find_prefix
@@ -890,9 +889,6 @@ class wine(Runner):
             self.configure_desktop_integration(prefix_manager)
             self.set_regedit_keys()
 
-            for manager, enabled in self.get_dll_managers().items():
-                manager.setup(enabled)
-
         client_exe = self.game_config.get("client_exe")
         if client_exe:
             self._ensure_client_running(client_exe)
@@ -928,32 +924,6 @@ class wine(Runner):
         )
         logger.info("Waiting %d seconds for client to be ready", wait_time)
         time.sleep(wait_time)
-
-    def get_dll_managers(self, enabled_only=False):
-        """Returns the DLL managers in a dict; the keys are the managers themselves,
-        and the values are the enabled flags for them. If 'enabled_only' is true,
-        only enabled managers are returned, so disabled managers are not created."""
-        manager_classes = [
-            (dgvoodoo2Manager, "dgvoodoo2", "dgvoodoo2_version"),
-        ]
-
-        managers = {}
-        for manager_class, enabled_option, version_option in manager_classes:
-            enabled = bool(self.runner_config.get(enabled_option))
-            version = self.runner_config.get(version_option)
-            if enabled or not enabled_only:
-                manager = manager_class(self.prefix_path, arch=self.wine_arch, version=version)
-
-                if not manager.can_enable():
-                    enabled = False
-
-                if not manager.proton_compatible:
-                    enabled = False
-
-                if enabled or not enabled_only:
-                    managers[manager] = enabled
-
-        return managers
 
     def get_dll_overrides(self):
         """Return the DLLs overriden at runtime"""
@@ -1028,9 +998,6 @@ class wine(Runner):
             if self.runner_config.get("proton_hdr"):
                 env["PROTON_ENABLE_HDR"] = "1"
 
-        for dll_manager in self.get_dll_managers(enabled_only=True):
-            self.dll_overrides.update(dll_manager.get_enabling_dll_overrides())
-
         overrides = self.get_dll_overrides()
         if overrides:
             self.dll_overrides.update(overrides)
@@ -1043,7 +1010,7 @@ class wine(Runner):
         super().finish_env(env, game)
 
         wine_exe = self.get_executable()
-        game_id = proton.get_game_id(game, env)
+        game_id = env.get("UMU_ID") or proton.DEFAULT_GAMEID
         proton.update_proton_env(wine_exe, env, game_id=game_id)
 
     def get_run_data(self) -> RunDataDict:

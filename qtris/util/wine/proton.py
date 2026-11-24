@@ -1,17 +1,23 @@
 """Utility module to deal with Proton and umu"""
 
-import csv
+from __future__ import annotations
+
 import os
 import re
 from collections.abc import Generator
+from functools import lru_cache
 from gettext import gettext as _
 from typing import TYPE_CHECKING
+
+import requests
 
 from qtris import settings
 from qtris.exceptions import MissingExecutableError
 from qtris.monitored_command import RUNNING_COMMANDS
 from qtris.util import cache_single, system
+from qtris.util.http import get_request_proxies
 from qtris.util.linux import LINUX_SYSTEM
+from qtris.util.log import logger
 from qtris.util.steam.appinfo import get_compat_tool_names
 from qtris.util.steam.appmanifest import AppManifest, get_appmanifests
 from qtris.util.steam.config import get_steamapps_dirs
@@ -419,24 +425,28 @@ def update_proton_env(wine_path: str, env: dict[str, str], game_id: str = DEFAUL
         env["HOST_LC_ALL"] = locale
 
 
-def get_game_id(game, env) -> str:
-    if not game:
+def get_game_id(store: str, appid: str) -> str:
+    if not store or not appid:
+        return DEFAULT_GAMEID
+    try:
+        return _lookup_game_id(store.lower(), appid.lower())
+    except (requests.RequestException, ValueError) as error:
+        logger.warning("Could not look up Proton fixes for %s/%s: %s", store, appid, error)
         return DEFAULT_GAMEID
 
-    game_id = env.get("UMU_ID")
-    if game_id:
-        return game_id
 
-    games_path = os.path.join(settings.RUNTIME_DIR, "umu-games", "umu-database.csv")
-
-    if not os.path.exists(games_path):
-        return DEFAULT_GAMEID
-
-    store = "humble" if game.service == "humblebundle" else game.service
-    with open(games_path, encoding="utf-8", newline="") as games_file:
-        for row in csv.DictReader(games_file):
-            if store and row["STORE"] == store and row["CODENAME"] == game.appid:
-                return row["UMU_ID"]
+@lru_cache(maxsize=256)
+def _lookup_game_id(store: str, appid: str) -> str:
+    url = "https://umu.openwinecomponents.org/umu_api.php"
+    response = requests.get(
+        url, params={"store": store, "codename": appid}, proxies=get_request_proxies(url), timeout=3
+    )
+    response.raise_for_status()
+    matches: object = response.json()
+    if isinstance(matches, list):
+        for match in matches:
+            if isinstance(match, dict) and isinstance(game_id := match.get("umu_id"), str) and game_id:
+                return game_id
     return DEFAULT_GAMEID
 
 

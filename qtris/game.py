@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import time
+from dataclasses import replace
 from gettext import gettext as _
 from typing import TYPE_CHECKING, Any, cast
 
@@ -704,7 +705,20 @@ class Game:
         """Ask the game's store what the game needs to start, such as a sign-in for
         it. This may wait on the network, so call it off the main loop."""
         service = self.get_service()
-        return service.get_store_launch(self) if service else None
+        launch = service.get_store_launch(self) if service else None
+        if not service or not self.runner or self.runner_name != "wine":
+            return launch
+
+        from qtris.services.base import StoreLaunch  # noqa: PLC0415
+        from qtris.util.wine import proton  # noqa: PLC0415
+
+        launch = launch or StoreLaunch()
+        env = (self.runner.system_config.get("env") or {}) | launch.env
+        if not env.get("GAMEID") and not env.get("UMU_ID"):
+            game_id = proton.get_game_id(env.get("STORE") or self.get_store_name(), self.appid)
+            if game_id != proton.DEFAULT_GAMEID:
+                launch = replace(launch, env={**launch.env, "GAMEID": game_id})
+        return launch
 
     def get_store_name(self) -> str:
         store = self.service

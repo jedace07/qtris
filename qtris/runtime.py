@@ -21,7 +21,7 @@ from qtris.util.http import HTTPError
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.progress_info import ProgressInfo
-from qtris.util.upstream import FileSource, ReleaseSource, UpstreamBuild, UpstreamError, UpstreamSource
+from qtris.util.upstream import ReleaseSource, UpstreamBuild, UpstreamError, UpstreamSource
 
 CHECK_INTERVAL = 6 * 60 * 60
 RUNTIME_DISABLED = os.environ.get("QTRIS_RUNTIME", "").casefold() in {"0", "off"}
@@ -59,27 +59,6 @@ def get_components(arch: str | None) -> list[Component]:
     components = [
         Component("umu", ReleaseSource("Open-Wine-Components/umu-launcher", r"-zipapp\.tar$"), "umu-run"),
         Component("winetricks", ReleaseSource("Winetricks/winetricks"), "src/winetricks"),
-        Component(
-            "umu-games",
-            FileSource("https://raw.githubusercontent.com/Open-Wine-Components/umu-database/main/umu-database.csv"),
-            "umu-database.csv",
-            archive=False,
-            executable=False,
-        ),
-        Component(
-            "gamecontrollerdb",
-            FileSource("https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt"),
-            "gamecontrollerdb.txt",
-            archive=False,
-            executable=False,
-        ),
-        Component(
-            "dgvoodoo2",
-            FileSource("https://api.github.com/repos/dege-diosg/dgVoodoo2/releases"),
-            "dgvoodoo2_versions.json",
-            archive=False,
-            executable=False,
-        ),
     ]
     if arch in {"x86_64", "aarch64"}:
         asset_arch = {"x86_64": "x86_64", "aarch64": "arm64"}[arch]
