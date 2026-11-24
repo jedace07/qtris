@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
+from collections import Counter
 from collections.abc import Coroutine
 from gettext import gettext as _
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QImage
@@ -19,6 +20,9 @@ from qtris.exceptions import QtrisError
 from qtris.qt.delegates import PromptController
 from qtris.qt.qml_types import Property, QmlUncreatable
 from qtris.qt.tasks import start_task
+
+if TYPE_CHECKING:
+    from qtris.backend.game_artwork import SteamGridDBGame
 
 QML_IMPORT_NAME = "QtrisBridge"
 QML_IMPORT_MAJOR_VERSION = 1
@@ -64,6 +68,10 @@ class GameArtworkController(QObject):
         self._choices: tuple[ArtworkChoice, ...] = ()
         self._choices_kind = ""
         self._loading_choices = False
+        self._match = ""
+        self._matches: tuple[SteamGridDBGame, ...] = ()
+        self._searching = False
+        self._searched = False
 
     @Property("QVariantList", notify=stateChanged)
     def images(self) -> list[dict[str, Any]]:
@@ -105,10 +113,31 @@ class GameArtworkController(QObject):
     def loadingChoices(self) -> bool:  # noqa: N802
         return self._loading_choices
 
+    @Property(str, notify=choicesChanged)
+    def steamGridDbMatch(self) -> str:  # noqa: N802
+        return self._match
+
+    @Property("QVariantList", notify=choicesChanged)
+    def steamGridDbMatches(self) -> list[str]:  # noqa: N802
+        counts = Counter(match.name for match in self._matches)
+        return [f"{match.name} (#{match.id})" if counts[match.name] > 1 else match.name for match in self._matches]
+
+    @Property(bool, notify=choicesChanged)
+    def searching(self) -> bool:
+        return self._searching
+
+    @Property(bool, notify=choicesChanged)
+    def searched(self) -> bool:
+        return self._searched
+
     def open_game(self, game_id: str) -> None:
         self._game_id = game_id
         self._images = {}
         self._choices = ()
+        self._choices_kind = ""
+        self._match = ""
+        self._matches = ()
+        self._searched = False
         self.stateChanged.emit()
         self.choicesChanged.emit()
         if game_id:
@@ -123,12 +152,12 @@ class GameArtworkController(QObject):
 
     @Slot(str, QUrl)
     def choose_file(self, kind: str, url: QUrl) -> None:
-        self._run(kind, self._use_file(kind, url.toLocalFile()))
+        self._run(kind, self._use_file(self._game_id, kind, url.toLocalFile()))
 
-    async def _use_file(self, kind: str, source: str) -> GameArtworkImage:
+    async def _use_file(self, game_id: str, kind: str, source: str) -> GameArtworkImage:
         path = await asyncio.to_thread(prepare_image, source, kind)
         try:
-            return await game_artwork.set_custom_artwork(self._game_id, kind, path)
+            return await game_artwork.set_custom_artwork(game_id, kind, path)
         finally:
             os.remove(path)
 
@@ -138,24 +167,62 @@ class GameArtworkController(QObject):
 
     @Slot(str)
     def load_choices(self, kind: str) -> None:
-        if self._game_id and not self._loading_choices:
-            self._choices = ()
-            self._choices_kind = kind
-            self._loading_choices = True
-            self.choicesChanged.emit()
-            start_task(self._load_choices(self._game_id, kind), self._prompts.error)
+        if not self._game_id or self._loading_choices:
+            return
+        self._matches = ()
+        self._searched = False
+        self._choices_kind = kind
+        self._start_choices()
 
-    async def _load_choices(self, game_id: str, kind: str) -> None:
+    def _start_choices(self, change_match: bool = False, match: SteamGridDBGame | None = None) -> None:
+        self._choices = ()
+        self._loading_choices = True
+        self.choicesChanged.emit()
+        start_task(self._load_choices(self._game_id, self._choices_kind, change_match, match), self._prompts.error)
+
+    async def _load_choices(self, game_id: str, kind: str, change_match: bool, match: SteamGridDBGame | None) -> None:
         try:
+            if change_match:
+                await game_artwork.set_steamgriddb_match(game_id, match)
+            label = await game_artwork.steamgriddb_match(game_id)
+            if game_id == self._game_id:
+                self._match = label
             choices = await game_artwork.list_steamgriddb_artwork(game_id, kind)
+            if game_id == self._game_id and kind == self._choices_kind:
+                self._choices = choices
         finally:
             self._loading_choices = False
             self.choicesChanged.emit()
-        if game_id == self._game_id and kind == self._choices_kind:
-            self._choices = choices
+
+    @Slot(str)
+    def search_matches(self, query: str) -> None:
+        if not self._game_id or self._searching or not query.strip():
+            return
+        self._matches = ()
+        self._searching = True
+        self._searched = False
+        self.choicesChanged.emit()
+        start_task(self._search_matches(self._game_id, query), self._prompts.error)
+
+    async def _search_matches(self, game_id: str, query: str) -> None:
+        try:
+            matches = await game_artwork.search_steamgriddb_games(query)
+            if game_id == self._game_id:
+                self._matches = matches
+                self._searched = True
+        finally:
+            self._searching = False
             self.choicesChanged.emit()
-            if not choices:
-                self._prompts.notice(_("SteamGridDB has no artwork of this kind for this game."), rich=False)
+
+    @Slot(int)
+    def select_match(self, index: int) -> None:
+        if self._game_id and not self._loading_choices and 0 <= index < len(self._matches):
+            self._start_choices(change_match=True, match=self._matches[index])
+
+    @Slot()
+    def reset_match(self) -> None:
+        if self._game_id and not self._loading_choices and self._match:
+            self._start_choices(change_match=True)
 
     @Slot(str)
     def choose_url(self, url: str) -> None:

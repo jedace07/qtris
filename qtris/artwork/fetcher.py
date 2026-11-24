@@ -43,6 +43,7 @@ class ArtworkTarget:
     name: str
     service: str = ""
     service_id: str = ""
+    steamgriddb_id: int | None = None
 
 
 def _media(kind: ArtworkKind) -> ServiceMedia:
@@ -206,7 +207,7 @@ class _Fetcher:
 
     def _fetch_from_steamgriddb(self, client: SteamGridDB, target: ArtworkTarget, kinds: list[ArtworkKind]) -> int:
         steam_appid = target.service_id if target.service in STEAM_SERVICES else ""
-        game_id = client.find_game(target.name, steam_appid)
+        game_id = target.steamgriddb_id or client.find_game(target.name, steam_appid)
         if game_id is None:
             return 0
         downloaded = 0
@@ -237,6 +238,7 @@ def library_targets(slugs: Iterable[str] | None = None) -> list[ArtworkTarget]:
             name=row.get("name") or slug,
             service=row.get("service") or "",
             service_id=str(row.get("service_id") or ""),
+            steamgriddb_id=row.get("steamgriddb_id"),
         )
         if slug not in targets or (target.service and not targets[slug].service):
             targets[slug] = target

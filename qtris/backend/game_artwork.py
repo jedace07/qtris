@@ -6,6 +6,8 @@ chose is marked custom and kept until reset, which goes back to the automatic
 artwork from the game's store or SteamGridDB.
 """
 
+from __future__ import annotations
+
 import asyncio
 from gettext import gettext as _
 from typing import Literal, cast
@@ -13,8 +15,23 @@ from typing import Literal, cast
 import requests
 
 from qtris import settings
-from qtris.artwork.fetcher import artwork_path, fetch_game_artwork, forget_misses, remove_artwork, save_image
-from qtris.artwork.steamgriddb import BANNER_DIMENSIONS, COVER_DIMENSIONS, SteamGridDB, get_api_key
+from qtris.artwork.fetcher import (
+    STEAM_SERVICES,
+    artwork_path,
+    fetch_game_artwork,
+    forget_misses,
+    remove_artwork,
+    save_image,
+)
+from qtris.artwork.steamgriddb import (
+    BANNER_DIMENSIONS,
+    COVER_DIMENSIONS,
+    SteamGridDB,
+    get_api_key,
+)
+from qtris.artwork.steamgriddb import (
+    SteamGridDBGame as SteamGridDBGame,
+)
 from qtris.backend.models import ArtworkChoice, GameArtworkImage
 from qtris.database import games as games_db
 from qtris.database import sql
@@ -128,18 +145,41 @@ async def reset_artwork(game_id: str, kind: str) -> GameArtworkImage:
     return await asyncio.to_thread(reset)
 
 
+def _steamgriddb() -> SteamGridDB:
+    if not (api_key := get_api_key()):
+        raise QtrisError(_("Set a SteamGridDB API key in View → Artwork Sources to choose from its artwork."))
+    return SteamGridDB(api_key)
+
+
+async def steamgriddb_match(game_id: str) -> str:
+    row = _game(game_id)
+    return str(row.get("steamgriddb_name") or "")
+
+
+async def search_steamgriddb_games(query: str) -> tuple[SteamGridDBGame, ...]:
+    return await asyncio.to_thread(lambda: _steamgriddb().search_games(query))
+
+
+async def set_steamgriddb_match(game_id: str, match: SteamGridDBGame | None) -> None:
+    row = _game(game_id)
+    sql.db_update(
+        settings.DB_PATH,
+        "games",
+        {"steamgriddb_id": match.id if match else None, "steamgriddb_name": match.name if match else None},
+        {"id": game_id},
+    )
+    forget_misses(row["slug"])
+
+
 async def list_steamgriddb_artwork(game_id: str, kind: str) -> tuple[ArtworkChoice, ...]:
     """Return SteamGridDB's images of this kind for a game, if a key is set."""
     checked = _kind(kind)
     row = _game(game_id)
-    api_key = get_api_key()
-    if not api_key:
-        raise QtrisError(_("Set a SteamGridDB API key in View → Artwork Sources to choose from its artwork."))
 
     def search() -> tuple[ArtworkChoice, ...]:
-        client = SteamGridDB(api_key)
-        steam_appid = str(row.get("service_id") or "") if row.get("service") == "steam" else ""
-        sgdb_id = client.find_game(row.get("name") or row["slug"], steam_appid)
+        client = _steamgriddb()
+        steam_appid = str(row.get("service_id") or "") if row.get("service") in STEAM_SERVICES else ""
+        sgdb_id = row.get("steamgriddb_id") or client.find_game(row.get("name") or row["slug"], steam_appid)
         if sgdb_id is None:
             return ()
         if checked == "icon":

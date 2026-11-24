@@ -42,8 +42,7 @@ ColumnLayout {
                 id: slot
 
                 required property var modelData
-                readonly property size frame: modelData.kind === "cover" ? Qt.size(120, 180)
-                                            : modelData.kind === "banner" ? Qt.size(230, 107) : Qt.size(96, 96)
+                readonly property size frame: modelData.kind === "cover" ? Qt.size(120, 180) : modelData.kind === "banner" ? Qt.size(230, 107) : Qt.size(96, 96)
 
                 spacing: 4
 
@@ -92,8 +91,8 @@ ColumnLayout {
                     enabled: !editor.artwork.working
                     Accessible.name: qsTr("Choose a file for the %1").arg(slot.modelData.label)
                     onClicked: {
-                        picker.kind = slot.modelData.kind
-                        picker.open()
+                        picker.kind = slot.modelData.kind;
+                        picker.open();
                     }
                 }
 
@@ -105,8 +104,8 @@ ColumnLayout {
                     enabled: !editor.artwork.working && !editor.artwork.loadingChoices
                     Accessible.name: qsTr("Choose the %1 from SteamGridDB").arg(slot.modelData.label)
                     onClicked: {
-                        editor.artwork.load_choices(slot.modelData.kind)
-                        chooser.open()
+                        editor.artwork.load_choices(slot.modelData.kind);
+                        chooser.open();
                     }
                 }
 
@@ -136,18 +135,94 @@ ColumnLayout {
         height: Math.min(560, parent.height - 32)
         modal: true
         title: qsTr("Choose from SteamGridDB")
+        onOpened: search.text = ""
         standardButtons: Dialog.Close
 
         contentItem: ColumnLayout {
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    text: editor.artwork.steamGridDbMatch ? qsTr("Matched to %1").arg(editor.artwork.steamGridDbMatch) : qsTr("Automatic game match")
+                }
+
+                Button {
+                    text: qsTr("Use Automatic Match")
+                    visible: editor.artwork.steamGridDbMatch !== ""
+                    enabled: !editor.artwork.loadingChoices
+                    onClicked: editor.artwork.reset_match()
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                TextField {
+                    id: search
+                    objectName: "steamGridDbSearch"
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("Search for another game")
+                    Accessible.name: qsTr("SteamGridDB game title")
+                    onAccepted: if (searchButton.enabled)
+                        searchButton.clicked()
+                }
+
+                Button {
+                    id: searchButton
+                    text: qsTr("Search")
+                    enabled: search.text.trim() !== "" && !editor.artwork.searching && !editor.artwork.loadingChoices
+                    onClicked: editor.artwork.search_matches(search.text)
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: matches.count > 0
+
+                ComboBox {
+                    id: matches
+                    objectName: "steamGridDbMatches"
+                    Layout.fillWidth: true
+                    model: editor.artwork.steamGridDbMatches
+                    Accessible.name: qsTr("Matching games")
+                }
+
+                Button {
+                    objectName: "steamGridDbSelectMatch"
+                    text: qsTr("Use This Game")
+                    enabled: matches.currentIndex >= 0 && !editor.artwork.loadingChoices
+                    onClicked: editor.artwork.select_match(matches.currentIndex)
+                }
+            }
+
+            Label {
+                Layout.fillWidth: true
+                visible: editor.artwork.searched && matches.count === 0
+                text: qsTr("No games matched your search.")
+            }
+
             ProgressBar {
                 Layout.fillWidth: true
-                visible: editor.artwork.loadingChoices
+                visible: editor.artwork.loadingChoices || editor.artwork.searching
                 indeterminate: true
-                Accessible.name: qsTr("Looking for artwork…")
+                Accessible.name: qsTr("Searching SteamGridDB…")
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                visible: !editor.artwork.loadingChoices && grid.count === 0
+                text: qsTr("No artwork found. Try another game match.")
+                wrapMode: Text.WordWrap
             }
 
             GridView {
                 id: grid
+                visible: count > 0 || editor.artwork.loadingChoices
                 objectName: "steamGridDbChoices"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -177,8 +252,8 @@ ColumnLayout {
                     }
 
                     onClicked: {
-                        editor.artwork.choose_url(modelData.url)
-                        chooser.close()
+                        editor.artwork.choose_url(modelData.url);
+                        chooser.close();
                     }
                 }
             }

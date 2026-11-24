@@ -128,3 +128,43 @@ def test_choices_come_from_steamgriddb_and_are_downloaded(
         assert banner.custom and banner.path and Path(banner.path).read_bytes() == JPEG
 
     asyncio.run(choose())
+
+
+def test_steamgriddb_match_applies_to_each_artwork_picker(game_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    match = steamgriddb.SteamGridDBGame(9, "Another Edition")
+
+    class Client:
+        def __init__(self, _api_key: str) -> None:
+            pass
+
+        def search_games(self, query: str) -> tuple[steamgriddb.SteamGridDBGame, ...]:
+            assert query == "Another"
+            return (match,)
+
+        def find_game(self, name: str, _steam_appid: str) -> int:
+            assert name == "Artwork Game"
+            return 7
+
+        def grids(self, game_id: int, dimensions: str) -> list[dict[str, str]]:
+            return [{"url": f"https://sgdb/{game_id}/{dimensions}.jpg"}]
+
+        def icons(self, game_id: int) -> list[dict[str, str]]:
+            return [{"url": f"https://sgdb/{game_id}/icon.png"}]
+
+    monkeypatch.setenv(steamgriddb.API_KEY_ENVIRONMENT, "key")
+    monkeypatch.setattr(game_artwork, "SteamGridDB", Client)
+
+    async def run() -> None:
+        assert await game_artwork.steamgriddb_match(game_id) == ""
+        (result,) = await game_artwork.search_steamgriddb_games("Another")
+        await game_artwork.set_steamgriddb_match(game_id, result)
+        assert await game_artwork.steamgriddb_match(game_id) == "Another Edition"
+        for kind in ("cover", "banner", "icon"):
+            choices = await game_artwork.list_steamgriddb_artwork(game_id, kind)
+            assert choices and all(choice.url.startswith("https://sgdb/9/") for choice in choices)
+        await game_artwork.set_steamgriddb_match(game_id, None)
+        assert await game_artwork.steamgriddb_match(game_id) == ""
+        (icon,) = await game_artwork.list_steamgriddb_artwork(game_id, "icon")
+        assert icon.url == "https://sgdb/7/icon.png"
+
+    asyncio.run(run())

@@ -31,6 +31,8 @@ DATABASE: dict[str, DBSchema] = {
         {"name": "has_custom_banner", "type": "INTEGER"},
         {"name": "has_custom_icon", "type": "INTEGER"},
         {"name": "has_custom_coverart_big", "type": "INTEGER"},
+        {"name": "steamgriddb_id", "type": "INTEGER"},
+        {"name": "steamgriddb_name", "type": "TEXT"},
         {"name": "playtime", "type": "REAL"},
         {"name": "service", "type": "TEXT"},
         {"name": "service_id", "type": "TEXT"},

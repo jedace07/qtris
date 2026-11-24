@@ -1,6 +1,9 @@
 """A small client for SteamGridDB's API, which needs the user's own API key."""
 
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass
 from gettext import gettext as _
 from typing import Any
 from urllib.parse import quote
@@ -23,6 +26,12 @@ API_KEY_PAGE = "https://www.steamgriddb.com/profile/preferences/api"
 COVER_DIMENSIONS = ("600x900", "342x482,660x930")
 BANNER_DIMENSIONS = ("920x430,460x215",)
 TIMEOUT_SECONDS = 15
+
+
+@dataclass(frozen=True)
+class SteamGridDBGame:
+    id: int
+    name: str
 
 
 class SteamGridDBError(QtrisError):
@@ -65,14 +74,25 @@ class SteamGridDB:
             game = self._get(f"/games/steam/{quote(steam_appid, safe='')}")
             if isinstance(game, dict) and game.get("id"):
                 return int(game["id"])
-        if not name.strip():
-            return None
-        results = self._get("/search/autocomplete/" + quote(name.strip(), safe=""))
-        if not isinstance(results, list) or not results:
+        if not (results := self.search_games(name)):
             return None
         wanted = name.strip().casefold()
-        exact = [result for result in results if str(result.get("name", "")).casefold() == wanted]
-        return int((exact or results)[0]["id"])
+        return next((game.id for game in results if game.name.casefold() == wanted), results[0].id)
+
+    def search_games(self, query: str) -> tuple[SteamGridDBGame, ...]:
+        if not (query := query.strip()):
+            return ()
+        results = self._get("/search/autocomplete/" + quote(query, safe=""))
+        if not isinstance(results, list):
+            return ()
+        return tuple(
+            SteamGridDBGame(game_id, name)
+            for result in results
+            if isinstance(result, dict)
+            and type(game_id := result.get("id")) is int
+            and isinstance(name := result.get("name"), str)
+            and name
+        )
 
     def grids(self, game_id: int, dimensions: str) -> list[dict[str, Any]]:
         """Return the static grids of some dimensions, best first."""
