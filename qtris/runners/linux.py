@@ -48,15 +48,6 @@ class linux(Runner):
             "help": _("Command line arguments used when launching the game"),
         },
         {
-            "option": "working_dir",
-            "type": "directory",
-            "label": _("Working directory"),
-            "help": _(
-                "The folder the game starts in. Relative paths in games and launch scripts can depend on it.\n"
-                "By default, Qtris uses the executable's folder."
-            ),
-        },
-        {
             "option": "ld_preload",
             "type": "file",
             "label": _("Preload library"),

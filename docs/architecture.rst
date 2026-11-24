@@ -401,8 +401,8 @@ available; otherwise the conflict is skipped rather than silently overwritten.
 
 Library → Preferences includes the interface theme, tray, game card labels and
 badges and minimize-on-launch options. The tray is available
-only on desktops that provide one. Library also offers Playtron import and a
-local JSON issue report exporter shared with ``--submit-issue``.
+only on desktops that provide one. Library also offers a local JSON issue
+report exporter shared with ``--submit-issue``.
 
 Qtris has three runners, Proton (``wine``), Linux and Web, and two internal
 ones for their sources' games, Steam and Flatpak. It has no emulator runners:

@@ -26,7 +26,6 @@ from qtris.qt.delegates import PromptController, QtLaunchUIDelegate
 from qtris.qt.game_log import GameLogController
 from qtris.qt.game_maintenance import GameMaintenanceController
 from qtris.qt.game_shortcuts import GameShortcutController
-from qtris.qt.imports import ImportController
 from qtris.qt.installers import InstallerController
 from qtris.qt.library_model import LibraryModel
 from qtris.qt.local_games import LocalGameController
@@ -71,7 +70,6 @@ class LibraryController(QObject):
         self._shortcuts = GameShortcutController(prompts, self)
         self._local_games = LocalGameController(prompts, self)
         self._local_games.registered.connect(self._on_local_game_registered)
-        self._imports = ImportController(prompts, self)
         self._installers = InstallerController(prompts, self)
         self._installers.existingGameImported.connect(self._on_local_game_registered)
         self._configuration = ConfigController(prompts, self)
@@ -231,10 +229,6 @@ class LibraryController(QObject):
     @Property(bool, constant=True)
     def showMedia(self) -> bool:  # noqa: N802
         return settings.SHOW_MEDIA
-
-    @Property(ImportController, constant=True)
-    def gameImports(self) -> ImportController:  # noqa: N802
-        return self._imports
 
     @Property(QUrl, constant=True)
     def placeholderArtwork(self) -> QUrl:  # noqa: N802

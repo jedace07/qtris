@@ -67,7 +67,6 @@ files = [
     "qtris/qt/game_log.py",
     "qtris/qt/game_maintenance.py",
     "qtris/qt/game_shortcuts.py",
-    "qtris/qt/imports.py",
     "qtris/qt/installation.py",
     "qtris/qt/installers.py",
     "qtris/qt/library_controller.py",

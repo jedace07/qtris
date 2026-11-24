@@ -47,18 +47,6 @@ ApplicationWindow {
             enabled: !window.controller.installers.installation.active
             onTriggered: windowsSetup.open()
         }
-
-        MenuSeparator {}
-
-        MenuItem {
-            text: qsTr("Import from Playtron…")
-            icon.source: Theme.icon("download")
-            enabled: !window.controller.gameImports.busy
-            onTriggered: {
-                window.controller.gameImports.import_playtron()
-                importDialog.open()
-            }
-        }
     }
 
     Menu {
@@ -119,11 +107,6 @@ ApplicationWindow {
     Shortcut {
         sequences: [StandardKey.Preferences]
         onActivated: window.controller.preferences.open_preferences()
-    }
-
-    ImportDialog {
-        id: importDialog
-        controller: window.controller.gameImports
     }
 
     IssueReportDialog { controller: window.controller.preferences }
