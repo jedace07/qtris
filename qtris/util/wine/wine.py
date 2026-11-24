@@ -7,6 +7,7 @@ import re
 import signal
 from collections import OrderedDict
 from gettext import gettext as _
+from itertools import count
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,7 @@ from qtris.exceptions import MissingExecutableError, QtrisError, UnspecifiedVers
 from qtris.util import cache_single, system
 from qtris.util.log import logger
 from qtris.util.process import Process
+from qtris.util.strings import slugify
 from qtris.util.wine import proton, proton_releases
 
 if TYPE_CHECKING:
@@ -35,6 +37,38 @@ def get_prefix_root(system_config: SystemConfigDict | None = None) -> Path:
         system_config = QtrisConfig().system_config
     configured = system_config.get(PREFIX_ROOT_OPTION)
     return Path(configured or "~/Games/Prefixes").expanduser()
+
+
+def available_prefix_path(root: Path, game_name: str) -> Path:
+    name = slugify(game_name)
+    for number in count(1):
+        path = root / (name if number == 1 else f"{name}-{number}")
+        if not path.exists() and not path.is_symlink():
+            return path
+    raise AssertionError("No available prefix directory")
+
+
+def reserve_game_prefix(root: Path, game_name: str) -> str:
+    try:
+        if not root.is_absolute():
+            raise QtrisError(_("Enter an absolute path for the Proton prefix directory."))
+        root.mkdir(parents=True, exist_ok=True)
+        while True:
+            path = available_prefix_path(root, game_name)
+            try:
+                path.mkdir()
+            except FileExistsError:
+                continue
+            return str(path.resolve())
+    except OSError as error:
+        raise QtrisError(_("Could not create a Proton prefix directory in %s") % root) from error
+
+
+def remove_empty_prefix(prefix: str) -> None:
+    try:
+        Path(prefix).rmdir()
+    except OSError as error:
+        logger.debug("Could not remove unused prefix directory %s: %s", prefix, error)
 
 
 def detect_arch(prefix_path: str | None = None, wine_path: str | None = None) -> str:

@@ -399,7 +399,7 @@ class CommandsMixin:
             self._extract_innosetup(file_id)
             config_dir = find_gog_config_dir(self.target_path)
             gog_config = get_gog_config(config_dir) if config_dir else None
-            launch = convert_gog_config_to_qtris(gog_config, config_dir) if gog_config else {}
+            launch = convert_gog_config_to_qtris(gog_config, config_dir) if config_dir else {}
             if not launch.get("exe"):
                 raise ScriptingError(_("The installer doesn't say how to start this game."))
             self._use_bundled_engine(launch)
@@ -657,7 +657,7 @@ class CommandsMixin:
         else:
             game_path = install_path
 
-        self._apply_gogdl_post_install(game_path, platform)
+        self._apply_gogdl_post_install(game_path, platform, game_id)
         logger.info("GOG depot download completed for %s", game_id)
 
     def _find_gogdl_game_path(self, parent_path):
@@ -675,25 +675,20 @@ class CommandsMixin:
                 return candidate
         return parent_path
 
-    def _apply_gogdl_post_install(self, install_path, platform):
+    def _apply_gogdl_post_install(self, install_path: str, platform: str, product_id: str) -> None:
         """Detect game configuration from goggame-*.info after a depot download."""
-        config_path = find_gog_config_dir(install_path)
+        config_path = find_gog_config_dir(install_path, product_id)
         if not config_path:
             return
 
-        gog_config = get_gog_config(config_path)
-        if not gog_config:
-            return
-
-        play_tasks = gog_config.get("playTasks", [])
-        if not play_tasks:
-            return
-
-        if any(engine in task.get("path", "").casefold() for task in play_tasks for engine in ("dosbox", "scummvm")):
+        qtris_config = convert_gog_config_to_qtris(get_gog_config(config_path, product_id), config_path)
+        if qtris_config and any(
+            engine in config["exe"].casefold()
+            for config in (qtris_config, *qtris_config["launch_configs"])
+            for engine in ("dosbox", "scummvm")
+        ):
             self._place_gog_support_files(config_path)
 
-        # Normal game — apply config from goggame-*.info
-        qtris_config = convert_gog_config_to_qtris(gog_config, config_path)
         if qtris_config and "game" in self.installer.script:
             # For Linux GOG games, prefer start.sh over the binary from goggame info.
             # GOG's start.sh handles working directory setup and permissions.
@@ -701,6 +696,8 @@ class CommandsMixin:
                 start_sh = os.path.join(install_path, "start.sh")
                 if os.path.isfile(start_sh):
                     qtris_config["exe"] = start_sh
+                    qtris_config["working_dir"] = install_path
+                    qtris_config.pop("args", None)
                     system.make_executable(start_sh)
             # Don't clobber config the script set explicitly: a community
             # installer may ship its own engine (e.g. a native source port
@@ -708,8 +705,9 @@ class CommandsMixin:
             # Windows exe detected from goggame-*.info. Auto-generated GOG
             # installers leave these unset, so detection still fills them in.
             game_config = self.installer.script["game"]
-            for key, value in qtris_config.items():
-                game_config.setdefault(key, value)
+            if not game_config.get("exe"):
+                for key, value in qtris_config.items():
+                    game_config.setdefault(key, value)
 
     def _place_gog_support_files(self, game_path: str) -> None:
         """Copy in the settings that bundled DOSBox and ScummVM builds are started with.

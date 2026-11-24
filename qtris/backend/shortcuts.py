@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from gettext import gettext as _
 from threading import Lock
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from qtris.backend.launch_configurations import configuration_names
 from qtris.delegates import CommandLineUIDelegate
@@ -13,9 +13,6 @@ from qtris.game import Game
 from qtris.util import xdgshortcuts
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.steam import shortcut as steam_shortcut
-
-if TYPE_CHECKING:
-    from qtris.config import LaunchConfigDict
 
 type ShortcutKind = Literal["desktop", "menu", "steam", "steam_big_picture"]
 
@@ -61,11 +58,11 @@ def _get_shortcuts(game: Game) -> GameShortcuts:
             targets.append(
                 ShortcutTarget("steam_big_picture", _("Steam Big Picture (Standalone)"), True in standalone_kinds)
             )
-    config = game.config
-    game_options = config.game_level.get("game", {}) if config else {}
-    alternatives: list["LaunchConfigDict"] = game_options.get("launch_configs") or []
+    primary_name, alternatives = game.get_launch_options()
     named = [item for item in alternatives if item.get("name")]
-    return GameShortcuts(tuple(targets), configuration_names(named), ("", *(str(item["name"]) for item in named)))
+    return GameShortcuts(
+        tuple(targets), configuration_names(named, primary_name), ("", *(str(item["name"]) for item in named))
+    )
 
 
 async def get_shortcuts(game_id: str) -> GameShortcuts:

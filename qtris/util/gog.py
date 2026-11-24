@@ -1,16 +1,23 @@
+from __future__ import annotations
+
 import glob
 import json
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from qtris.util import system
 from qtris.util.log import logger
 
+if TYPE_CHECKING:
+    from qtris.config import GameConfigDict, LaunchConfigDict
 
-def get_gog_game_path(target_path, product_id: str | None = None):
+
+def get_gog_game_path(target_path: str, product_id: str | None = None) -> str | None:
     """Return the absolute path where a GOG game is installed"""
     gog_game_path = os.path.join(target_path, "drive_c/GOG Games/")
-    if not os.path.exists(gog_game_path):
-        logger.warning("No 'GOG Games' folder in %s", target_path)
+    if not os.path.isdir(gog_game_path):
+        logger.debug("No 'GOG Games' folder in %s", target_path)
         return None
     games = os.listdir(gog_game_path)
     if product_id:
@@ -39,59 +46,77 @@ def get_gog_config(gog_game_path, product_id: str | None = None):
         logger.error("No config file found in %s", gog_game_path)
         return
     gog_config_path = config_files[0]
-    with open(gog_config_path, encoding="utf-8") as gog_config_file:
+    with open(gog_config_path, encoding="utf-8-sig") as gog_config_file:
         gog_config = json.loads(gog_config_file.read())
     return gog_config
 
 
-def get_game_config(task, gog_game_path):
-    def resolve_path(path):
-        """GOG's paths are relative to the gog_game_path, not relative to each other,
-        so we resolve them all to absolute paths and fix casing issues. If required,
-        we'll replace backslashes with slashes."""
-        resolved = system.fix_path_case(os.path.join(gog_game_path, path))
-        if os.path.exists(resolved):
-            return resolved
+def get_game_config(task: dict[str, object], game_path: str) -> LaunchConfigDict | None:
+    path = task.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    if task.get("isHidden") or task.get("type") not in (None, "FileTask"):
+        return None
+    if task.get("category") == "document":
+        return None
 
-        fixed = path.replace("\\", "/")
-        if fixed.startswith("/"):
-            fixed = fixed[1:]
-        resolved = system.fix_path_case(os.path.join(gog_game_path, fixed))
-        if os.path.exists(resolved):
-            return resolved
+    root = Path(game_path).resolve()
 
-        logger.warning("GOG configuration path '%s' could not be resolved", path)
-        return path
+    def resolve(path: str) -> Path | None:
+        if "\0" in path:
+            return None
+        relative = path.replace("\\", "/").lstrip("/")
+        candidate = Path(system.fix_path_case(str(root / relative)))
+        return candidate if candidate.resolve().is_relative_to(root) else None
 
-    config = {}
-    if "path" not in task:
-        return
+    exe = resolve(path)
+    if exe is None or not exe.is_file():
+        return None
 
-    config["exe"] = resolve_path(task["path"])
-    if task.get("workingDir"):
-        config["working_dir"] = resolve_path(task["workingDir"])
-    if task.get("arguments"):
-        config["args"] = task["arguments"]
-    if task.get("name"):
-        config["name"] = task["name"]
+    working_dir = exe.parent
+    if isinstance(directory := task.get("workingDir"), str) and directory:
+        candidate = resolve(directory)
+        if candidate and candidate.is_dir():
+            working_dir = candidate
+    config: LaunchConfigDict = {"exe": str(exe), "working_dir": str(working_dir)}
+    if isinstance(args := task.get("arguments"), str) and args:
+        config["args"] = args
+    if isinstance(name := task.get("name"), str) and name.strip():
+        config["name"] = name.strip()
     return config
 
 
-def convert_gog_config_to_qtris(gog_config, gog_game_path):
-    play_tasks = gog_config.get("playTasks", [])
-    qtris_config = {"launch_configs": []}
-    for task in play_tasks:
-        config = get_game_config(task, gog_game_path)
-        if not config:
-            continue
-        if task.get("isPrimary"):
-            qtris_config.update(config)
-        else:
-            qtris_config["launch_configs"].append(config)
-    return qtris_config
+def convert_gog_config_to_qtris(gog_config: object, gog_game_path: str) -> GameConfigDict:
+    tasks = gog_config.get("playTasks") if isinstance(gog_config, dict) else None
+    if not isinstance(tasks, list):
+        return {}
+    configs: list[tuple[LaunchConfigDict, bool]] = []
+    for task in tasks:
+        if isinstance(task, dict) and (config := get_game_config(task, gog_game_path)):
+            configs.append((config, bool(task.get("isPrimary"))))
+    if not configs:
+        return {}
+
+    primary_index = next((index for index, (_, primary) in enumerate(configs) if primary), 0)
+    primary, _ = configs.pop(primary_index)
+    alternatives = [config for config, _ in configs if config != primary]
+    for alternative in alternatives:
+        alternative.setdefault("name", Path(alternative["exe"]).stem)
+    return {**primary, "launch_configs": alternatives}
 
 
-def find_gog_config_dir(install_dir):
+def find_gog_launch_config(install_dir: str, appid: str) -> GameConfigDict:
+    if not appid or not appid.isascii() or not appid.isdecimal():
+        return {}
+    try:
+        if directory := find_gog_config_dir(install_dir, appid):
+            return convert_gog_config_to_qtris(get_gog_config(directory, appid), directory)
+    except (OSError, ValueError, RuntimeError) as error:
+        logger.warning("Could not read GOG launch options for %s in %s: %s", appid, install_dir, error)
+    return {}
+
+
+def find_gog_config_dir(install_dir: str, product_id: str | None = None) -> str | None:
     """Return the directory containing goggame-*.info files, or None.
 
     Windows installs place the .info file directly in the install root;
@@ -103,7 +128,9 @@ def find_gog_config_dir(install_dir):
     if not install_dir or not os.path.isdir(install_dir):
         return None
 
-    def has_info(path):
+    def has_info(path: str) -> bool:
+        if product_id:
+            return os.path.isfile(os.path.join(path, f"goggame-{product_id}.info"))
         return os.path.isdir(path) and any(f.startswith("goggame-") and f.endswith(".info") for f in os.listdir(path))
 
     candidates = [install_dir, os.path.join(install_dir, "game")]

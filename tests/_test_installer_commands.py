@@ -74,14 +74,14 @@ class TestGogdlSetupPath(TestCase):
     def test_download_targets_parent_directory(self):
         self.interpreter.gogdl_setup({"game_id": "1", "command": "download"})
         self.assertEqual(self.run_gogdl.call_args.kwargs["path"], self.tmp.name)
-        self.post_install.assert_called_once_with(self.game_dir, "windows")
+        self.post_install.assert_called_once_with(self.game_dir, "windows", "1")
 
     def test_update_and_repair_target_game_directory(self):
         for command in ("update", "repair"):
             with self.subTest(command=command):
                 self.interpreter.gogdl_setup({"game_id": "1", "command": command})
                 self.assertEqual(self.run_gogdl.call_args.kwargs["path"], self.game_dir)
-                self.post_install.assert_called_with(self.game_dir, "windows")
+                self.post_install.assert_called_with(self.game_dir, "windows", "1")
 
     def run_repair_or_update(self, command, nothing_to_do=False, broken_files=None):
         outcome = self.run_gogdl.return_value

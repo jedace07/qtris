@@ -34,6 +34,7 @@ from qtris.util.display import (
     get_display_manager,
     is_display_x11,
 )
+from qtris.util.gog import find_gog_launch_config, get_gog_game_path
 from qtris.util.graphics.xrandr import turn_off_except
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
@@ -44,6 +45,7 @@ from qtris.util.timer import Timer
 from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
+    from qtris.config import LaunchConfigDict
     from qtris.delegates import LaunchUIDelegate
     from qtris.services.base import BaseService, StoreLaunch
 
@@ -658,6 +660,37 @@ class Game:
         if killswitch and system.path_exists(killswitch):
             return killswitch
         return ""
+
+    def get_launch_options(self) -> tuple[str, list["LaunchConfigDict"]]:
+        """Return configured launch options or read them from an installed GOG game."""
+        config = self.config
+        if config is None:
+            return "", []
+        options = config.game_level.get("game", {})
+        name = str(options.get("name") or "")
+        alternatives = options.get("launch_configs") or []
+        if alternatives or self.service != "gog" or not self.appid or self.runner_name not in {"wine", "linux"}:
+            return name, alternatives
+
+        configured_exe = config.game_config.get("exe")
+        if not configured_exe or not self.runner:
+            return name, []
+        exe = self.runner.resolve_config_path(configured_exe, self.runner.game_path)
+        directories = [self.directory, os.path.dirname(exe)]
+        if (prefix := config.game_config.get("prefix")) and self.runner_name == "wine":
+            try:
+                if directory := get_gog_game_path(os.path.expanduser(prefix), self.appid):
+                    directories.append(directory)
+            except OSError as error:
+                logger.debug("Could not inspect GOG installation in %s: %s", prefix, error)
+        for directory in dict.fromkeys(directories):
+            manifest = find_gog_launch_config(directory, self.appid)
+            if manifest and (
+                os.path.realpath(exe) == os.path.realpath(manifest["exe"])
+                or (self.runner_name == "linux" and exe == os.path.join(directory, "start.sh"))
+            ):
+                return name or str(manifest.get("name") or ""), manifest["launch_configs"]
+        return name, []
 
     def get_gameplay_info(
         self, launch_ui_delegate: "LaunchUIDelegate", store_launch: "StoreLaunch | None" = None

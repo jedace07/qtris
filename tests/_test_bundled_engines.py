@@ -105,7 +105,7 @@ def test_gog_depot_games_launch_their_engine_with_its_settings(
     put(folder / "gog-support/123/app" / setting, "settings")
     interpreter = make_interpreter(gog_plan("depot"), target)
 
-    interpreter._apply_gogdl_post_install(str(folder), "windows")
+    interpreter._apply_gogdl_post_install(str(folder), "windows", "123")
     runner, command = launch(interpreter, monkeypatch)
 
     assert command == ["umu-run", str(folder / exe), *arguments]
@@ -136,7 +136,7 @@ def test_other_gog_depot_games_are_left_as_they_are(home: Path) -> None:
     put(folder / "gog-support/123/app/config.ini")
     interpreter = make_interpreter(gog_plan("depot"), home)
 
-    interpreter._apply_gogdl_post_install(str(folder), "windows")
+    interpreter._apply_gogdl_post_install(str(folder), "windows", "123")
 
     assert not (folder / "config.ini").exists()
 

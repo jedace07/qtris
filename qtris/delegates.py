@@ -169,8 +169,7 @@ class CommandLineUIDelegate(LaunchUIDelegate):
         if not self.launch_config_name:
             return {}
 
-        game_config = game.config.game_level.get("game", {}) if game.config else {}
-        configs: list["LaunchConfigDict"] = game_config.get("launch_configs") or []
+        _, configs = game.get_launch_options()
 
         for config in configs:
             if config.get("name") == self.launch_config_name:

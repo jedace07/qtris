@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import stat
 import time
@@ -14,19 +13,22 @@ from uuid import uuid4
 
 from qtris import settings
 from qtris.backend import events, game_maintenance, games
+from qtris.config import QtrisConfig
 from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.database.services import ServiceGameCollection
 from qtris.exceptions import QtrisError
 from qtris.runners.linux import linux
-from qtris.util.gog import get_game_config
+from qtris.runners.wine import wine
+from qtris.util.gog import find_gog_launch_config
 from qtris.util.log import logger
 from qtris.util.strings import slugify
-from qtris.util.wine.wine import prepare_wine_prefix
+from qtris.util.wine.wine import get_prefix_root, prepare_wine_prefix, remove_empty_prefix, reserve_game_prefix
 from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
     from qtris.backend.models import GameInfo
+    from qtris.config import GameConfigDict
 
 
 def can_link_linux_game(installed: bool, runner: str | None, service: str | None) -> bool:
@@ -72,78 +74,73 @@ def _register_gog(appid: str, directory: str, executable: str, game_id: str, win
         raise QtrisError(_("Choose an existing game folder."))
     folder = folder.resolve()
     if executable:
-        options = {"exe": str(Path(executable).expanduser())}
-        manifest_dir = folder
+        options: GameConfigDict = {"exe": str(Path(executable).expanduser())}
     else:
-        options, manifest_dir = _detect_gog_launch(folder, appid)
+        options = _detect_gog_launch(folder, appid)
 
     path = Path(options["exe"])
     if not path.is_absolute() or not path.resolve().is_relative_to(folder) or not path.is_file():
         raise QtrisError(_("Choose a game executable inside the selected folder."))
-    runner = "wine" if path.suffix.casefold() == ".exe" else "linux"
+    runner = "wine" if path.suffix.casefold() in {".exe", ".bat", ".lnk", ".msi"} else "linux"
     if runner == "linux":
         if wine_prefix:
             raise QtrisError(_("Clear the Wine prefix to use the Linux executable."))
         _check_executable(str(path))
     working_dir = Path(options.get("working_dir") or path.parent)
-    if not working_dir.is_absolute():
-        working_dir = manifest_dir / working_dir
     if not working_dir.resolve().is_relative_to(folder) or not working_dir.is_dir():
         working_dir = path.parent
     options["working_dir"] = str(working_dir)
 
-    # Serialize the duplicate check and registration with other library writes
-    with sql.DB_LOCK:
+    def find_entry() -> games_db.DbGameDict | None:
         matches = games_db.get_games(filters={"service": "gog", "service_id": appid})
         if any(row["installed"] for row in matches):
             raise QtrisError(_("This game is already installed."))
         entry = next((row for row in matches if not game_id or row["id"] == game_id), None)
         if game_id and entry is None:
             raise QtrisError(_("This game is no longer in the library."))
+        return entry
+
+    entry = find_entry()
+    name = entry["name"] if entry else str(source["name"])
+    automatic_prefix = ""
+    try:
         if runner == "wine":
-            default_prefix = Path(settings.DATA_DIR) / "prefixes" / f"gog-{appid}"
-            options["prefix"] = prepare_wine_prefix(wine_prefix or str(default_prefix))
-        name = entry["name"] if entry else str(source["name"])
-        return _save_registration(
-            name,
-            entry,
-            options,
-            {
-                "service": "gog",
-                "service_id": appid,
-                "runner": runner,
-                "platform": _("Windows") if runner == "wine" else linux().get_platform(),
-                "directory": str(folder),
-                "external_files": 1,
-            },
-            slug=str(source["slug"] or ""),
-        )
+            if not wine_prefix:
+                automatic_prefix = reserve_game_prefix(get_prefix_root(), name)
+            prefix = prepare_wine_prefix(wine_prefix) if wine_prefix else automatic_prefix
+            wine(QtrisConfig(runner_slug="wine"), prefix=prefix).initialize_prefix(prefix)
+            options["prefix"] = prefix
 
-
-def _detect_gog_launch(folder: Path, appid: str) -> tuple[dict[str, str], Path]:
-    for manifest_dir in (folder, folder / "game"):
-        manifest = manifest_dir / f"goggame-{appid}.info"
-        if not manifest.is_file():
-            continue
-        start_script = folder / "start.sh"
-        if start_script.is_file() and os.access(start_script, os.X_OK):
-            return {"exe": str(start_script)}, folder
-        try:
-            data = json.loads(manifest.read_text(encoding="utf-8-sig"))
-        except (OSError, ValueError) as error:
-            raise QtrisError(_("Could not read the GOG launch info. Choose the game executable below.")) from error
-        tasks = data.get("playTasks", []) if isinstance(data, dict) else []
-        if not isinstance(tasks, list):
-            break
-        for task in tasks:
-            if not isinstance(task, dict) or not task.get("isPrimary") or not isinstance(task.get("path"), str):
-                continue
-            options = get_game_config(
-                {key: task[key] for key in ("path", "workingDir", "arguments") if isinstance(task.get(key), str)},
-                str(manifest_dir),
+        # Check again in case the store game was installed while creating the prefix
+        with sql.DB_LOCK:
+            return _save_registration(
+                name,
+                find_entry(),
+                options,
+                {
+                    "service": "gog",
+                    "service_id": appid,
+                    "runner": runner,
+                    "platform": _("Windows") if runner == "wine" else linux().get_platform(),
+                    "directory": str(folder),
+                    "external_files": 1,
+                },
+                slug=str(source["slug"] or ""),
             )
-            if options:
-                return options, manifest_dir
+    except Exception:
+        if automatic_prefix:
+            remove_empty_prefix(automatic_prefix)
+        raise
+
+
+def _detect_gog_launch(folder: Path, appid: str) -> GameConfigDict:
+    options = find_gog_launch_config(str(folder), appid)
+    start_script = folder / "start.sh"
+    if start_script.is_file() and os.access(start_script, os.X_OK):
+        options.pop("args", None)
+        return {**options, "exe": str(start_script), "working_dir": str(folder)}
+    if options:
+        return options
     raise QtrisError(_("Could not detect this game in the chosen folder. Choose its executable below."))
 
 
@@ -181,7 +178,7 @@ def _register(executable: str, name: str, arguments: str, game_id: str) -> games
 def _save_registration(
     name: str,
     entry: games_db.DbGameDict | None,
-    options: dict[str, str],
+    options: GameConfigDict,
     installation: games_db.DbGameDict,
     *,
     slug: str = "",

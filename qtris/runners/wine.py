@@ -62,8 +62,10 @@ from qtris.util.wine.wine import (
 )
 
 if TYPE_CHECKING:
+    from qtris.config import LaunchConfigDict
     from qtris.delegates import Delegate, InstallUIDelegate
     from qtris.monitored_command import MonitoredCommand
+    from qtris.runners.runner import GamePlayInfoDict
 
 
 def is_umu_managed_version(version: str | None) -> bool:
@@ -507,6 +509,14 @@ class wine(Runner):
             return system.fix_path_case(os.path.join(self.game_path, exe))
         return exe
 
+    def get_launch_config_command(self, gameplay_info: GamePlayInfoDict, launch_config: LaunchConfigDict) -> list[str]:
+        exe = self.get_launch_config_exe(launch_config)
+        if not exe or "command" in launch_config:
+            return super().get_launch_config_command(gameplay_info, launch_config)
+        working_dir = self.get_launch_config_working_dir(launch_config) or gameplay_info.get("working_dir")
+        executable, args, _ = get_real_executable(exe, working_dir)
+        return [*self.get_command(), executable, *args, *split_arguments(launch_config.get("args") or "")]
+
     def get_executable(self, version: str = "", fallback: bool = True) -> str:
         """Return the wine executable of the Proton build that runs games, which umu
         runs. A version that names no Proton build, such as an old Wine build, falls
@@ -857,6 +867,25 @@ class wine(Runner):
             return
         if proton.is_umu_path(wine_exe):
             monitored_command.log_handlers.append(proton.UmuLaunchStatusParser(game))
+
+    def initialize_prefix(self, prefix: str, *, version: str = "") -> None:
+        if is_prefix_directory(prefix):
+            return
+        try:
+            umu_path = proton.get_umu_path()
+        except MissingExecutableError:
+            # Normal launch installs any missing components before initializing the prefix
+            logger.info("Will initialize the prefix at %s when umu is available", prefix)
+            return
+        version = get_proton_version_or_default(version or self.read_version_from_config())
+        try:
+            wine_path = self.get_executable(version)
+        except MissingExecutableError:
+            if version != GE_PROTON_LATEST:
+                logger.info("Will initialize the prefix at %s when the selected Proton is installed", prefix)
+                return
+            wine_path = umu_path
+        create_prefix(prefix, wine_path=wine_path, arch=self.wine_arch, runner=self)
 
     def prelaunch(self):
         prefix_path = self.prefix_path

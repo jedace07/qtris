@@ -17,6 +17,7 @@ from qtris.database import games as games_db
 from qtris.exceptions import QtrisError
 from qtris.installer import commands
 from qtris.installer.interpreter import ScriptInterpreter
+from qtris.runners.wine import wine
 from qtris.services import gog
 from qtris.services.ubisoft import UbisoftConnectService
 from qtris.util import game_finder, magic
@@ -285,6 +286,7 @@ def test_windows_setup_preserves_a_literal_executable_path(
     executable = tmp_path / "Setup $GAMEDIR.exe"
     executable.touch()
     prefix_root = tmp_path / "prefixes"
+    monkeypatch.setattr(settings, "INSTALLER_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setattr(installers, "get_prefix_root", lambda: prefix_root)
 
     async def run() -> None:
@@ -369,6 +371,8 @@ def test_generated_windows_store_installer_saves_the_default_prefix(
     monkeypatch.setattr(installers, "get_prefix_root", lambda: prefix_root)
     monkeypatch.setattr(gog.GOGService, "is_authenticated", lambda _self: True)
     monkeypatch.setattr(gog.GOGService, "resolve_download_installer", lambda _self, script: script)
+    initialized: list[str] = []
+    monkeypatch.setattr(wine, "initialize_prefix", lambda _runner, prefix, *, version: initialized.append(prefix))
 
     async def run() -> None:
         try:
@@ -378,7 +382,17 @@ def test_generated_windows_store_installer_saves_the_default_prefix(
                 catalog.id, "0", ScriptInterpreter.InterpreterUIDelegate()
             )
             assert interpreter.target_path == selection.default_directory
-            assert interpreter.installer.get_game_config()["game"]["prefix"] == str(prefix_root / "gog/game-8675309")
+            prefix = prefix_root / "game"
+            assert interpreter.installer.get_game_config()["game"]["prefix"] == str(prefix)
+            assert prefix.is_dir()
+            interpreter._initialize_wine_prefix()
+            assert initialized == [str(prefix)]
+            (prefix / "system.reg").touch()
+            interpreter.cleanup()
+            assert prefix.is_dir()
+            (prefix / "system.reg").unlink()
+            interpreter.cleanup()
+            assert not prefix.exists()
         finally:
             await installers.close_catalog(catalog.id)
 

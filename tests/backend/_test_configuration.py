@@ -302,6 +302,58 @@ def test_new_games_need_a_runner_and_are_created_on_save(
             games_db.delete_game(game_id)
 
 
+def test_new_windows_games_initialize_separate_title_prefixes(
+    config_dir: Path,
+    no_media: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fake_main_loop: FakeMainLoop,
+) -> None:
+    prefix_root = tmp_path / "Wine prefixes"
+    write_yaml_to_file({"system": {"prefix_path": str(prefix_root)}}, str(config_dir / "system.yml"))
+    initialized: list[Path] = []
+    created: list[str] = []
+
+    def initialize(_runner: configuration.wine, prefix: str) -> None:
+        path = Path(prefix)
+        assert path.is_dir()
+        (path / "system.reg").write_text("#arch=win64\n", encoding="utf-8")
+        initialized.append(path)
+
+    monkeypatch.setattr(configuration.wine, "initialize_prefix", initialize)
+
+    async def run() -> None:
+        for _ in range(2):
+            form = await configuration.open_new_game_config()
+            try:
+                form = await configuration.set_game_runner(form.id, "wine")
+                await configuration.set_game_details(
+                    form.id,
+                    GameDetails(name="My Windows Game", sortname="", slug="", runner="wine", year="", playtime=""),
+                )
+                assert all(option.key != "working_dir" for page in form.pages for option in page.options)
+                await configuration.set_option(form.id, "game", "exe", "/games/windows/Game.exe")
+                created.append(await configuration.save_config(form.id))
+            finally:
+                await configuration.close_config(form.id)
+
+    try:
+        asyncio.run(run())
+        assert initialized == [prefix_root / "my-windows-game", prefix_root / "my-windows-game-2"]
+        config_ids: set[str] = set()
+        for game_id, prefix in zip(created, initialized, strict=True):
+            row = games_db.get_game_by_field(game_id, "id")
+            assert row is not None
+            config_ids.add(row["configpath"])
+            saved = read_yaml_from_file(str(config_dir / "games" / f"{row['configpath']}.yml"))
+            assert saved["game"]["prefix"] == str(prefix)
+        assert len(config_ids) == 2
+    finally:
+        for game_id in created:
+            games_db.delete_game(game_id)
+        fake_main_loop.run_pending()
+
+
 def test_steam_games_have_no_runner_options_and_steam_is_not_offered(config_dir: Path, game_id: str) -> None:
     write_yaml_to_file({"game": {"appid": "440"}}, str(config_dir / "games" / "steam-440.yml"))
     steam_game_id = str(

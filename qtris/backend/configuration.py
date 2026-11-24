@@ -39,9 +39,16 @@ from qtris.runners import (
     import_runner,
     is_valid_runner_name,
 )
+from qtris.runners.wine import wine
 from qtris.util.log import logger
 from qtris.util.strings import get_formatted_playtime, parse_playtime, slugify
-from qtris.util.wine.wine import clear_wine_version_cache
+from qtris.util.wine.wine import (
+    clear_wine_version_cache,
+    get_prefix_root,
+    prepare_wine_prefix,
+    remove_empty_prefix,
+    reserve_game_prefix,
+)
 
 # How many forms are kept for frontends that never close theirs
 _FORM_LIMIT = 8
@@ -172,7 +179,7 @@ class _Form:
         if details:
             preferred = self.config.game_level.get("game", {}).get("preferred_launch_config_name")
             if preferred == Game.PRIMARY_LAUNCH_CONFIG_NAME:
-                preferred = _("Primary configuration")
+                preferred = _("Default")
             details = replace(details, preferred_launch=str(preferred or ""))
         return ConfigForm(
             id=self.id,
@@ -369,6 +376,22 @@ class _Form:
                 raise QtrisError(str(error)) from error
 
         slug = slugify(details.slug) if details.slug.strip() else slugify(name)
+        if not self.game_id and runner_name == "wine":
+            options = self.raw("game")
+            chosen_prefix = options.get("prefix")
+            prefix = (
+                prepare_wine_prefix(chosen_prefix)
+                if chosen_prefix
+                else reserve_game_prefix(get_prefix_root(self.config.system_config), name)
+            )
+            try:
+                wine(self.config, prefix=prefix).initialize_prefix(prefix)
+            except Exception:
+                if not chosen_prefix:
+                    remove_empty_prefix(prefix)
+                raise
+            options["prefix"] = prefix
+            self.config.update_cascaded_config()
         game = Game(self.game_id or None)
         if not self.config.game_config_id:
             self.config.game_config_id = make_game_config_id(slug)

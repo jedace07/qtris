@@ -1,6 +1,7 @@
 """Exercise native game registration with real files and library data."""
 
 import asyncio
+import json
 import subprocess
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from qtris.exceptions import QtrisError
 from qtris.game import Game
 from qtris.services.base import StoreLaunch
 from qtris.util.test_config import setup_test_environment
+from qtris.util.yaml import write_yaml_to_file
 from tests.conftest import FakeMainLoop
 
 setup_test_environment()
@@ -132,3 +134,51 @@ def test_database_failure_removes_new_config(executable: Path, monkeypatch: pyte
         asyncio.run(local_games.register_linux_game(str(executable), "Test Game"))
     assert not list((Path(settings.CONFIG_DIR) / "games").iterdir())
     assert executable.exists()
+
+
+def test_existing_gog_game_launches_the_selected_manifest_option(
+    executable: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prefix = tmp_path / "prefix"
+    folder = prefix / "drive_c" / "GOG Games" / "Existing Game"
+    default_exe = folder / "Bin" / "Start.exe"
+    vulkan_exe = folder / "Bin" / "Vulkan.exe"
+    vulkan_data = folder / "Vulkan Data"
+    vulkan_data.mkdir(parents=True)
+    default_exe.parent.mkdir()
+    for path in (default_exe, vulkan_exe):
+        path.touch()
+    tasks = [
+        {"isPrimary": True, "path": r"bin\start.exe", "name": "Standard"},
+        {"path": r"\bin\vulkan.exe", "workingDir": "vulkan data", "arguments": '--mode "Vulkan 1"', "name": "Vulkan"},
+        {"path": "bin/Vulkan.exe", "isHidden": True, "name": "Hidden"},
+        {"path": "bin/Vulkan.exe", "category": "launcher", "name": "Launcher"},
+        {"path": "bin/Vulkan.exe", "category": "document", "name": "Manual"},
+        {"path": str(executable), "name": "Outside install"},
+        {"path": "missing.exe", "name": "Missing"},
+    ]
+    (folder / "goggame-42.info").write_text(json.dumps({"playTasks": tasks}), encoding="utf-8")
+    config_dir = Path(settings.CONFIG_DIR) / "games"
+    config_dir.mkdir(parents=True)
+    write_yaml_to_file({"game": {"exe": str(default_exe), "prefix": str(prefix)}}, str(config_dir / "gog-existing.yml"))
+    game_id = games_db.add_game(
+        name="Existing GOG Game",
+        service="gog",
+        service_id="42",
+        runner="wine",
+        directory=str(prefix),
+        configpath="gog-existing",
+        installed=1,
+    )
+    try:
+        game = Game(game_id)
+        monkeypatch.setattr(game.runner, "get_command", lambda: ["umu-run"])
+        monkeypatch.setattr(game.runner, "play", lambda: {"command": ["umu-run", str(default_exe)]})
+        name, alternatives = game.get_launch_options()
+        assert name == "Standard"
+        assert [option["name"] for option in alternatives] == ["Vulkan", "Launcher"]
+        gameplay = game.get_gameplay_info(CommandLineUIDelegate("Vulkan"))
+        assert gameplay["command"] == ["umu-run", str(vulkan_exe), "--mode", "Vulkan 1"]
+        assert gameplay["working_dir"] == str(vulkan_data)
+    finally:
+        games_db.delete_game(game_id)

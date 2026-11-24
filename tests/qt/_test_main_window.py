@@ -23,6 +23,7 @@ from qtris.backend import (
     games,
     installations,
     installers,
+    local_games,
     media,
     preferences,
     runners,
@@ -44,6 +45,7 @@ from qtris.qt.main_window import MainWindow
 from qtris.runners.wine import wine
 from qtris.services.base import QtrisBanner, QtrisCoverart
 from qtris.services.gog import GOGService
+from qtris.util.strings import slugify
 from qtris.util.test_config import setup_test_environment
 from qtris.util.web_profiles import profile_directory
 from qtris.util.yaml import read_yaml_from_file, write_yaml_to_file
@@ -577,6 +579,8 @@ def test_qml_links_gog_game_files_in_place(
 ) -> None:
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.setattr(settings, "DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(local_games, "get_prefix_root", lambda: tmp_path / "prefixes")
+    monkeypatch.setattr(local_games.wine, "initialize_prefix", lambda _self, _prefix: None)
     if use_manifest:
         details = json.dumps({"slug": PREFIX + "uninstalled", "worksOn": {"Windows": True}})
         sql.db_update(settings.DB_PATH, "service_games", {"details": details}, {"service": "gog", "appid": store_appid})
@@ -594,6 +598,7 @@ def test_qml_links_gog_game_files_in_place(
         {
             "playTasks": [
                 {"isPrimary": True, "path": r"bin\play.exe", "workingDir": "bin", "arguments": "--windowed"},
+                {"name": "Vulkan", "path": r"bin\play.exe", "workingDir": "bin", "arguments": "--vulkan"},
             ],
         }
     )
@@ -657,7 +662,12 @@ def test_qml_links_gog_game_files_in_place(
             options = config.game_level["game"]
             assert options["exe"] == str(executable) and options["working_dir"] == str(executable.parent)
             assert options.get("args") == ("--windowed" if use_manifest else None)
-            prefix = existing_prefix if use_manifest else tmp_path / "data" / "prefixes" / f"gog-{store_appid}"
+            assert options.get("launch_configs", []) == (
+                [{"name": "Vulkan", "exe": str(executable), "working_dir": str(executable.parent), "args": "--vulkan"}]
+                if use_manifest
+                else []
+            )
+            prefix = existing_prefix if use_manifest else tmp_path / "prefixes" / slugify(row["name"])
             assert options["prefix"] == str(prefix) and prefix.parent.is_dir()
             assert await game_actions.get_installation_directory(game_id) == str(folder)
             maintenance = await game_maintenance.get_maintenance_info(game_id)

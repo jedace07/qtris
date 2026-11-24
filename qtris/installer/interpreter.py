@@ -15,6 +15,7 @@ from qtris.installer.commands import CommandsMixin
 from qtris.installer.errors import MissingGameDependencyError, ScriptingError
 from qtris.installer.installer import QtrisInstaller
 from qtris.runners import NonInstallableRunnerError, RunnerInstallationError, steam
+from qtris.runners.wine import wine
 from qtris.util import system
 from qtris.util.display import get_display_manager
 from qtris.util.jobs import AsyncCall
@@ -22,6 +23,7 @@ from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import unpack_dependencies
 from qtris.util.wine.launchers import reserve_launcher_prefix
+from qtris.util.wine.wine import remove_empty_prefix
 
 # Fired with the ScriptInterpreter once the runners its script needs are installed
 RUNNERS_INSTALLED = NotificationSource()
@@ -63,6 +65,7 @@ class ScriptInterpreter(CommandsMixin):
         super().__init__()
         self.target_path = None
         self.launcher_setup = ""
+        self.automatic_wine_prefix = ""
         self.interpreter_ui_delegate = interpreter_ui_delegate or ScriptInterpreter.InterpreterUIDelegate()
         self.service = self.interpreter_ui_delegate.service
         _appid = self.interpreter_ui_delegate.appid
@@ -361,11 +364,34 @@ class ScriptInterpreter(CommandsMixin):
                     AsyncCall(run_command, self._iter_commands)
             else:
                 logger.debug("Commands %d out of %s completed", self.current_command, len(commands))
-                self._finish_install()
+                if self.automatic_wine_prefix and self.installer.runner == "wine":
+                    self.interpreter_ui_delegate.report_status(_("Setting up the Proton prefix…"))
+                    AsyncCall(self._initialize_wine_prefix, self._complete_install)
+                else:
+                    self._finish_install()
         except Exception as ex:
             # Redirect errors to the delegate, instead of the default ErrorDialog.
             logger.exception("Error during installation: %s", ex)
             self.interpreter_ui_delegate.report_error(ex)
+
+    def _initialize_wine_prefix(self) -> None:
+        if self.cancelled:
+            return
+        prefix = self.automatic_wine_prefix
+        runner = wine(prefix=prefix)
+        version = runner.get_installer_runner_version(self.installer, use_default=True)
+        runner.initialize_prefix(prefix, version=version or "")
+
+    def _complete_install(self, _result: None, error: Exception | None) -> None:
+        if self.cancelled:
+            return
+        try:
+            if error:
+                raise error
+            self._finish_install()
+        except Exception as error:
+            logger.exception("Could not finish installation of %s", self.installer.game_name)
+            self.interpreter_ui_delegate.report_error(error)
 
     @staticmethod
     def _get_command_name_and_params(command_data):
@@ -390,6 +416,8 @@ class ScriptInterpreter(CommandsMixin):
 
     def _finish_install(self):
         game_id, game_config = self.installer.save()
+        if self.installer.runner == "wine":
+            self.automatic_wine_prefix = ""
 
         # Mark cached files as successfully installed so cleanup can remove them
         self._update_cache_locks_state("installed")
@@ -431,6 +459,9 @@ class ScriptInterpreter(CommandsMixin):
         from qtris.util.download_cache import safe_delete_folder
 
         safe_delete_folder(self.cache_path)
+
+        if self.automatic_wine_prefix:
+            remove_empty_prefix(self.automatic_wine_prefix)
 
     def _update_cache_locks_state(self, state_name: str) -> None:
         """Update cache lock state for all files in the cache directory.

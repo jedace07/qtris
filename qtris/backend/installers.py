@@ -37,7 +37,13 @@ from qtris.util import flatpak
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 from qtris.util.wine.launchers import LAUNCHER_SETUPS
-from qtris.util.wine.wine import GE_PROTON_LATEST, get_prefix_root, prepare_wine_prefix
+from qtris.util.wine.wine import (
+    GE_PROTON_LATEST,
+    available_prefix_path,
+    get_prefix_root,
+    prepare_wine_prefix,
+    reserve_game_prefix,
+)
 
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
@@ -342,7 +348,7 @@ def _build_interpreter(
     if origin.launcher_setup:
         interpreter.launcher_setup = origin.launcher_setup
     if origin.launcher_setup or origin.windows_setup:
-        interpreter.target_path = str(get_prefix_root() / installer.game_slug)
+        interpreter.target_path = str(available_prefix_path(get_prefix_root(), installer.game_name))
     if origin.service and origin.service.local:
         interpreter.target_path = origin.service.get_game_directory(script)
     if wine_prefix:
@@ -358,8 +364,8 @@ def _build_interpreter(
         and script.get("use_default_prefix")
         and _can_choose_wine_prefix(interpreter, origin.kind)
     ):
-        name = slugify(f"{installer.game_slug}-{origin.appid or ''}")
-        installer.wine_prefix = prepare_wine_prefix(str(get_prefix_root() / origin.service.id / name))
+        installer.wine_prefix = reserve_game_prefix(get_prefix_root(), installer.game_name)
+        interpreter.automatic_wine_prefix = installer.wine_prefix
     return interpreter
 
 

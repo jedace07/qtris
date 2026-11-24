@@ -20,9 +20,12 @@ class LaunchChoice:
     remember: bool
 
 
-def configuration_names(configs: list["LaunchConfigDict"]) -> tuple[str, ...]:
+def configuration_names(configs: list["LaunchConfigDict"], primary_name: str = "") -> tuple[str, ...]:
     """Return the primary configuration label followed by the named alternatives."""
-    return (_("Primary configuration"), *(str(config.get("name") or _("Unnamed configuration")) for config in configs))
+    return (
+        primary_name or _("Default"),
+        *(str(config.get("name") or _("Unnamed configuration")) for config in configs),
+    )
 
 
 def preferred_index(configs: list["LaunchConfigDict"], name: str | None, index: int | None) -> int | None:
@@ -53,14 +56,16 @@ class BackendLaunchUIDelegate(LaunchUIDelegate):
         if not config:
             return {}
         options = config.game_level.get("game", {})
-        configs: list["LaunchConfigDict"] = options.get("launch_configs") or []
+        primary_name, configs = game.get_launch_options()
         if not configs:
             return {}
         index = preferred_index(
             configs, options.get("preferred_launch_config_name"), options.get("preferred_launch_config_index")
         )
         if index is None or self._choose_again:
-            choice = self.choose_launch_configuration(game_info_from(game), configuration_names(configs), index)
+            choice = self.choose_launch_configuration(
+                game_info_from(game), configuration_names(configs, primary_name), index
+            )
             if choice is None:
                 return None
             index = choice.index
