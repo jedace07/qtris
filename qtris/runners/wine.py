@@ -101,18 +101,6 @@ def _get_version_warning(_option_key: str, config: QtrisConfig) -> str | None:
     return None
 
 
-def _get_prefix_warning(_option_key: str, config: QtrisConfig) -> str | None:
-    game_config = config.game_config
-    if game_config.get("prefix"):
-        return None
-
-    exe = game_config.get("exe")
-    if exe and find_prefix(exe):
-        return None
-
-    return _("<b>Warning</b> Some Wine configuration options cannot be applied, if no prefix can be found.")
-
-
 def _get_exe_warning(_option_key: str, config: QtrisConfig) -> str | None:
     exe = config.game_config.get("exe") or ""
     stripped_exe = exe.strip()
@@ -183,7 +171,6 @@ class wine(Runner):
             "option": "prefix",
             "type": "directory",
             "label": _("Wine prefix"),
-            "warning": _get_prefix_warning,
             "help": _(
                 "The prefix used by Wine.\n"
                 "It's a directory containing a set of files and "

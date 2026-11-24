@@ -152,6 +152,58 @@ def test_linux_runtime_can_override_runner_default(game_id: str) -> None:
     asyncio.run(run())
 
 
+def test_choosing_the_inherited_value_stops_overriding_it(game_id: str, config_dir: Path) -> None:
+    key = "steam_linux_runtime"
+
+    async def run() -> None:
+        runner = await configuration.open_runner_config("linux")
+        default = str(find(runner, "runner", key).default)
+        other = next(choice.value for choice in find(runner, "runner", key).choices if choice.value != default)
+        runner = await configuration.set_option(runner.id, "runner", key, other)
+        assert find(runner, "runner", key).set_here
+        runner = await configuration.set_option(runner.id, "runner", key, default)
+        option = find(runner, "runner", key)
+        assert option.value == default and not option.set_here
+        await configuration.save_config(runner.id)
+        await configuration.close_config(runner.id)
+        saved = read_yaml_from_file(str(config_dir / "runners" / "linux.yml"))
+        assert key not in (saved.get("linux") or {})
+
+        # Values saved before this rule show no reset either when they match
+        write_yaml_to_file({"linux": {key: default}}, str(config_dir / "runners" / "linux.yml"))
+        runner = await configuration.open_runner_config("linux")
+        assert not find(runner, "runner", key).set_here
+        await configuration.close_config(runner.id)
+
+        write_yaml_to_file({"linux": {key: other}}, str(config_dir / "runners" / "linux.yml"))
+        game = await configuration.open_game_config(game_id)
+        game = await configuration.set_option(game.id, "runner", key, default)
+        assert find(game, "runner", key).set_here
+        game = await configuration.set_option(game.id, "runner", key, other)
+        assert not find(game, "runner", key).set_here
+        await configuration.close_config(game.id)
+
+    asyncio.run(run())
+
+
+def test_reset_all_keeps_the_games_own_options(game_id: str) -> None:
+    async def run() -> None:
+        form = await configuration.open_game_config(game_id)
+        form = await configuration.set_option(form.id, "game", "args", "--windowed")
+        assert form.overrides == 0
+        form = await configuration.set_option(form.id, "system", "disable_screen_saver", False)
+        form = await configuration.set_option(form.id, "system", "env", {"DXVK_HUD": "1"})
+        assert form.overrides == 2
+
+        form = await configuration.reset_all_options(form.id)
+        assert form.overrides == 0
+        assert not find(form, "system", "env").set_here
+        assert find(form, "game", "args").value == "--windowed" and find(form, "game", "exe").set_here
+        await configuration.close_config(form.id)
+
+    asyncio.run(run())
+
+
 def test_values_are_checked_against_the_option_type(game_id: str) -> None:
     async def run() -> None:
         form = await configuration.open_game_config(game_id)
@@ -327,10 +379,14 @@ def test_new_windows_games_initialize_separate_title_prefixes(
             form = await configuration.open_new_game_config()
             try:
                 form = await configuration.set_game_runner(form.id, "wine")
-                await configuration.set_game_details(
+                prefix = find(form, "game", "prefix")
+                assert str(prefix_root) in prefix.placeholder and not prefix.warning
+                form = await configuration.set_game_details(
                     form.id,
                     GameDetails(name="My Windows Game", sortname="", slug="", runner="wine", year="", playtime=""),
                 )
+                expected = prefix_root / ("my-windows-game" if not created else "my-windows-game-2")
+                assert find(form, "game", "prefix").placeholder == str(expected)
                 assert all(option.key != "working_dir" for page in form.pages for option in page.options)
                 await configuration.set_option(form.id, "game", "exe", "/games/windows/Game.exe")
                 created.append(await configuration.save_config(form.id))

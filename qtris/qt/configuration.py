@@ -73,6 +73,10 @@ class ConfigController(QObject):
     def modified(self) -> bool:
         return self._modified
 
+    @Property(int, notify=stateChanged)
+    def overrides(self) -> int:
+        return self._form.overrides if self._form else 0
+
     @Property(str, notify=stateChanged)
     def title(self) -> str:
         return self._form.title if self._form else self._title
@@ -264,6 +268,12 @@ class ConfigController(QObject):
         if self._form:
             self._modified = True
             self._run(configuration.reset_option(self._form.id, section, key))
+
+    @Slot()
+    def reset_all(self) -> None:
+        if self._form and not self._busy:
+            self._modified = True
+            self._run(configuration.reset_all_options(self._form.id))
 
     @Slot(QUrl, result=str)
     def local_path(self, url: QUrl) -> str:

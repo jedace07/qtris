@@ -429,6 +429,10 @@ def _check_script(catalog_id: str, choice_id: str, script: _Script, origin: _Ori
         )
     installer = interpreter.installer
     runners = interpreter.get_runners_to_install()
+    can_choose_wine_prefix = _can_choose_wine_prefix(interpreter, origin.kind)
+    default_wine_prefix = ""
+    if can_choose_wine_prefix and origin.service and script.get("use_default_prefix"):
+        default_wine_prefix = str(available_prefix_path(get_prefix_root(), installer.game_name))
     return InstallerSelection(
         catalog_id=catalog_id,
         choice_id=choice_id,
@@ -438,5 +442,6 @@ def _check_script(catalog_id: str, choice_id: str, script: _Script, origin: _Ori
         default_directory=interpreter.target_path or "",
         runners_to_install=tuple(runner.human_name for runner in runners),
         offers_extras=bool(origin.kind == InstallationKind.INSTALL and origin.service and origin.service.has_extras),
-        can_choose_wine_prefix=_can_choose_wine_prefix(interpreter, origin.kind),
+        can_choose_wine_prefix=can_choose_wine_prefix,
+        default_wine_prefix=default_wine_prefix,
     )

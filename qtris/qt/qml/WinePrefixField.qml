@@ -13,6 +13,8 @@ ColumnLayout {
     required property InstallerController controller
     property alias text: path.text
     property string label: qsTr("Wine prefix (optional)")
+    // The prefix used when the field is left empty; empty when the installer decides
+    property string defaultPath: ""
 
     spacing: 8
 
@@ -33,7 +35,7 @@ ColumnLayout {
         TextField {
             id: path
             Layout.fillWidth: true
-            placeholderText: qsTr("Use the default prefix")
+            placeholderText: field.defaultPath || qsTr("Use the installer's prefix")
             Accessible.name: field.label
         }
 

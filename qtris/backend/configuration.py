@@ -43,6 +43,7 @@ from qtris.runners.wine import wine
 from qtris.util.log import logger
 from qtris.util.strings import get_formatted_playtime, parse_playtime, slugify
 from qtris.util.wine.wine import (
+    available_prefix_path,
     clear_wine_version_cache,
     get_prefix_root,
     prepare_wine_prefix,
@@ -134,6 +135,23 @@ class _Form:
     def _in_scope(self, option: Option) -> bool:
         return "scope" not in option or self.level in option["scope"]
 
+    def inherited(self, section: str) -> dict[str, Any]:
+        """Return the section's values as they would be if this level set none of them."""
+        raw = self.raw(section)
+        saved = dict(raw)
+        raw.clear()
+        try:
+            self.config.update_cascaded_config()
+            return dict(self.cascaded(section))
+        finally:
+            raw.update(saved)
+            self.config.update_cascaded_config()
+
+    @property
+    def resettable_sections(self) -> list[str]:
+        """Sections whose options can all be reset; a game's own options describe the game."""
+        return [section for section in self.sections if not (self.level == "game" and section == "game")]
+
     # Evaluation
 
     def evaluate(self, value: Any, key: str) -> Any:
@@ -175,6 +193,7 @@ class _Form:
     # Building the form
 
     def form(self) -> ConfigForm:
+        pages = tuple(self.page(section) for section in self.sections)
         details = self.details
         if details:
             preferred = self.config.game_level.get("game", {}).get("preferred_launch_config_name")
@@ -185,7 +204,10 @@ class _Form:
             id=self.id,
             level=self.level,
             title=self.title,
-            pages=tuple(self.page(section) for section in self.sections),
+            pages=pages,
+            overrides=sum(
+                option.set_here for page in pages if page.section in self.resettable_sections for option in page.options
+            ),
             show_advanced=settings.read_setting(_SHOW_ADVANCED_SETTING) == "True",
             game=details,
             runner_choices=_runner_choices(details.runner if details else "") if self.level == "game" else (),
@@ -202,11 +224,12 @@ class _Form:
             description = ""
         options: list[ConfigOptionInfo] = []
         all_options = {option["option"]: option for option in self.options(section)}
+        inherited = self.inherited(section)
         for option in all_options.values():
             if not self._in_scope(option):
                 continue
             try:
-                info = self.option_info(section, option, all_options)
+                info = self.option_info(section, option, all_options, inherited)
             except Exception as error:
                 logger.exception("Failed to evaluate option '%s': %s", option.get("option"), error)
                 continue
@@ -216,7 +239,9 @@ class _Form:
             section=section, title=_SECTION_TITLES[section], description=description, options=tuple(options)
         )
 
-    def option_info(self, section: str, option: Option, all_options: dict[str, Option]) -> ConfigOptionInfo | None:
+    def option_info(
+        self, section: str, option: Option, all_options: dict[str, Option], inherited: dict[str, Any]
+    ) -> ConfigOptionInfo | None:
         if not self.flag(option, "available"):
             return None
         key = option["option"]
@@ -278,11 +303,22 @@ class _Form:
             advanced=bool(option.get("advanced")),
             visible=self.flag(option, "visible"),
             enabled=enabled,
-            set_here=key in self.raw(section),
+            set_here=key in self.raw(section) and not _same_value(option, self.raw(section)[key], inherited.get(key)),
             changed_below=key not in self.raw(section) and cascaded_value != default,
             warning=warning,
             error=error,
+            placeholder=self.placeholder(section, key),
         )
+
+    def placeholder(self, section: str, key: str) -> str:
+        """Describe what an empty option stands for, such as the prefix a new game gets."""
+        if (section, key) != ("game", "prefix") or self.game_id or self.config.runner_slug != "wine":
+            return ""
+        root = get_prefix_root(self.config.system_config)
+        name = self.details.name.strip() if self.details else ""
+        if not name:
+            return _("A new prefix in %s") % root
+        return str(available_prefix_path(root, name))
 
     def choices(self, option: Option, default: Any) -> tuple[tuple[ConfigChoice, ...], str]:
         evaluated = self.attribute(option, "choices", [])
@@ -308,7 +344,20 @@ class _Form:
 
     def set(self, section: str, key: str, value: Any) -> None:
         option = self.find(section, key)
-        self.raw(section)[key] = _checked_value(option, value)
+        value = _checked_value(option, value)
+        # Choosing what the level below gives stops overriding it, so it follows later changes there
+        if _same_value(option, value, self.inherited(section).get(key)):
+            self.raw(section).pop(key, None)
+        else:
+            self.raw(section)[key] = value
+        self.config.update_cascaded_config()
+
+    def reset_all(self) -> None:
+        for section in self.resettable_sections:
+            raw = self.raw(section)
+            for option in self.options(section):
+                if self._in_scope(option):
+                    raw.pop(option["option"], None)
         self.config.update_cascaded_config()
 
     def reset(self, section: str, key: str) -> None:
@@ -439,6 +488,16 @@ def _plain_value(value: object) -> object:
     if isinstance(value, (list, tuple)):
         return [_plain_value(item) for item in value]
     return str(value)
+
+
+def _same_value(option: Option, value: Any, inherited: Any) -> bool:
+    """Whether an option's value is the one it would have without being set."""
+    if inherited is None:
+        inherited = {"bool": False, "multiple_file": [], "mapping": {}}.get(option["type"], "")
+    try:
+        return _checked_value(option, value) == _checked_value(option, inherited)
+    except QtrisError:
+        return False
 
 
 def _checked_value(option: Option, value: Any) -> Any:
@@ -603,6 +662,11 @@ async def set_option(form_id: str, section: str, key: str, value: Any) -> Config
 async def reset_option(form_id: str, section: str, key: str) -> ConfigForm:
     """Stop setting an option at the form's level, so it comes from the level below."""
     return await _change(form_id, lambda form: form.reset(section, key))
+
+
+async def reset_all_options(form_id: str) -> ConfigForm:
+    """Stop setting every option the form's level can reset, keeping a game's own options."""
+    return await _change(form_id, lambda form: form.reset_all())
 
 
 async def reset_preferred_launch(form_id: str) -> ConfigForm:

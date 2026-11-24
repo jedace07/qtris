@@ -640,6 +640,10 @@ def test_qml_links_gog_game_files_in_place(
             folder_field.setProperty("text", str(folder))
             prefix_field = window.window.findChild(QObject, "existingWinePrefix")
             assert prefix_field is not None and prefix_field.property("visible")
+            prefix_root = str(tmp_path / "prefixes") + "/"
+            await wait_for_qml(
+                qt_application, lambda: str(prefix_field.property("defaultPath")).startswith(prefix_root)
+            )
             if use_manifest:
                 assert prefix_field.setProperty("text", str(existing_prefix))
             if not use_manifest:

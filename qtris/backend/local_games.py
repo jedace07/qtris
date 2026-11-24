@@ -23,7 +23,13 @@ from qtris.runners.wine import wine
 from qtris.util.gog import find_gog_launch_config
 from qtris.util.log import logger
 from qtris.util.strings import slugify
-from qtris.util.wine.wine import get_prefix_root, prepare_wine_prefix, remove_empty_prefix, reserve_game_prefix
+from qtris.util.wine.wine import (
+    available_prefix_path,
+    get_prefix_root,
+    prepare_wine_prefix,
+    remove_empty_prefix,
+    reserve_game_prefix,
+)
 from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
@@ -46,6 +52,11 @@ async def register_linux_game(executable: str, name: str, arguments: str = "", *
         return game
 
     return await game_maintenance._run_maintenance(game_id, register)
+
+
+async def get_default_prefix(game_name: str) -> str:
+    """Return the prefix a Windows game linked under this name would get."""
+    return str(await asyncio.to_thread(available_prefix_path, get_prefix_root(), game_name))
 
 
 async def register_gog_game(

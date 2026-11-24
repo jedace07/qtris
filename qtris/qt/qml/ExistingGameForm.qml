@@ -19,13 +19,13 @@ ColumnLayout {
         folder.forceActiveFocus()
 
     function submit() {
-        controller.import_existing(folder.text, executable.text, prefix.visible ? prefix.text : "")
+        controller.import_existing(folder.text, executable.text, prefix.visible ? prefix.text : "");
     }
 
     function clear() {
-        folder.clear()
-        executable.clear()
-        prefix.text = ""
+        folder.clear();
+        executable.clear();
+        prefix.text = "";
     }
 
     NativeDialogs.FolderDialog {
@@ -92,8 +92,8 @@ ColumnLayout {
             enabled: folder.text.trim().length > 0
             Accessible.name: qsTr("Browse for game executable")
             onClicked: {
-                executablePicker.currentFolder = form.controller.folder_url(folder.text.trim())
-                executablePicker.open()
+                executablePicker.currentFolder = form.controller.folder_url(folder.text.trim());
+                executablePicker.open();
             }
         }
     }
@@ -104,6 +104,7 @@ ColumnLayout {
         Layout.fillWidth: true
         controller: form.controller
         label: qsTr("Wine prefix (Windows games)")
+        defaultPath: form.controller.existingWinePrefix
         visible: executable.text.trim().length === 0 || executable.text.trim().toLowerCase().endsWith(".exe")
     }
 

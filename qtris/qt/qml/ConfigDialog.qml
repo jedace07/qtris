@@ -22,7 +22,9 @@ Dialog {
 
     Connections {
         target: dialog.controller
-        function onCloseRequested() { dialog.close() }
+        function onCloseRequested() {
+            dialog.close();
+        }
     }
 
     contentItem: ColumnLayout {
@@ -52,7 +54,9 @@ Dialog {
                 }
             }
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             TextField {
                 id: search
@@ -168,6 +172,19 @@ Dialog {
     }
 
     footer: DialogButtonBox {
+        Button {
+            objectName: "configResetAll"
+            text: qsTr("Reset to Defaults")
+            icon.source: Theme.icon("refresh")
+            visible: dialog.controller.overrides > 1
+            enabled: dialog.controller.ready && !dialog.controller.busy
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            ToolTip.text: dialog.controller.isGame ? qsTr("Stop changing the platform and system options for this game. The game's own options stay as they are.") : qsTr("Stop changing every option set here.")
+            DialogButtonBox.buttonRole: DialogButtonBox.ResetRole
+            onClicked: dialog.controller.reset_all()
+        }
+
         Button {
             text: qsTr("Cancel")
             enabled: !dialog.controller.busy

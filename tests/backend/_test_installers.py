@@ -378,6 +378,7 @@ def test_generated_windows_store_installer_saves_the_default_prefix(
         try:
             selection = await installers.select_installer(catalog.id, "0")
             assert selection.can_choose_wine_prefix and not prefix_root.exists()
+            assert selection.default_wine_prefix == str(prefix_root / "game")
             interpreter, _ = await installers.build_interpreter(
                 catalog.id, "0", ScriptInterpreter.InterpreterUIDelegate()
             )

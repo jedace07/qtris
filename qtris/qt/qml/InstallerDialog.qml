@@ -27,12 +27,12 @@ Dialog {
     Connections {
         target: dialog.controller
         function onCloseRequested() {
-            dialog.close()
+            dialog.close();
         }
         function onRequested() {
-            dialog.usingExisting = false
-            existingForm.clear()
-            installPrefix.text = ""
+            dialog.usingExisting = false;
+            existingForm.clear();
+            installPrefix.text = "";
         }
     }
 
@@ -164,6 +164,7 @@ Dialog {
                     objectName: "installationWinePrefix"
                     Layout.fillWidth: true
                     controller: dialog.controller
+                    defaultPath: dialog.controller.defaultWinePrefix
                     visible: dialog.controller.canChooseWinePrefix
                 }
 
@@ -307,8 +308,8 @@ Dialog {
                 text: qsTr("Launch")
                 visible: dialog.installation.stage === "finished" && dialog.installation.installedGameId.length > 0
                 onClicked: {
-                    dialog.installation.launch()
-                    dialog.close()
+                    dialog.installation.launch();
+                    dialog.close();
                 }
             }
         }

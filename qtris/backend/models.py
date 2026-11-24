@@ -159,6 +159,8 @@ class InstallerSelection:
     required_game_slug: str | None = None
     offers_extras: bool = False
     can_choose_wine_prefix: bool = False
+    # The prefix Qtris creates for the game when the user chooses none; empty if the script decides
+    default_wine_prefix: str = ""
 
 
 @dataclass(frozen=True)
@@ -265,6 +267,8 @@ class ConfigOptionInfo:
     changed_below: bool
     warning: str
     error: str
+    # What an empty value stands for, shown in its place
+    placeholder: str = ""
 
 
 @dataclass(frozen=True)
@@ -305,6 +309,8 @@ class ConfigForm:
     title: str
     pages: tuple[ConfigPage, ...]
     show_advanced: bool
+    # How many options this level sets that resetting everything would clear
+    overrides: int = 0
     # For a game: its details, and the runners it can use
     game: GameDetails | None = None
     runner_choices: tuple[ConfigChoice, ...] = ()

@@ -34,6 +34,7 @@ class OptionRole(IntEnum):
     CHANGED_BELOW = SECTION + 13
     WARNING = SECTION + 14
     ERROR = SECTION + 15
+    PLACEHOLDER = SECTION + 16
 
 
 _ROLES = {
@@ -53,6 +54,7 @@ _ROLES = {
     OptionRole.CHANGED_BELOW: b"changedBelow",
     OptionRole.WARNING: b"warning",
     OptionRole.ERROR: b"error",
+    OptionRole.PLACEHOLDER: b"placeholder",
 }
 
 
@@ -130,4 +132,6 @@ class ConfigOptionModel(QAbstractListModel):
                 return option.warning
             case OptionRole.ERROR:
                 return option.error
+            case OptionRole.PLACEHOLDER:
+                return option.placeholder
         return None

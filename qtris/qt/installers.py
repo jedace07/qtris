@@ -52,6 +52,7 @@ class InstallerController(QObject):
         self._gog_target: tuple[str, str] | None = None
         self._importing = False
         self._import_error = ""
+        self._existing_prefix = ""
         self.installation_controller = InstallationController(prompts, self)
 
     @Property(InstallationController, constant=True)
@@ -132,6 +133,14 @@ class InstallerController(QObject):
         return bool(self._selection and self._selection.can_choose_wine_prefix)
 
     @Property(str, notify=stateChanged)
+    def defaultWinePrefix(self) -> str:  # noqa: N802
+        return self._selection.default_wine_prefix if self._selection else ""
+
+    @Property(str, notify=existingStateChanged)
+    def existingWinePrefix(self) -> str:  # noqa: N802
+        return self._existing_prefix
+
+    @Property(str, notify=stateChanged)
     def title(self) -> str:
         if self._kind == InstallationKind.UPDATE:
             return _("Update or repair %s") % self.gameName
@@ -160,6 +169,7 @@ class InstallerController(QObject):
         if service == "gog" and appid and kind == InstallationKind.INSTALL:
             self._gog_target = (appid, game_id)
             self.existingStateChanged.emit()
+            start_task(self._load_existing_prefix(game_name), self._prompts.error)
         request = partial(installers.find_store_installers, service, appid, game_id, kind)
         self._start(partial(self._load, request))
         self.requested.emit()
@@ -213,6 +223,12 @@ class InstallerController(QObject):
     @Slot(str, result=QUrl)
     def folder_url(self, directory: str) -> QUrl:
         return QUrl.fromLocalFile(directory)
+
+    async def _load_existing_prefix(self, game_name: str) -> None:
+        prefix = await local_games.get_default_prefix(game_name)
+        if self._gog_target is not None and self._game_name == game_name and prefix != self._existing_prefix:
+            self._existing_prefix = prefix
+            self.existingStateChanged.emit()
 
     @Slot(str, str, str)
     def import_existing(self, directory: str, executable: str, wine_prefix: str) -> None:
@@ -290,6 +306,7 @@ class InstallerController(QObject):
         self._kind = InstallationKind.INSTALL
         self._gog_target = None
         self._import_error = ""
+        self._existing_prefix = ""
         self.existingStateChanged.emit()
         self.stateChanged.emit()
 

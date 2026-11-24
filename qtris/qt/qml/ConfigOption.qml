@@ -27,6 +27,7 @@ ItemDelegate {
     required property bool changedBelow
     required property string warning
     required property string error
+    required property string placeholder
 
     objectName: "configOption_" + optionKey
     hoverEnabled: true
@@ -39,18 +40,18 @@ ItemDelegate {
     }
 
     function commit(value: var): void {
-        controller.set_value(optionSection, optionKey, value)
+        controller.set_value(optionSection, optionKey, value);
     }
 
     ToolTip.visible: hovered && ToolTip.text.length > 0
     ToolTip.delay: 600
     ToolTip.text: {
-        let text = optionHelp
+        let text = optionHelp;
         if (defaultLabel.length > 0)
-            text += (text.length > 0 ? "\n\n" : "") + qsTr("Default: %1").arg(defaultLabel)
+            text += (text.length > 0 ? "\n\n" : "") + qsTr("Default: %1").arg(defaultLabel);
         if (changedBelow)
-            text += (text.length > 0 ? "\n\n" : "") + qsTr("A lower configuration level changes this option.")
-        return text
+            text += (text.length > 0 ? "\n\n" : "") + qsTr("A lower configuration level changes this option.");
+        return text;
     }
 
     contentItem: ColumnLayout {
@@ -94,17 +95,27 @@ ItemDelegate {
                 visible: option.optionType !== "label"
                 sourceComponent: {
                     switch (option.optionType) {
-                    case "bool": return boolEditor
-                    case "range": return rangeEditor
-                    case "choice": return choiceEditor
+                    case "bool":
+                        return boolEditor;
+                    case "range":
+                        return rangeEditor;
+                    case "choice":
+                        return choiceEditor;
                     case "choice_with_entry":
-                    case "choice_with_search": return editableChoiceEditor
-                    case "file": return fileEditor
-                    case "directory": return directoryEditor
-                    case "multiple_file": return filesEditor
-                    case "mapping": return mappingEditor
-                    case "label": return null
-                    default: return textEditor
+                    case "choice_with_search":
+                        return editableChoiceEditor;
+                    case "file":
+                        return fileEditor;
+                    case "directory":
+                        return directoryEditor;
+                    case "multiple_file":
+                        return filesEditor;
+                    case "mapping":
+                        return mappingEditor;
+                    case "label":
+                        return null;
+                    default:
+                        return textEditor;
                     }
                 }
             }
@@ -136,9 +147,11 @@ ItemDelegate {
 
         TextField {
             text: String(option.optionValue ?? "")
+            placeholderText: option.placeholder
             selectByMouse: true
             Accessible.name: option.optionLabel
-            onEditingFinished: if (text !== String(option.optionValue ?? "")) option.commit(text)
+            onEditingFinished: if (text !== String(option.optionValue ?? ""))
+                option.commit(text)
         }
     }
 
@@ -188,11 +201,14 @@ ItemDelegate {
             Accessible.name: option.optionLabel
             onModelChanged: currentIndex = indexOfValue(option.optionValue)
             Component.onCompleted: currentIndex = indexOfValue(option.optionValue)
-            onActivated: if (currentValue !== option.optionValue) option.commit(currentValue)
+            onActivated: if (currentValue !== option.optionValue)
+                option.commit(currentValue)
 
             Connections {
                 target: option
-                function onOptionValueChanged() { choice.currentIndex = choice.indexOfValue(option.optionValue) }
+                function onOptionValueChanged() {
+                    choice.currentIndex = choice.indexOfValue(option.optionValue);
+                }
             }
         }
     }
@@ -208,16 +224,17 @@ ItemDelegate {
             valueRole: "value"
             Accessible.name: option.optionLabel
             Component.onCompleted: {
-                currentIndex = indexOfValue(option.optionValue)
+                currentIndex = indexOfValue(option.optionValue);
                 if (currentIndex < 0)
-                    editText = String(option.optionValue ?? "")
+                    editText = String(option.optionValue ?? "");
             }
-            onActivated: if (currentValue !== option.optionValue) option.commit(currentValue)
+            onActivated: if (currentValue !== option.optionValue)
+                option.commit(currentValue)
             onAccepted: {
-                const index = find(editText)
-                const value = index >= 0 ? valueAt(index) : editText
+                const index = find(editText);
+                const value = index >= 0 ? valueAt(index) : editText;
                 if (value !== option.optionValue)
-                    option.commit(value)
+                    option.commit(value);
             }
         }
     }
@@ -230,9 +247,11 @@ ItemDelegate {
                 id: path
                 Layout.fillWidth: true
                 text: String(option.optionValue ?? "")
+                placeholderText: option.placeholder
                 selectByMouse: true
                 Accessible.name: option.optionLabel
-                onEditingFinished: if (text !== String(option.optionValue ?? "")) option.commit(text)
+                onEditingFinished: if (text !== String(option.optionValue ?? ""))
+                    option.commit(text)
             }
 
             Button {
@@ -257,9 +276,11 @@ ItemDelegate {
             TextField {
                 Layout.fillWidth: true
                 text: String(option.optionValue ?? "")
+                placeholderText: option.placeholder
                 selectByMouse: true
                 Accessible.name: option.optionLabel
-                onEditingFinished: if (text !== String(option.optionValue ?? "")) option.commit(text)
+                onEditingFinished: if (text !== String(option.optionValue ?? ""))
+                    option.commit(text)
             }
 
             Button {
@@ -303,9 +324,9 @@ ItemDelegate {
                         icon.source: Theme.icon("close")
                         Accessible.name: qsTr("Remove %1").arg(fileRow.modelData)
                         onClicked: {
-                            const files = Array.from(option.optionValue)
-                            files.splice(fileRow.index, 1)
-                            option.commit(files)
+                            const files = Array.from(option.optionValue);
+                            files.splice(fileRow.index, 1);
+                            option.commit(files);
                         }
                     }
                 }
@@ -332,10 +353,13 @@ ItemDelegate {
         ColumnLayout {
             id: mapping
 
-            property var rows: Array.from(option.optionValue).map(row => ({ name: row.name, value: row.value }))
+            property var rows: Array.from(option.optionValue).map(row => ({
+                        name: row.name,
+                        value: row.value
+                    }))
 
             function commitRows(): void {
-                option.controller.set_mapping(option.optionSection, option.optionKey, rows)
+                option.controller.set_mapping(option.optionSection, option.optionKey, rows);
             }
 
             Repeater {
@@ -354,8 +378,8 @@ ItemDelegate {
                         placeholderText: qsTr("Name")
                         Accessible.name: qsTr("Variable name")
                         onEditingFinished: if (text !== mapping.rows[mappingRow.index].name) {
-                            mapping.rows[mappingRow.index].name = text
-                            mapping.commitRows()
+                            mapping.rows[mappingRow.index].name = text;
+                            mapping.commitRows();
                         }
                     }
 
@@ -365,8 +389,8 @@ ItemDelegate {
                         placeholderText: qsTr("Value")
                         Accessible.name: qsTr("Variable value")
                         onEditingFinished: if (text !== mapping.rows[mappingRow.index].value) {
-                            mapping.rows[mappingRow.index].value = text
-                            mapping.commitRows()
+                            mapping.rows[mappingRow.index].value = text;
+                            mapping.commitRows();
                         }
                     }
 
@@ -374,8 +398,8 @@ ItemDelegate {
                         icon.source: Theme.icon("close")
                         Accessible.name: qsTr("Remove")
                         onClicked: {
-                            mapping.rows.splice(mappingRow.index, 1)
-                            mapping.commitRows()
+                            mapping.rows.splice(mappingRow.index, 1);
+                            mapping.commitRows();
                         }
                     }
                 }
@@ -385,7 +409,12 @@ ItemDelegate {
                 text: qsTr("Add")
                 icon.source: Theme.icon("plus")
                 // A row without a name isn't saved, so it only lives here until it gets one
-                onClicked: mapping.rows = mapping.rows.concat([{ name: "", value: "" }])
+                onClicked: mapping.rows = mapping.rows.concat([
+                    {
+                        name: "",
+                        value: ""
+                    }
+                ])
             }
         }
     }
