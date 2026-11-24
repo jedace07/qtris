@@ -41,16 +41,6 @@ def get_gpus() -> dict[str, "GPU"]:
     return _gpus
 
 
-def preload_gpus(async_ops: bool = True) -> None:
-    """Kick off GPU detection in a background thread so it's
-    likely ready by the time the user opens system configuration.
-    When async_ops is False, runs synchronously on the calling thread."""
-    if async_ops:
-        threading.Thread(target=get_gpus, daemon=True).start()
-    else:
-        get_gpus()
-
-
 GpuInfoDict: TypeAlias = dict[str, str]
 
 

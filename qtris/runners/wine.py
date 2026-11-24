@@ -875,6 +875,8 @@ class wine(Runner):
         create_prefix(prefix, wine_path=wine_path, arch=self.wine_arch, runner=self)
 
     def prelaunch(self):
+        # Queried here, off the main thread, since play() and get_env() need it
+        LINUX_SYSTEM.is_vulkan_supported()
         prefix_path = self.prefix_path
         if prefix_path:
             if (exe := self.game_config.get("exe")) and os.path.isabs(exe):
@@ -986,6 +988,7 @@ class wine(Runner):
         # Proton brings its own DXVK and VKD3D, which need Vulkan; without it, WineD3D
         has_vulkan = LINUX_SYSTEM.is_vulkan_supported()
         if not has_vulkan:
+            logger.warning("Vulkan is not available or your system isn't Vulkan capable; Proton will use WineD3D")
             env["PROTON_USE_WINED3D"] = "1"
 
         if "PROTON_DXVK_D3D8" not in env:
@@ -997,6 +1000,10 @@ class wine(Runner):
             if (lib_api_version and lib_api_version < vkquery.REQUIRED_VULKAN_API_VERSION) or (
                 devices and devices[0].api_version < vkquery.REQUIRED_VULKAN_API_VERSION
             ):
+                logger.warning(
+                    "Vulkan %s is required for the latest DXVK; Proton will use DXVK-Sarek",
+                    vkquery.format_version(vkquery.REQUIRED_VULKAN_API_VERSION),
+                )
                 env["PROTON_DXVK_SAREK"] = "1"
 
         if self.runner_config.get("Graphics") == "wayland" and is_winewayland_available(wine_config_version):

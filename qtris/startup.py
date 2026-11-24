@@ -12,9 +12,6 @@ from qtris.database.schema import syncdb
 from qtris.game import Game
 from qtris.services import DEFAULT_SERVICES
 from qtris.services.steam import update_steam_platforms
-from qtris.util.graphics import vkquery
-from qtris.util.graphics.gpu import preload_gpus
-from qtris.util.graphics.vkquery import REQUIRED_VULKAN_API_VERSION
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.system import create_folder
@@ -84,33 +81,6 @@ def check_libs(all_components=False):
         logger.exception("Library check failed")
 
 
-def check_vulkan():
-    """Reports if Vulkan is enabled on the system"""
-    if os.environ.get("QTRIS_NO_VKQUERY"):
-        return
-    if not vkquery.is_vulkan_supported():
-        logger.warning("Vulkan is not available or your system isn't Vulkan capable")
-    else:
-        required_api_version = REQUIRED_VULKAN_API_VERSION
-        library_api_version = vkquery.get_vulkan_api_version()
-        if library_api_version and library_api_version < required_api_version:
-            logger.warning(
-                "Vulkan reports an API version of %s. %s is required for the latest DXVK.",
-                vkquery.format_version(library_api_version),
-                vkquery.format_version(required_api_version),
-            )
-
-        devices = vkquery.get_device_info()
-
-        if devices and devices[0].api_version < required_api_version:
-            logger.warning(
-                "Vulkan reports that the '%s' device has API version of %s. %s is required for the latest DXVK.",
-                devices[0].name,
-                vkquery.format_version(devices[0].api_version),
-                vkquery.format_version(required_api_version),
-            )
-
-
 def fill_missing_platforms():
     """Sets the platform on games where it's missing.
     This should never happen.
@@ -130,13 +100,14 @@ def run_all_checks(async_ops: bool = True) -> None:
     """Run all startup checks. When async_ops is True, expensive checks like
     check_libs run on a background thread to avoid blocking the UI. When False,
     everything runs synchronously on the calling thread so that log output
-    stays predictable (useful for CLI paths with no main loop)."""
-    preload_gpus(async_ops=async_ops)
+    stays predictable (useful for CLI paths with no main loop).
+
+    GPU and Vulkan detection isn't done here: it costs a vulkaninfo run and loads
+    every Vulkan driver into this process, so launches do it when they need it."""
     if async_ops:
         threading.Thread(target=check_libs, daemon=True).start()
     else:
         check_libs()
-    check_vulkan()
     fill_missing_platforms()
     update_steam_platforms()
 

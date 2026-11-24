@@ -35,6 +35,7 @@ from qtris.util.display import (
     is_display_x11,
 )
 from qtris.util.gog import find_gog_launch_config, get_gog_game_path
+from qtris.util.graphics.gpu import get_gpus
 from qtris.util.graphics.xrandr import turn_off_except
 from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
@@ -873,6 +874,8 @@ class Game:
             GAME_START.fire(self)
 
             def prepare() -> "StoreLaunch | None":
+                # Detected here, off the main thread, since configure_game() needs the GPUs
+                get_gpus()
                 self.runner.prelaunch()
                 return self.get_store_launch()
 
