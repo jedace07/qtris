@@ -116,15 +116,9 @@ jobs:
           path: build-flatpak/state
           key: flatpak-builder-action-${{ hashFiles('packaging/flatpak/**') }}-${{ github.sha }}
       - name: Upload the bundle
-        id: upload-bundle
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.BUNDLE }}
           path: ${{ env.BUNDLE }}
           archive: false
           if-no-files-found: error
-      - name: Link the bundle in the run summary
-        env:
-          ARTIFACT_URL: ${{ steps.upload-bundle.outputs.artifact-url }}
-        run: |
-          printf '### Flatpak bundle\n\n[Download %s](%s)\n' "$BUNDLE" "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"

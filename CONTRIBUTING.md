@@ -107,8 +107,8 @@ uv version --bump stable
 Flatpak bundles built by CI are named after the version. Prereleases also get
 the commit they were built from (`Qtris-v0.6.0b1+g1a2b3c4-x86_64.flatpak`), or
 `+local` when built elsewhere, so two builds of the same beta can be told apart.
-Open a successful **Flatpak** run in GitHub Actions to download its bundle from
-the run summary or the **Artifacts** section.
+Download the bundle from the **Artifacts** section of a successful **Flatpak**
+run in GitHub Actions.
 
 To release, bump the version, add a `<release>` entry to
 `packaging/desktop/share/metainfo/io.github.jedace07.Qtris.metainfo.xml`, push, then run the **Build
