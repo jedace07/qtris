@@ -723,6 +723,7 @@ class GOGService(OnlineService):
             "runner": runner,
             "gogid": db_game["appid"],
             "gog_platform_download": True,
+            "use_default_prefix": runner == "wine",
             "script": {
                 "game": game_config,
                 "installer": [

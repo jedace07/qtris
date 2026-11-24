@@ -68,24 +68,27 @@ def test_sources_can_be_turned_on_and_hidden_from_the_games_view(saved: dict[tup
     asyncio.run(run())
 
 
-def test_storage_paths_are_saved_where_qtris_reads_them(
-    saved: dict[tuple[str, str], str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_storage_paths_are_saved_where_qtris_reads_them(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "CONFIG_DIR", str(tmp_path))
 
     async def run() -> None:
         paths = await preferences.set_game_path(" /games ")
         assert paths.game_path == "/games"
-        paths = await preferences.set_installer_cache_path(str(tmp_path / "missing" / "cache"))
-        assert not paths.installer_cache_valid and paths.installer_cache_message
-        paths = await preferences.set_installer_cache_path(str(tmp_path / "cache"))
-        assert paths.installer_cache_valid and paths.installer_cache_path == str(tmp_path / "cache")
-        assert read_yaml_from_file(str(tmp_path / "system.yml"))["system"] == {"game_path": "/games"}
+        assert paths.prefix_path == str(Path.home() / "Games" / "Prefixes")
+        prefix = tmp_path / "Windows games"
+        paths = await preferences.set_prefix_path(f" {prefix} ")
+        assert paths.prefix_path == str(prefix) and paths.game_path == "/games"
+        assert read_yaml_from_file(str(tmp_path / "system.yml"))["system"] == {
+            "game_path": "/games",
+            "prefix_path": str(prefix),
+        }
+        with pytest.raises(QtrisError, match="absolute path"):
+            await preferences.set_prefix_path("relative")
+        assert (await preferences.set_prefix_path("")).prefix_path == str(Path.home() / "Games" / "Prefixes")
         paths = await preferences.set_game_path("")
         assert paths.game_path.endswith("Games")
 
     asyncio.run(run())
-    assert saved[("qtris", "pga_cache_path")] == str(tmp_path / "cache")
 
 
 def test_steam_accounts_and_system_info(saved: dict[tuple[str, str], str], monkeypatch: pytest.MonkeyPatch) -> None:

@@ -551,6 +551,7 @@ class ItchIoService(OnlineService):
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,
             "itchid": db_game["appid"],
+            "use_default_prefix": runner == "wine",
             "script": {
                 "files": [{"itchupload": "N/A:Select the installer from itch.io"}],
                 "game": game_config,

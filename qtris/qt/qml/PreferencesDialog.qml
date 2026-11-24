@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs as NativeDialogs
 import QtQuick.Layouts
 import QtrisBridge
 import QtrisStyle
@@ -14,8 +13,6 @@ Dialog {
     required property PreferencesController controller
     required property LibraryController library
 
-    readonly property RuntimeUpdatesController runtime: library.runtimeUpdates
-    readonly property var storage: controller.storage
     readonly property var pageList: [
         { title: qsTr("Stores"), icon: "store" },
         { title: qsTr("Storage"), icon: "storage" },
@@ -38,21 +35,6 @@ Dialog {
     bottomPadding: 0
     header: null
     footer: null
-
-    NativeDialogs.FolderDialog {
-        id: folderPicker
-
-        property string setting: ""
-
-        title: qsTr("Select folder")
-        onAccepted: {
-            const path = dialog.controller.local_path(selectedFolder)
-            if (setting === "game")
-                dialog.controller.set_game_path(path)
-            else
-                dialog.controller.set_cache_path(path)
-        }
-    }
 
     // A page's scrolling column, under the page's title
     component Page: ScrollView {
@@ -198,121 +180,16 @@ Dialog {
 
                 // Storage
                 Page {
-                    SettingsGroup {
-                        Repeater {
-                            model: [
-                                { setting: "game", title: qsTr("Game library"), path: dialog.storage.gamePath ?? "",
-                                  help: qsTr("The default folder where you install your games."),
-                                  message: "", error: false },
-                                { setting: "cache", title: qsTr("Installer cache"), path: dialog.storage.cachePath ?? "",
-                                  help: qsTr("If set, files downloaded during game installs are kept there. Otherwise they're discarded."),
-                                  message: dialog.storage.cacheMessage ?? "", error: !(dialog.storage.cacheValid ?? true) }
-                            ]
-
-                            SettingsRow {
-                                id: pathSetting
-
-                                required property var modelData
-
-                                title: modelData.title
-                                subtitle: modelData.help
-
-                                details: [
-                                    RowLayout {
-                                        Layout.fillWidth: true
-
-                                        TextField {
-                                            objectName: "storagePath_" + pathSetting.modelData.setting
-                                            Layout.fillWidth: true
-                                            text: pathSetting.modelData.path
-                                            placeholderText: qsTr("Not set")
-                                            Accessible.name: pathSetting.modelData.title
-                                            onEditingFinished: {
-                                                if (text === pathSetting.modelData.path)
-                                                    return
-                                                if (pathSetting.modelData.setting === "game")
-                                                    dialog.controller.set_game_path(text)
-                                                else
-                                                    dialog.controller.set_cache_path(text)
-                                            }
-                                        }
-
-                                        Button {
-                                            text: qsTr("Browse…")
-                                            icon.source: Theme.icon("folder")
-                                            Accessible.name: qsTr("Browse for the %1 folder").arg(pathSetting.modelData.title)
-                                            onClicked: {
-                                                folderPicker.setting = pathSetting.modelData.setting
-                                                folderPicker.open()
-                                            }
-                                        }
-                                    },
-                                    Label {
-                                        Layout.fillWidth: true
-                                        visible: text.length > 0
-                                        text: pathSetting.modelData.message
-                                        textFormat: Text.PlainText
-                                        wrapMode: Text.WordWrap
-                                        font.pointSize: Theme.smallSize
-                                        color: pathSetting.modelData.error ? Theme.danger : Theme.warning
-                                    }
-                                ]
-                            }
-                        }
+                    StoragePreferences {
+                        controller: dialog.controller
                     }
                 }
 
                 // Updates
                 Page {
-                    SettingsGroup {
-                        title: qsTr("Components")
-                        description: qsTr("Qtris downloads umu, Winetricks, the store clients (gogdl, legendary and Nile) and the other tools that games are installed and run with.")
-
-                        SettingsRow {
-                            title: qsTr("Update components automatically")
-
-                            Switch {
-                                objectName: "autoUpdateRuntime"
-                                checked: dialog.runtime.autoUpdate
-                                Accessible.name: qsTr("Update components automatically")
-                                onToggled: dialog.runtime.set_auto_update(checked)
-                            }
-                        }
-
-                        SettingsRow {
-                            title: qsTr("Check for updates")
-                            subtitle: dialog.runtime.statusText
-
-                            BusyIndicator {
-                                implicitWidth: 26
-                                implicitHeight: 26
-                                padding: 0
-                                visible: running
-                                running: dialog.runtime.running
-                            }
-
-                            Button {
-                                objectName: "checkRuntimeUpdates"
-                                text: qsTr("Check for Updates")
-                                icon.source: Theme.icon("refresh")
-                                enabled: !dialog.runtime.running
-                                onClicked: dialog.runtime.check()
-                            }
-                        }
-                    }
-
-                    SettingsGroup {
-                        title: qsTr("Artwork")
-
-                        SettingsRow {
-                            title: qsTr("Artwork sources")
-                            subtitle: qsTr("Choose where artwork comes from, such as SteamGridDB.")
-
-                            Button {
-                                text: qsTr("Artwork Sources…")
-                                onClicked: dialog.library.artworkSettings.open_settings()
-                            }
-                        }
+                    UpdatePreferences {
+                        runtime: dialog.library.runtimeUpdates
+                        library: dialog.library
                     }
                 }
 

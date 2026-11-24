@@ -224,6 +224,7 @@ class ZoomService(OnlineService):
             "game_slug": self.get_installed_slug(db_game),
             "runner": runner,
             "zoomid": db_game["appid"],
+            "use_default_prefix": runner == "wine",
             "script": {
                 "game": game_config,
                 "files": [{"zoominstaller": "N/A:Select the installer from Zoom"}],

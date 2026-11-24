@@ -1,5 +1,7 @@
 """Update game runtime components from their own release channels."""
 
+from __future__ import annotations
+
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -32,6 +34,25 @@ class Component:
     entry_point: str
     archive: bool = True
     executable: bool = True
+
+    @property
+    def directory(self) -> Path:
+        return Path(settings.RUNTIME_DIR) / self.name
+
+    @property
+    def version_file(self) -> Path:
+        return self.directory / ".upstream-version"
+
+    def installed_version(self) -> str | None:
+        if not (self.directory / self.entry_point).is_file():
+            return None
+        try:
+            return self.version_file.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return ""
+        except (OSError, UnicodeError) as error:
+            logger.warning("Could not read the installed version of %s: %s", self.name, error)
+            return ""
 
 
 def get_components(arch: str | None) -> list[Component]:
@@ -149,8 +170,8 @@ class RuntimeComponentUpdater(ComponentUpdater):
     def __init__(self, component: Component, build: UpstreamBuild) -> None:
         self.component = component
         self.build = build
-        self.destination = Path(settings.RUNTIME_DIR) / component.name
-        self.version_file = self.destination / ".upstream-version"
+        self.destination = component.directory
+        self.version_file = component.version_file
         self.downloader: SimpleDownloader | None = None
         self.progress = ProgressInfo(0, _("Updating %s") % component.name)
 
@@ -160,12 +181,7 @@ class RuntimeComponentUpdater(ComponentUpdater):
 
     @property
     def should_update(self) -> bool:
-        if not self.build.version or not (self.destination / self.component.entry_point).is_file():
-            return True
-        try:
-            return self.version_file.read_text(encoding="utf-8") != self.build.version
-        except FileNotFoundError:
-            return True
+        return not self.build.version or self.component.installed_version() != self.build.version
 
     def get_progress(self) -> ProgressInfo:
         if self.downloader is not None:
@@ -220,3 +236,5 @@ class RuntimeComponentUpdater(ComponentUpdater):
             staged_version = staged / ".upstream-version"
             staged_version.write_text(self.build.version, encoding="utf-8")
             staged_version.replace(self.version_file)
+        else:
+            self.version_file.unlink(missing_ok=True)

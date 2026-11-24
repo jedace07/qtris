@@ -1,11 +1,14 @@
 """Utilities for manipulating Wine"""
 
+from __future__ import annotations
+
 import os
 import re
 import signal
 from collections import OrderedDict
 from gettext import gettext as _
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from qtris.exceptions import MissingExecutableError, QtrisError, UnspecifiedVersionError
 from qtris.util import cache_single, system
@@ -13,12 +16,25 @@ from qtris.util.log import logger
 from qtris.util.process import Process
 from qtris.util.wine import proton, proton_releases
 
+if TYPE_CHECKING:
+    from qtris.config import SystemConfigDict
+
 # Proton only runs 64-bit prefixes
 WINE_DEFAULT_ARCH: str = "win64"
 # The configured versions that mean GE-Proton Latest, the default, and Proton-CachyOS
 # Latest, rolling builds Qtris keeps up to date
 GE_PROTON_LATEST: str = proton_releases.GE_PROTON_LATEST
 PROTON_CACHYOS_LATEST: str = proton_releases.PROTON_CACHYOS_LATEST
+PREFIX_ROOT_OPTION = "prefix_path"
+
+
+def get_prefix_root(system_config: SystemConfigDict | None = None) -> Path:
+    if system_config is None:
+        from qtris.config import QtrisConfig
+
+        system_config = QtrisConfig().system_config
+    configured = system_config.get(PREFIX_ROOT_OPTION)
+    return Path(configured or "~/Games/Prefixes").expanduser()
 
 
 def detect_arch(prefix_path: str | None = None, wine_path: str | None = None) -> str:

@@ -1,16 +1,18 @@
 """Application preferences: game sources, storage paths, the Steam account used for
 shortcuts, and information about the system for bug reports."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import os
-from collections.abc import Callable
 from gettext import gettext as _
 from pathlib import Path
+from threading import Lock
+from typing import TYPE_CHECKING
 
 from qtris import settings
 from qtris.backend.models import SourceSetting, SteamAccount, StoragePaths, SystemInfoSection
-from qtris.cache import get_custom_cache_path, save_custom_cache_path, validate_custom_cache_path
 from qtris.config import QtrisConfig
 from qtris.exceptions import MissingExecutableError, QtrisError
 from qtris.services import SERVICES
@@ -19,6 +21,10 @@ from qtris.util.linux import gather_system_info, gather_system_info_dict
 from qtris.util.log import get_log_contents
 from qtris.util.steam.config import STEAM_ACCOUNT_SETTING, get_steam_users
 from qtris.util.wine import proton
+from qtris.util.wine.wine import PREFIX_ROOT_OPTION, get_prefix_root
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 async def save_issue_report(filename: str, description: str) -> None:
@@ -70,26 +76,25 @@ async def set_source_in_games_view(source_id: str, shown: bool) -> None:
 
 # Storage
 
+_storage_lock = Lock()
+
 
 def _storage_paths() -> StoragePaths:
     system_config = QtrisConfig().system_config
-    cache_path = get_custom_cache_path() or ""
-    valid, message = validate_custom_cache_path(cache_path) if cache_path else (True, None)
     return StoragePaths(
         game_path=str(system_config.get("game_path") or os.path.expanduser("~/Games")),
-        installer_cache_path=cache_path,
-        installer_cache_message=message or "",
-        installer_cache_valid=valid,
+        prefix_path=str(get_prefix_root(system_config)),
     )
 
 
 def _save_system_option(key: str, value: str) -> None:
-    config = QtrisConfig()
-    if value:
-        config.raw_system_config[key] = value
-    else:
-        config.raw_system_config.pop(key, None)
-    config.save()
+    with _storage_lock:
+        config = QtrisConfig()
+        if value:
+            config.raw_system_config[key] = value
+        else:
+            config.raw_system_config.pop(key, None)
+        config.save()
 
 
 async def get_storage_paths() -> StoragePaths:
@@ -102,9 +107,11 @@ async def set_game_path(path: str) -> StoragePaths:
     return await get_storage_paths()
 
 
-async def set_installer_cache_path(path: str) -> StoragePaths:
-    """Keep installers' downloads in a folder, or discard them when given none."""
-    save_custom_cache_path(path.strip())
+async def set_prefix_path(path: str) -> StoragePaths:
+    path = os.path.expanduser(path.strip())
+    if path and not Path(path).is_absolute():
+        raise QtrisError(_("Enter an absolute path for the Windows prefixes folder."))
+    await asyncio.to_thread(_save_system_option, PREFIX_ROOT_OPTION, path)
     return await get_storage_paths()
 
 

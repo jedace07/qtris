@@ -20,6 +20,7 @@ from qtris.exceptions import QtrisError
 from qtris.game import GAME_UPDATED, Game
 from qtris.services.flathub import FlathubService
 from qtris.util import system, web_profiles
+from qtris.util.wine.wine import get_prefix_root
 from qtris.util.yaml import write_yaml_to_file
 
 if TYPE_CHECKING:
@@ -67,6 +68,7 @@ def _files_unavailable_reason(game: Game, directory: Path) -> str:
         or resolved.is_mount()
         or Path.home().resolve().is_relative_to(resolved)
         or (default_folder and Path(default_folder).expanduser().resolve().is_relative_to(resolved))
+        or get_prefix_root(config.system_config if config else None).resolve().is_relative_to(resolved)
         or not system.is_removeable(str(directory), {})
         or not system.is_removeable(str(resolved), {})
     ):

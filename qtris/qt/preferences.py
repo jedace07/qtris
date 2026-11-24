@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from gettext import gettext as _
 from typing import Any
 
@@ -127,9 +128,7 @@ class PreferencesController(QObject):
             return {}
         return {
             "gamePath": paths.game_path,
-            "cachePath": paths.installer_cache_path,
-            "cacheMessage": paths.installer_cache_message,
-            "cacheValid": paths.installer_cache_valid,
+            "prefixPath": paths.prefix_path,
         }
 
     @Property("QVariantList", notify=stateChanged)
@@ -174,13 +173,17 @@ class PreferencesController(QObject):
     def local_path(self, url: QUrl) -> str:
         return url.toLocalFile()
 
+    @Slot(str, result=QUrl)
+    def folder_url(self, path: str) -> QUrl:
+        return QUrl.fromLocalFile(os.path.expanduser(path))
+
     @Slot(str)
     def set_game_path(self, path: str) -> None:
         start_task(self._change_storage(preferences.set_game_path(path)), self._prompts.error)
 
     @Slot(str)
-    def set_cache_path(self, path: str) -> None:
-        start_task(self._change_storage(preferences.set_installer_cache_path(path)), self._prompts.error)
+    def set_prefix_path(self, path: str) -> None:
+        start_task(self._change_storage(preferences.set_prefix_path(path)), self._prompts.error)
 
     async def _change_storage(self, change: Any) -> None:
         self._storage = await change

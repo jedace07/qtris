@@ -6,6 +6,8 @@ choice's id. Selecting a choice checks what installing with it involves, and
 never runs the script.
 """
 
+from __future__ import annotations
+
 import asyncio
 import copy
 from collections import OrderedDict
@@ -35,7 +37,7 @@ from qtris.util import flatpak
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 from qtris.util.wine.launchers import LAUNCHER_SETUPS
-from qtris.util.wine.wine import GE_PROTON_LATEST, prepare_wine_prefix
+from qtris.util.wine.wine import GE_PROTON_LATEST, get_prefix_root, prepare_wine_prefix
 
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
@@ -61,6 +63,7 @@ class _Origin:
     kind: InstallationKind = InstallationKind.INSTALL
     launcher: games_db.DbGameDict | None = None
     launcher_setup: str = ""
+    windows_setup: bool = False
 
 
 @dataclass(frozen=True)
@@ -247,7 +250,8 @@ async def prepare_windows_setup(
                 "runner": "wine",
                 "script": plan,
             }
-        ]
+        ],
+        _Origin(windows_setup=True),
     )
 
 
@@ -334,11 +338,13 @@ def _build_interpreter(
     if origin.launcher_setup and SERVICES[origin.launcher_setup]().list_launchers():
         raise QtrisError(_("A launcher for this store is already registered."))
     interpreter = ScriptInterpreter(script, delegate)
+    installer = interpreter.installer
     if origin.launcher_setup:
         interpreter.launcher_setup = origin.launcher_setup
+    if origin.launcher_setup or origin.windows_setup:
+        interpreter.target_path = str(get_prefix_root() / installer.game_slug)
     if origin.service and origin.service.local:
         interpreter.target_path = origin.service.get_game_directory(script)
-    installer = interpreter.installer
     if wine_prefix:
         if not _can_choose_wine_prefix(interpreter, origin.kind):
             raise QtrisError(_("This installation cannot use a custom Wine prefix."))
@@ -346,6 +352,14 @@ def _build_interpreter(
     elif installer.runner == "wine" and delegate.installed_game:
         config = QtrisConfig(runner_slug="wine", game_config_id=delegate.installed_game["configpath"])
         installer.wine_prefix = config.game_config.get("prefix") or ""
+    elif (
+        resolve_download
+        and origin.service
+        and script.get("use_default_prefix")
+        and _can_choose_wine_prefix(interpreter, origin.kind)
+    ):
+        name = slugify(f"{installer.game_slug}-{origin.appid or ''}")
+        installer.wine_prefix = prepare_wine_prefix(str(get_prefix_root() / origin.service.id / name))
     return interpreter
 
 

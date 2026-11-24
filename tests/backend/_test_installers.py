@@ -279,18 +279,25 @@ def test_store_plan_uses_the_preferred_launcher_as_its_dependency(
 
 
 @pytest.mark.parametrize(("windows_version", "locale"), [("win10", ""), ("win7", "ja_JP.utf8")])
-def test_windows_setup_preserves_a_literal_executable_path(tmp_path: Path, windows_version: str, locale: str) -> None:
+def test_windows_setup_preserves_a_literal_executable_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, windows_version: str, locale: str
+) -> None:
     executable = tmp_path / "Setup $GAMEDIR.exe"
     executable.touch()
+    prefix_root = tmp_path / "prefixes"
+    monkeypatch.setattr(installers, "get_prefix_root", lambda: prefix_root)
 
     async def run() -> None:
         catalog = await installers.prepare_windows_setup("Test Game", str(executable), windows_version, locale)
         try:
+            selection = await installers.select_installer(catalog.id, "0")
+            assert selection.default_directory == str(prefix_root / "test-game")
             interpreter, _ = await installers.build_interpreter(
                 catalog.id, "0", ScriptInterpreter.InterpreterUIDelegate()
             )
             assert interpreter.installer.runner == "wine"
             assert interpreter.installer.creates_game_folder
+            assert interpreter.target_path == selection.default_directory and not prefix_root.exists()
             assert interpreter._substitute("$SETUP_EXE") == str(executable)
             tasks = [step["task"] for step in interpreter.installer.script["installer"]]
             assert tasks[-1] == {"name": "wineexec", "executable": "$SETUP_EXE", "arch": "win64"}
@@ -344,6 +351,34 @@ def test_windows_setup_uses_the_chosen_prefix_for_tasks_and_launch(
             assert task_arguments["prefix"] == str(prefix) and task_arguments["executable"] == str(setup)
             launch = interpreter.installer.get_game_config()["game"]
             assert launch["prefix"] == str(prefix) and launch["exe"] == str(game_exe)
+        finally:
+            await installers.close_catalog(catalog.id)
+
+    asyncio.run(run())
+
+
+def test_generated_windows_store_installer_saves_the_default_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    game = {"name": "Game", "appid": "8675309"}
+    source = gog.GOGService()
+    catalog = installers._catalog_from_scripts(
+        [source._generate_depot_installer("game", "wine", game)], installers._Origin(source, game["appid"])
+    )
+    prefix_root = tmp_path / "prefixes"
+    monkeypatch.setattr(installers, "get_prefix_root", lambda: prefix_root)
+    monkeypatch.setattr(gog.GOGService, "is_authenticated", lambda _self: True)
+    monkeypatch.setattr(gog.GOGService, "resolve_download_installer", lambda _self, script: script)
+
+    async def run() -> None:
+        try:
+            selection = await installers.select_installer(catalog.id, "0")
+            assert selection.can_choose_wine_prefix and not prefix_root.exists()
+            interpreter, _ = await installers.build_interpreter(
+                catalog.id, "0", ScriptInterpreter.InterpreterUIDelegate()
+            )
+            assert interpreter.target_path == selection.default_directory
+            assert interpreter.installer.get_game_config()["game"]["prefix"] == str(prefix_root / "gog/game-8675309")
         finally:
             await installers.close_catalog(catalog.id)
 

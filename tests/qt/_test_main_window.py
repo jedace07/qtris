@@ -842,6 +842,9 @@ def test_qml_preferences_change_sources_storage_and_check_the_runtime(
 ) -> None:
     sources = {"gog": SourceSetting("gog", "GOG", "", False, True)}
     game_paths: list[str] = []
+    prefix_paths: list[str] = []
+    auto_updates: list[bool] = []
+    checks: list[bool] = []
 
     async def list_sources() -> tuple[SourceSetting, ...]:
         return tuple(sources.values())
@@ -850,14 +853,31 @@ def test_qml_preferences_change_sources_storage_and_check_the_runtime(
         sources[source_id] = SourceSetting(source_id, "GOG", "", enabled, True)
 
     async def get_storage_paths() -> StoragePaths:
-        return StoragePaths(game_paths[-1] if game_paths else "/games", "", "", True)
+        return StoragePaths(
+            game_path=game_paths[-1] if game_paths else "/games",
+            prefix_path=prefix_paths[-1] if prefix_paths else "/prefixes",
+        )
 
     async def set_game_path(path: str) -> StoragePaths:
         game_paths.append(path)
         return await get_storage_paths()
 
+    async def set_prefix_path(path: str) -> StoragePaths:
+        prefix_paths.append(path)
+        return await get_storage_paths()
+
+    async def is_auto_update_enabled() -> bool:
+        return True
+
+    async def set_auto_update_enabled(enabled: bool) -> None:
+        auto_updates.append(enabled)
+
     async def update_runtime(force: bool = False) -> tuple[str, ...]:
-        return ("dxvk",) if force else ()
+        checks.append(force)
+        return ("umu",) if force else ()
+
+    async def list_installed_versions() -> tuple[tuple[str, str], ...]:
+        return (("umu", "1.2.3"),) if True in checks else ()
 
     async def nothing() -> tuple[()]:
         return ()
@@ -866,9 +886,13 @@ def test_qml_preferences_change_sources_storage_and_check_the_runtime(
     monkeypatch.setattr(preferences, "set_source_enabled", set_source_enabled)
     monkeypatch.setattr(preferences, "get_storage_paths", get_storage_paths)
     monkeypatch.setattr(preferences, "set_game_path", set_game_path)
+    monkeypatch.setattr(preferences, "set_prefix_path", set_prefix_path)
     monkeypatch.setattr(preferences, "list_steam_accounts", nothing)
     monkeypatch.setattr(preferences, "get_system_info", nothing)
     monkeypatch.setattr(runtime_updates, "update_runtime", update_runtime)
+    monkeypatch.setattr(runtime_updates, "is_auto_update_enabled", is_auto_update_enabled)
+    monkeypatch.setattr(runtime_updates, "set_auto_update_enabled", set_auto_update_enabled)
+    monkeypatch.setattr(runtime_updates, "list_installed_versions", list_installed_versions)
 
     async def run() -> None:
         window = MainWindow()
@@ -899,10 +923,37 @@ def test_qml_preferences_change_sources_storage_and_check_the_runtime(
             assert QMetaObject.invokeMethod(path, "editingFinished")
             await wait_for_qml(qt_application, lambda: prefs.property("storage")["gamePath"] == "/mnt/games")
 
+            prefix = find_item(content, "storagePath_prefix")
+            assert prefix is not None and prefix.property("text") == "/prefixes"
+            prefix.setProperty("text", "/mnt/prefixes")
+            assert QMetaObject.invokeMethod(prefix, "editingFinished")
+            await wait_for_qml(qt_application, lambda: prefs.property("storage")["prefixPath"] == "/mnt/prefixes")
+            assert find_item(content, "storagePath_cache") is None
+
+            automatic = window.window.findChild(QObject, "autoUpdateRuntime")
+            assert automatic is not None and automatic.property("checked")
+            automatic.setProperty("checked", False)
+            assert QMetaObject.invokeMethod(automatic, "toggled")
+            await wait_for_qml(qt_application, lambda: auto_updates == [False])
+            automatic.setProperty("checked", True)
+            assert QMetaObject.invokeMethod(automatic, "toggled")
+            await wait_for_qml(qt_application, lambda: auto_updates == [False, True] and checks == [False])
+
+            runtime = window.controller.runtime_updates_controller
+            await wait_for_qml(qt_application, lambda: not runtime.property("running"))
+            assert runtime._timer.isActive() and QMetaObject.invokeMethod(runtime._timer, "timeout")
+            await wait_for_qml(qt_application, lambda: checks == [False, False] and not runtime.property("running"))
             check = window.window.findChild(QObject, "checkRuntimeUpdates")
             assert check is not None and QMetaObject.invokeMethod(check, "clicked")
-            runtime = window.controller.runtime_updates_controller
-            await wait_for_qml(qt_application, lambda: runtime.property("statusText") == "Updated dxvk.")
+            assert runtime.property("running")
+            await wait_for_qml(qt_application, lambda: runtime.property("statusText") == "Updated umu.")
+            await wait_for_qml(
+                qt_application, lambda: runtime.property("versions") == [{"name": "umu", "version": "1.2.3"}]
+            )
+            versions = window.window.findChild(QObject, "showRuntimeVersions")
+            assert versions is not None and versions.property("text") == "Show versions"
+            versions.setProperty("checked", True)
+            assert versions.property("text") == "Hide versions"
         finally:
             window.shutdown()
 

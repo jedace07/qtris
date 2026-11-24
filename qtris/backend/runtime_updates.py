@@ -1,18 +1,27 @@
 """Update the components Qtris runs games with: umu, gogdl, Winetricks and the
 rest. Progress is announced with RUNTIME_UPDATE_CHANGED."""
 
+from __future__ import annotations
+
 import asyncio
 import html
 import re
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from qtris import settings
 from qtris.backend.models import RuntimeComponentProgress, RuntimeUpdateStatus
 from qtris.exceptions import QtrisError
-from qtris.runtime import ComponentUpdater, RuntimeUpdater
+from qtris.runtime import CHECK_INTERVAL as CHECK_INTERVAL
+from qtris.runtime import RuntimeUpdater, get_components
+from qtris.util.linux import LINUX_SYSTEM
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.wine.wine import clear_wine_version_cache
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from qtris.runtime import ComponentUpdater
 
 # Fired with a RuntimeUpdateStatus while an update runs, and once when it ends
 RUNTIME_UPDATE_CHANGED = NotificationSource()
@@ -52,6 +61,18 @@ async def is_auto_update_enabled() -> bool:
 
 async def set_auto_update_enabled(enabled: bool) -> None:
     settings.write_setting(AUTO_UPDATE_SETTING, enabled)
+
+
+async def list_installed_versions() -> tuple[tuple[str, str], ...]:
+    def read() -> tuple[tuple[str, str], ...]:
+        versions = [
+            (component.name, version)
+            for component in get_components(LINUX_SYSTEM.arch)
+            if (version := component.installed_version()) is not None
+        ]
+        return tuple(sorted(versions, key=lambda item: item[0].casefold()))
+
+    return await asyncio.to_thread(read)
 
 
 async def update_runtime(force: bool = False) -> tuple[str, ...]:

@@ -193,6 +193,7 @@ class EpicGamesStoreService(OnlineService):
             "game_slug": self.get_installed_slug(db_game),
             "runner": self.runner,
             "appid": db_game["appid"],
+            "use_default_prefix": True,
             "script": {
                 "game": {"prefix": "$GAMEDIR/pfx"},
                 "installer": [{"legendary_setup": {"app_name": db_game["appid"]}}],

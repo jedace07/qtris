@@ -374,10 +374,7 @@ class SourceSetting:
 @dataclass(frozen=True)
 class StoragePaths:
     game_path: str
-    # Empty when downloads aren't kept
-    installer_cache_path: str
-    installer_cache_message: str
-    installer_cache_valid: bool
+    prefix_path: str
 
 
 @dataclass(frozen=True)

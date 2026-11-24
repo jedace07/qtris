@@ -3,16 +3,20 @@
 import asyncio
 import re
 import threading
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from qtris import settings
 from qtris.backend import runtime_updates
 from qtris.backend.models import RuntimeUpdateStatus
 from qtris.runtime import ComponentUpdater, get_components
 from qtris.sysoptions import system_options
 from qtris.util.progress_info import ProgressInfo
 from qtris.util.upstream import ReleaseSource
+from qtris.util.wine import proton, proton_releases, rolling_proton
 from tests.conftest import FakeMainLoop
 
 
@@ -90,6 +94,42 @@ def test_nothing_to_update(monkeypatch: pytest.MonkeyPatch, fake_main_loop: Fake
     monkeypatch.setattr(runtime_updates, "RuntimeUpdater", UpToDate)
     assert asyncio.run(runtime_updates.update_runtime()) == ()
     fake_main_loop.run_pending()
+
+
+def test_versions_include_store_tools_and_omit_proton_and_missing_tools(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "RUNTIME_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setattr(settings, "PROTON_DIR", str(tmp_path / "proton"))
+    monkeypatch.setattr(runtime_updates, "LINUX_SYSTEM", SimpleNamespace(arch="x86_64"))
+    umu = tmp_path / "runtime" / "umu"
+    umu.mkdir(parents=True)
+    (umu / "umu-run").touch()
+    (umu / ".upstream-version").write_text("1.2.3\n", encoding="utf-8")
+    database = tmp_path / "runtime" / "umu-games"
+    database.mkdir()
+    (database / "umu-database.csv").touch()
+    winetricks = tmp_path / "runtime" / "winetricks"
+    winetricks.mkdir()
+    (winetricks / ".upstream-version").write_text("20261124", encoding="utf-8")
+    for client, version in (("gogdl", "v1.2.3"), ("legendary", "0.20.34"), ("nile", "v1.1.2")):
+        path = tmp_path / "runtime" / client
+        path.mkdir()
+        (path / client).touch()
+        (path / ".upstream-version").write_text(version, encoding="utf-8")
+    rolling = proton_releases.ROLLING[0]
+    proton_path = Path(proton.get_rolling_path(rolling))
+    proton_path.mkdir(parents=True)
+    (proton_path / "proton").touch()
+    (proton_path / rolling_proton.METADATA_FILE).write_text('{"release": "GE-Proton11-7"}', encoding="utf-8")
+
+    assert dict(asyncio.run(runtime_updates.list_installed_versions())) == {
+        "gogdl": "v1.2.3",
+        "legendary": "0.20.34",
+        "nile": "v1.1.2",
+        "umu": "1.2.3",
+        "umu-games": "",
+    }
 
 
 def test_runtime_components_come_from_individual_upstreams() -> None:

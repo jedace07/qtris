@@ -125,6 +125,7 @@ class AmazonService(OnlineService):
             "game_slug": slugify(title),
             "runner": self.runner,
             "appid": db_game["appid"],
+            "use_default_prefix": True,
             "script": {
                 "game": {"prefix": "$GAMEDIR/pfx"},
                 "installer": [{"nile_setup": {"game_id": db_game["appid"]}}],
