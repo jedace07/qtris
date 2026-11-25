@@ -1,5 +1,4 @@
-"""Proton builds Qtris downloads from their upstream GitHub releases: GE-Proton and
-Proton-CachyOS.
+"""Proton builds Qtris downloads from their upstream GitHub releases.
 
 A release is stored in configurations under its release name, such as
 'GE-Proton11-12' or 'proton-cachyos-11.0-20261015-slr'. Its builds unpack into
@@ -91,7 +90,25 @@ PROTON_CACHYOS = ProtonFamily(
     arch_suffixes={"x86_64": ("-x86_64_v3", "-x86_64"), "aarch64": ("-arm64",)},
 )
 
-FAMILIES: tuple[ProtonFamily, ...] = (GE_PROTON, PROTON_CACHYOS)
+_WINELAND_RELEASE = re.compile(r"proton-(?:cachyos-)?wineland-(\d+(?:\.\d+)*-\d+(?:\.\d+)*)(?:-slr)?")
+
+
+def _get_wineland_label(release: str) -> str:
+    match = _WINELAND_RELEASE.fullmatch(release)
+    return "Proton Wineland " + match.group(1) if match else release
+
+
+PROTON_WINELAND = ProtonFamily(
+    name="Proton Wineland",
+    repository="nanomatters/proton-salkim",
+    release_pattern=_WINELAND_RELEASE,
+    get_tag=lambda release: release.removeprefix("proton-"),
+    get_release=lambda tag: "proton-" + tag,
+    get_label=_get_wineland_label,
+    arch_suffixes={"x86_64": ("-x86_64_v3", "-x86_64")},
+)
+
+FAMILIES: tuple[ProtonFamily, ...] = (GE_PROTON, PROTON_CACHYOS, PROTON_WINELAND)
 
 
 @dataclass(frozen=True)
@@ -105,13 +122,15 @@ class RollingProton:
     folder: str
 
 
-# The configured versions that mean GE-Proton Latest, the default, and Proton-CachyOS Latest
+# The configured versions of rolling builds, with GE-Proton Latest as the default
 GE_PROTON_LATEST = "ge-proton"
 PROTON_CACHYOS_LATEST = "proton-cachyos-latest"
+PROTON_WINELAND_LATEST = "proton-wineland-latest"
 
 ROLLING: tuple[RollingProton, ...] = (
     RollingProton(GE_PROTON_LATEST, "GE-Proton Latest", GE_PROTON, "GE-Proton Latest"),
     RollingProton(PROTON_CACHYOS_LATEST, "Proton-CachyOS Latest", PROTON_CACHYOS, "Proton-CachyOS Latest"),
+    RollingProton(PROTON_WINELAND_LATEST, "Proton Wineland Latest", PROTON_WINELAND, "Proton Wineland Latest"),
 )
 
 
@@ -137,7 +156,7 @@ def get_family_by_name(name: str) -> ProtonFamily:
 
 
 def is_proton_release(version: str | None) -> bool:
-    """Check whether a version names a specific GE-Proton or Proton-CachyOS release."""
+    """Check whether a version names a specific release from a managed Proton family."""
     return get_family(version) is not None
 
 
@@ -150,8 +169,7 @@ def get_release_label(release: str) -> str:
 
 
 def get_release_of_build(build_name: str) -> str | None:
-    """Return the release an installed build for this architecture belongs to, or None
-    if the folder holds no GE-Proton or Proton-CachyOS build this machine can run."""
+    """Return the release an installed build for this architecture belongs to."""
     for family in FAMILIES:
         for suffix in family.get_folder_suffixes():
             if (not suffix or build_name.endswith(suffix)) and family.is_release(
@@ -234,8 +252,7 @@ def get_proton_checksum(checksum_url: str) -> str:
 
 @cache
 def _supports_x86_64_v3() -> bool:
-    """Check whether the CPU supports the x86-64-v3 level, which Proton-CachyOS has
-    optimized builds for."""
+    """Check whether the CPU supports the x86-64-v3 microarchitecture level."""
     try:
         cpus = LINUX_SYSTEM.get_cpus()
     except OSError as ex:
@@ -246,4 +263,4 @@ def _supports_x86_64_v3() -> bool:
 
 
 def get_family_names() -> tuple[str, ...]:
-    return tuple(family.name for family in FAMILIES)
+    return tuple(family.name for family in FAMILIES if LINUX_SYSTEM.arch in family.arch_suffixes)

@@ -1,12 +1,16 @@
-"""GE-Proton and Proton-CachyOS releases downloaded from GitHub."""
+"""Proton releases downloaded from GitHub."""
+
+from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
 
 from qtris.util.wine import proton_releases
-from qtris.util.wine.proton_releases import GE_PROTON, PROTON_CACHYOS
+from qtris.util.wine.proton_releases import GE_PROTON, PROTON_CACHYOS, PROTON_WINELAND
 
 CACHYOS = "proton-cachyos-11.0-20261015-slr"
+WINELAND = "proton-wineland-11.0-20261124"
+LEGACY_WINELAND = "proton-cachyos-wineland-11.0-20260713.5-slr"
 
 
 def make_release(*names, tag=""):
@@ -22,6 +26,8 @@ class TestReleaseNames(unittest.TestCase):
         self.assertIs(proton_releases.get_family("GE-Proton9-26"), GE_PROTON)
         self.assertIs(proton_releases.get_family(CACHYOS), PROTON_CACHYOS)
         self.assertIs(proton_releases.get_family("proton-cachyos-9.0-20250126"), PROTON_CACHYOS)
+        self.assertIs(proton_releases.get_family(WINELAND), PROTON_WINELAND)
+        self.assertIs(proton_releases.get_family(LEGACY_WINELAND), PROTON_WINELAND)
 
     def test_sentinel_and_other_versions_are_not_releases(self):
         for version in ("ge-proton", "wine-ge-8-26-x86_64", "Proton 11.0", "UMU-Proton-11.0-2e", "", None):
@@ -31,11 +37,16 @@ class TestReleaseNames(unittest.TestCase):
     def test_labels(self):
         self.assertEqual(proton_releases.get_release_label("GE-Proton11-7"), "GE-Proton11-7")
         self.assertEqual(proton_releases.get_release_label(CACHYOS), "Proton-CachyOS 11.0-20261015")
+        self.assertEqual(proton_releases.get_release_label(WINELAND), "Proton Wineland 11.0-20261124")
         self.assertEqual(proton_releases.get_release_label("Proton 11.0"), "Proton 11.0")
 
     def test_cachyos_tags(self):
         self.assertEqual(PROTON_CACHYOS.get_tag(CACHYOS), "cachyos-11.0-20261015-slr")
         self.assertEqual(PROTON_CACHYOS.get_release("cachyos-11.0-20261015-slr"), CACHYOS)
+
+    @patch.object(proton_releases.LINUX_SYSTEM, "arch", "aarch64")
+    def test_wineland_is_not_offered_on_arm64(self) -> None:
+        self.assertEqual(proton_releases.get_family_names(), (GE_PROTON.name, PROTON_CACHYOS.name))
 
     def test_releases_sort_by_family_then_newest_first(self):
         releases = {"GE-Proton10-9", "proton-cachyos-10.0-20250714-slr", CACHYOS, "GE-Proton11-12", "GE-Proton10-25"}
@@ -53,6 +64,8 @@ class TestInstalledBuilds(unittest.TestCase):
             ("GE-Proton10-25", "GE-Proton10-25"),
             (CACHYOS + "-x86_64", CACHYOS),
             (CACHYOS + "-x86_64_v3", CACHYOS),
+            (WINELAND + "-x86_64_v3", WINELAND),
+            (LEGACY_WINELAND + "-x86_64", LEGACY_WINELAND),
         ):
             with self.subTest(build=build):
                 self.assertEqual(proton_releases.get_release_of_build(build), release)
@@ -116,6 +129,28 @@ class TestReleaseUrls(unittest.TestCase):
     def test_cachyos_falls_back_to_the_baseline_build(self, _v3):
         urls, _api_url = self.get_urls(CACHYOS, self.cachyos_release())
         self.assertEqual(urls, (f"https://dl/{CACHYOS}-x86_64.tar.xz", f"https://dl/{CACHYOS}-x86_64.sha512sum"))
+
+    def test_wineland_uses_the_compatible_checked_build(self) -> None:
+        data = make_release(
+            *(
+                f"{WINELAND}-{arch}.{ext}"
+                for arch in ("x86_64", "x86_64_v3", "x86_64_wow64")
+                for ext in ("tar.xz", "sha512sum")
+            )
+        )
+        for supports_v3, arch in ((True, "x86_64_v3"), (False, "x86_64")):
+            with (
+                self.subTest(arch=arch),
+                patch.object(proton_releases, "_supports_x86_64_v3", return_value=supports_v3),
+            ):
+                urls, api_url = self.get_urls(WINELAND, data)
+                self.assertEqual(
+                    urls, (f"https://dl/{WINELAND}-{arch}.tar.xz", f"https://dl/{WINELAND}-{arch}.sha512sum")
+                )
+                self.assertEqual(
+                    api_url,
+                    "https://api.github.com/repos/nanomatters/proton-salkim/releases/tags/wineland-11.0-20261124",
+                )
 
     @patch.object(proton_releases, "_supports_x86_64_v3", return_value=False)
     def test_release_list_skips_prereleases_and_builds_for_other_machines(self, _v3):

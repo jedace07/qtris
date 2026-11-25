@@ -20,7 +20,8 @@ from qtris.database.services import ServiceGameCollection
 from qtris.exceptions import QtrisError
 from qtris.runners.linux import linux
 from qtris.runners.wine import wine
-from qtris.util.gog import find_gog_launch_config
+from qtris.util.game_finder import find_windows_game_executable
+from qtris.util.gog import find_gog_config_dir, find_gog_launch_config
 from qtris.util.log import logger
 from qtris.util.strings import slugify
 from qtris.util.wine.wine import (
@@ -59,13 +60,11 @@ async def get_default_prefix(game_name: str) -> str:
     return str(await asyncio.to_thread(available_prefix_path, get_prefix_root(), game_name))
 
 
-async def register_gog_game(
-    appid: str, directory: str, executable: str = "", *, game_id: str = "", wine_prefix: str = ""
-) -> GameInfo:
+async def register_gog_game(appid: str, directory: str, *, game_id: str = "", wine_prefix: str = "") -> GameInfo:
     """Link a GOG library entry to an existing game folder."""
 
     async def register() -> GameInfo:
-        row = await asyncio.to_thread(_register_gog, appid, directory, executable, game_id, wine_prefix)
+        row = await asyncio.to_thread(_register_gog, appid, directory, game_id, wine_prefix)
         game = games.to_game_info(row)
         events.GAME_INSTALLED.fire(game)
         return game
@@ -73,7 +72,7 @@ async def register_gog_game(
     return await game_maintenance._run_maintenance(game_id, register)
 
 
-def _register_gog(appid: str, directory: str, executable: str, game_id: str, wine_prefix: str) -> games_db.DbGameDict:
+def _register_gog(appid: str, directory: str, game_id: str, wine_prefix: str) -> games_db.DbGameDict:
     if not appid.isascii() or not appid.isdecimal():
         raise QtrisError(_("This GOG game has an invalid product ID."))
     source = ServiceGameCollection.get_game("gog", appid)
@@ -84,14 +83,11 @@ def _register_gog(appid: str, directory: str, executable: str, game_id: str, win
     if not folder.is_absolute() or not folder.is_dir():
         raise QtrisError(_("Choose an existing game folder."))
     folder = folder.resolve()
-    if executable:
-        options: GameConfigDict = {"exe": str(Path(executable).expanduser())}
-    else:
-        options = _detect_gog_launch(folder, appid)
+    options = _detect_gog_launch(folder, appid)
 
     path = Path(options["exe"])
     if not path.is_absolute() or not path.resolve().is_relative_to(folder) or not path.is_file():
-        raise QtrisError(_("Choose a game executable inside the selected folder."))
+        raise QtrisError(_("The game executable could not be found inside the selected folder."))
     runner = "wine" if path.suffix.casefold() in {".exe", ".bat", ".lnk", ".msi"} else "linux"
     if runner == "linux":
         if wine_prefix:
@@ -146,13 +142,22 @@ def _register_gog(appid: str, directory: str, executable: str, game_id: str, win
 
 def _detect_gog_launch(folder: Path, appid: str) -> GameConfigDict:
     options = find_gog_launch_config(str(folder), appid)
-    start_script = folder / "start.sh"
+    config_dir = find_gog_config_dir(str(folder), appid)
+    if config_dir is None and find_gog_config_dir(str(folder)):
+        raise QtrisError(_("This folder contains a different GOG game. Choose this game's installation folder."))
+
+    launch_folder = folder
+    if config_dir and Path(config_dir) != folder and Path(config_dir).name == "game":
+        launch_folder = Path(config_dir).parent
+    start_script = launch_folder / "start.sh"
     if start_script.is_file() and os.access(start_script, os.X_OK):
         options.pop("args", None)
-        return {**options, "exe": str(start_script), "working_dir": str(folder)}
+        return {**options, "exe": str(start_script), "working_dir": str(launch_folder)}
     if options:
         return options
-    raise QtrisError(_("Could not detect this game in the chosen folder. Choose its executable below."))
+    if not config_dir and (executable := find_windows_game_executable(str(folder))):
+        return {"exe": executable}
+    raise QtrisError(_("Could not detect this game in the chosen folder. Choose the folder where it is installed."))
 
 
 def _check_executable(executable: str) -> str:

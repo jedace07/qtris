@@ -127,7 +127,6 @@ class ConfigController(QObject):
             "playtime": details.playtime,
             "directory": details.directory,
             "configPath": details.config_path,
-            "preferredLaunch": details.preferred_launch,
         }
 
     @Slot()
@@ -148,11 +147,27 @@ class ConfigController(QObject):
         if self._form and self._form.game and self._game_id:
             self.open_game(self._game_id, self._form.game.name)
 
-    @Slot()
-    def reset_preferred_launch(self) -> None:
-        if self._form and self._form.game:
+    @Property("QVariantList", notify=stateChanged)
+    def launchOptions(self) -> list[str]:  # noqa: N802
+        details = self._form.game if self._form else None
+        return [_("Ask when I play"), *details.launch_options] if details and details.launch_options else []
+
+    @Property(int, notify=stateChanged)
+    def launchOptionIndex(self) -> int:  # noqa: N802
+        details = self._form.game if self._form else None
+        return details.launch_option_index + 1 if details and details.launch_options else -1
+
+    @Slot(int)
+    def set_launch_option(self, index: int) -> None:
+        if (
+            self._form
+            and (details := self._form.game)
+            and details.launch_options
+            and 0 <= index <= len(details.launch_options)
+            and index != details.launch_option_index + 1
+        ):
             self._modified = True
-            self._run(configuration.reset_preferred_launch(self._form.id))
+            self._run(configuration.set_preferred_launch(self._form.id, index - 1 if index else None))
 
     @Property("QVariantList", notify=stateChanged)
     def runnerChoices(self) -> list[dict[str, str]]:  # noqa: N802

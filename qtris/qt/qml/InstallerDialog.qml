@@ -14,13 +14,14 @@ Dialog {
     required property InstallerController controller
     readonly property InstallationController installation: controller.installation
 
-    property bool usingExisting: false
+    property bool choosingExisting: false
+    readonly property bool usingExisting: controller.importOnly || choosingExisting
 
     parent: Overlay.overlay
     anchors.centerIn: parent
     width: Math.min(620, parent.width - 48)
     height: Math.min(parent.height - 32, installation.active ? 560 : Math.max(implicitHeaderHeight + implicitFooterHeight + topPadding + bottomPadding + spacing + (usingExisting ? existingForm.implicitHeight : installForm.implicitHeight), 220))
-    title: usingExisting ? qsTr("Locate %1").arg(controller.gameName) : controller.title
+    title: usingExisting ? qsTr("Import %1").arg(controller.gameName) : controller.title
     modal: true
     closePolicy: installation.running || controller.importing ? Popup.NoAutoClose : Popup.CloseOnEscape
 
@@ -30,7 +31,7 @@ Dialog {
             dialog.close();
         }
         function onRequested() {
-            dialog.usingExisting = false;
+            dialog.choosingExisting = false;
             existingForm.clear();
             installPrefix.text = "";
         }
@@ -252,17 +253,17 @@ Dialog {
             Button {
                 objectName: "installerBack"
                 text: qsTr("Back")
-                visible: dialog.usingExisting
+                visible: dialog.choosingExisting
                 enabled: !dialog.controller.importing
-                onClicked: dialog.usingExisting = false
+                onClicked: dialog.choosingExisting = false
             }
 
             Button {
                 objectName: "useExistingGame"
-                text: qsTr("Use Existing Files…")
+                text: qsTr("Import Game…")
                 icon.source: Theme.icon("folder")
                 visible: dialog.controller.canImportExisting && !dialog.usingExisting && !dialog.installation.active
-                onClicked: dialog.usingExisting = true
+                onClicked: dialog.choosingExisting = true
             }
 
             Item {
@@ -289,7 +290,7 @@ Dialog {
             Button {
                 objectName: "importExistingGame"
                 highlighted: true
-                text: qsTr("Link Game")
+                text: qsTr("Import")
                 visible: dialog.usingExisting
                 enabled: existingForm.ready
                 onClicked: existingForm.submit()

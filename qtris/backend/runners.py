@@ -181,6 +181,26 @@ async def list_proton_releases(family: str) -> tuple[str, ...]:
         return ()
 
 
+def get_proton_family_description(family: str) -> str:
+    if family == proton_releases.GE_PROTON.name:
+        return _(
+            "GE-Proton Latest follows the newest GE-Proton release, and is the default; Qtris updates it "
+            "with its other components. Install a specific release to pin games to it."
+        )
+    if family == proton_releases.PROTON_CACHYOS.name:
+        return _(
+            "Proton-CachyOS is tuned for performance, and Qtris installs the build optimized for x86-64-v3 "
+            "processors when yours supports it. Proton-CachyOS Latest follows the newest release; Qtris "
+            "updates it with its other components."
+        )
+    if family == proton_releases.PROTON_WINELAND.name:
+        return _(
+            "Proton Wineland includes native Wayland improvements. Proton Wineland Latest follows the newest "
+            "release, or you can install a specific version."
+        )
+    return ""
+
+
 async def get_latest_proton(family: str) -> LatestProton | None:
     """Return the build that follows a Proton family's newest release, if it has one."""
     return await asyncio.to_thread(_latest_proton, family)

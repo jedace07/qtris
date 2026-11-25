@@ -163,7 +163,8 @@ def get_installed_wine_versions() -> list[str]:
     """Return the Wine versions that can be chosen, in presentation order: the rolling
     builds, GE-Proton Latest first, which are installed when a game needs them, then the
     installed Proton builds."""
-    rolling = [rolling.version for rolling in proton_releases.ROLLING]
+    families = proton_releases.get_family_names()
+    rolling = [rolling.version for rolling in proton_releases.ROLLING if rolling.family.name in families]
     return [*rolling, *proton.list_proton_versions()]
 
 
@@ -175,7 +176,7 @@ def get_wine_version_label(version: str) -> str:
 
 def get_proton_version_or_default(version: str | None) -> str:
     """Return the Proton build a configured Wine version names, using the release name
-    for GE-Proton and Proton-CachyOS builds. Anything that isn't Proton, such as system Wine, an old Wine build
+    for managed Proton builds. Anything that isn't Proton, such as system Wine, an old Wine build
     or a custom executable, gives the default, GE-Proton Latest."""
     if not version:
         return GE_PROTON_LATEST

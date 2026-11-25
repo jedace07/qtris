@@ -82,6 +82,7 @@ class TestProtonOnly(TestCase):
         option_names = {option["option"] for option in runner.runner_options + runner.game_options}
         self.assertFalse(option_names & {"custom_wine_path", "arch", "Desktop", "WineDesktop"})
 
+    @patch.object(wine.proton.LINUX_SYSTEM, "arch", "x86_64")
     @patch.object(wine.proton, "get_proton_versions", return_value={"Proton 11.0": "/steam/Proton 11.0"})
     def test_version_choices_are_proton_builds(self, _versions):
         wine.get_installed_wine_versions.cache_clear()
@@ -91,6 +92,7 @@ class TestProtonOnly(TestCase):
             [
                 ("GE-Proton Latest", wine.GE_PROTON_LATEST),
                 ("Proton-CachyOS Latest", "proton-cachyos-latest"),
+                ("Proton Wineland Latest", "proton-wineland-latest"),
                 ("Proton 11.0", "Proton 11.0"),
             ],
         )

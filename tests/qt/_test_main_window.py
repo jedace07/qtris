@@ -45,6 +45,7 @@ from qtris.qt.main_window import MainWindow
 from qtris.runners.wine import wine
 from qtris.services.base import QtrisBanner, QtrisCoverart
 from qtris.services.gog import GOGService
+from qtris.util import game_finder
 from qtris.util.strings import slugify
 from qtris.util.test_config import setup_test_environment
 from qtris.util.web_profiles import profile_directory
@@ -591,6 +592,11 @@ def test_qml_links_gog_game_files_in_place(
     executable = folder / "Bin" / "Play.exe"
     executable.parent.mkdir(parents=True)
     executable.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        game_finder.magic,
+        "from_file",
+        lambda filename: "PE32+ executable (GUI) x86-64" if filename == str(executable) else "data",
+    )
     manifest = folder / f"goggame-{store_appid}.info"
     existing_prefix = tmp_path / "Existing prefix"
     registry = existing_prefix / "system.reg"
@@ -623,35 +629,42 @@ def test_qml_links_gog_game_files_in_place(
                 view_id = store_appid
                 game = controller.model.game_at(controller.model.find_row(view_id))
                 assert game is not None and game.game_id is None
-            await open_game_action(window, qt_application, view_id, "installGame")
             if use_manifest:
+                await open_game_action(window, qt_application, view_id, "installGame")
                 await wait_for_qml(qt_application, lambda: bool(controller._installers.property("selected")))
+                locate = window.window.findChild(QObject, "useExistingGame")
+                assert locate is not None and locate.property("visible") and QMetaObject.invokeMethod(locate, "clicked")
             else:
-                await wait_for_qml(qt_application, lambda: "Sign in" in str(controller._installers.property("error")))
+                controller.select_game(controller.model.find_row(view_id))
+                import_game = window.window.findChild(QObject, "importSelectedGame")
+                assert import_game is not None and import_game.property("visible")
+                assert QMetaObject.invokeMethod(import_game, "clicked")
             dialog = window.window.findChild(QObject, "installerDialog")
-            assert dialog is not None
-            locate = window.window.findChild(QObject, "useExistingGame")
-            assert locate is not None and locate.property("visible") and QMetaObject.invokeMethod(locate, "clicked")
+            assert dialog is not None and dialog.property("title").startswith("Import ")
             folder_field = window.window.findChild(QObject, "existingGameFolder")
-            exe_field = window.window.findChild(QObject, "existingGameExecutable")
             link = window.window.findChild(QObject, "importExistingGame")
-            assert folder_field is not None and exe_field is not None and link is not None
+            assert folder_field is not None and link is not None
+            assert window.window.findChild(QObject, "existingGameExecutable") is None
             assert folder_field.property("visible") and link.property("visible") and not link.property("enabled")
-            folder_field.setProperty("text", str(folder))
             prefix_field = window.window.findChild(QObject, "existingWinePrefix")
-            assert prefix_field is not None and prefix_field.property("visible")
+            assert prefix_field is not None and not prefix_field.property("visible")
             prefix_root = str(tmp_path / "prefixes") + "/"
             await wait_for_qml(
                 qt_application, lambda: str(prefix_field.property("defaultPath")).startswith(prefix_root)
             )
             if use_manifest:
+                custom_prefix = window.window.findChild(QObject, "useExistingWinePrefix")
+                assert custom_prefix is not None and custom_prefix.setProperty("checked", True)
                 assert prefix_field.setProperty("text", str(existing_prefix))
             if not use_manifest:
+                empty_folder = tmp_path / "Empty"
+                empty_folder.mkdir()
+                folder_field.setProperty("text", str(empty_folder))
                 assert QMetaObject.invokeMethod(link, "clicked")
                 error = window.window.findChild(QObject, "existingGameError")
                 assert error is not None
                 await wait_for_qml(qt_application, lambda: "Could not detect" in str(error.property("text")))
-                exe_field.setProperty("text", str(executable))
+            folder_field.setProperty("text", str(folder))
             assert link.property("enabled") and QMetaObject.invokeMethod(link, "clicked")
             await wait_for_qml(qt_application, lambda: not dialog.property("visible"))
 
@@ -686,6 +699,20 @@ def test_qml_links_gog_game_files_in_place(
                 return bool(game and game.installed)
 
             await wait_for_qml(qt_application, installed_in_library)
+            if use_manifest:
+                await open_game_action(window, qt_application, view_id, "configureGame")
+                config_controller = controller._configuration
+                await wait_for_qml(qt_application, lambda: bool(config_controller.property("ready")))
+                launch_options = window.window.findChild(QObject, "preferredLaunchOption")
+                assert launch_options is not None and launch_options.property("visible")
+                assert config_controller.property("launchOptions") == ["Ask when I play", "Default", "Vulkan"]
+                assert QMetaObject.invokeMethod(launch_options, "activated", Q_ARG(int, 2))
+                await wait_for_qml(qt_application, lambda: launch_options.property("currentIndex") == 2)
+                save = window.window.findChild(QObject, "configSave")
+                assert save is not None and QMetaObject.invokeMethod(save, "clicked")
+                await wait_for_qml(qt_application, lambda: not config_controller.property("ready"))
+                saved = Game(game_id).config
+                assert saved is not None and saved.game_config["preferred_launch_config_name"] == "Vulkan"
             await open_game_action(window, qt_application, view_id, "uninstallGame")
             unlink = window.window.findChild(QObject, "confirmGameUninstall")
             trash = window.window.findChild(QObject, "trashGameFiles")

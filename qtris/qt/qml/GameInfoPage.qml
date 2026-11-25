@@ -101,6 +101,23 @@ ScrollView {
                 }
             }
 
+            Label {
+                visible: page.controller.launchOptions.length > 0
+                text: qsTr("Launch option")
+                color: Theme.textMuted
+            }
+
+            ComboBox {
+                objectName: "preferredLaunchOption"
+                Layout.fillWidth: true
+                visible: page.controller.launchOptions.length > 0
+                enabled: !page.controller.busy
+                Accessible.name: qsTr("Launch option")
+                model: page.controller.launchOptions
+                currentIndex: page.controller.launchOptionIndex
+                onActivated: index => page.controller.set_launch_option(index)
+            }
+
             Label { text: qsTr("Release year"); color: Theme.textMuted }
             TextField {
                 Layout.preferredWidth: 120
@@ -169,29 +186,6 @@ ScrollView {
                 Button {
                     text: qsTr("Open Folder")
                     onClicked: page.controller.open_config_folder()
-                }
-            }
-
-            Label {
-                visible: (page.game.preferredLaunch ?? "").length > 0
-                text: qsTr("Preferred launch configuration")
-                color: Theme.textMuted
-            }
-
-            RowLayout {
-                visible: (page.game.preferredLaunch ?? "").length > 0
-
-                Label {
-                    Layout.fillWidth: true
-                    text: page.game.preferredLaunch ?? ""
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                }
-
-                Button {
-                    text: qsTr("Reset")
-                    enabled: !page.controller.busy
-                    onClicked: page.controller.reset_preferred_launch()
                 }
             }
         }

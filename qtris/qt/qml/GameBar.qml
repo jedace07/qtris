@@ -148,6 +148,14 @@ Rectangle {
         }
 
         Button {
+            objectName: "importSelectedGame"
+            visible: bar.controller.canInstall && bar.controller.selectedGameService === "gog"
+            text: qsTr("Import Game…")
+            icon.source: Theme.icon("folder")
+            onClicked: bar.controller.installers.open_gog_import(bar.controller.selectedGameAppId, bar.controller.selectedGameId, bar.controller.selectedGameName)
+        }
+
+        Button {
             objectName: "installSelectedGame"
             visible: !bar.controller.canStop && !bar.controller.canPlay && bar.controller.canInstall
             highlighted: true

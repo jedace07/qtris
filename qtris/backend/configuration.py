@@ -22,11 +22,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from gettext import gettext as _
 from inspect import Parameter, signature
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from qtris import settings, sysoptions
 from qtris.artwork import fetch_game_artwork
+from qtris.backend.launch_configurations import configuration_names, preferred_index, set_preferred_index
 from qtris.backend.models import ConfigChoice, ConfigForm, ConfigOptionInfo, ConfigPage, GameDetails
 from qtris.config import QtrisConfig, make_game_config_id, rename_config
 from qtris.database import games as games_db
@@ -50,6 +51,9 @@ from qtris.util.wine.wine import (
     remove_empty_prefix,
     reserve_game_prefix,
 )
+
+if TYPE_CHECKING:
+    from qtris.config import LaunchConfigDict
 
 # How many forms are kept for frontends that never close theirs
 _FORM_LIMIT = 8
@@ -87,6 +91,7 @@ class _Form:
         self.title = title
         self.game_id = game_id
         self.details = details
+        self.launch_options: tuple[str, list[LaunchConfigDict]] = ("", [])
         self.initial_slug = details.slug if details else ""
         self.initial_playtime = details.playtime if details else ""
         self.lock = asyncio.Lock()
@@ -196,10 +201,18 @@ class _Form:
         pages = tuple(self.page(section) for section in self.sections)
         details = self.details
         if details:
-            preferred = self.config.game_level.get("game", {}).get("preferred_launch_config_name")
+            options = self.config.game_level.get("game", {})
+            preferred = options.get("preferred_launch_config_name")
+            primary, alternatives = self.launch_options
+            index = preferred_index(alternatives, preferred, options.get("preferred_launch_config_index"))
             if preferred == Game.PRIMARY_LAUNCH_CONFIG_NAME:
                 preferred = _("Default")
-            details = replace(details, preferred_launch=str(preferred or ""))
+            details = replace(
+                details,
+                preferred_launch=str(preferred or ""),
+                launch_options=configuration_names(alternatives, primary) if alternatives else (),
+                launch_option_index=-1 if index is None else index,
+            )
         return ConfigForm(
             id=self.id,
             level=self.level,
@@ -398,6 +411,7 @@ class _Form:
                 raise QtrisError(_("Unknown game type '%s'.") % runner_name) from error
         clear_wine_version_cache()
         self.use_config(QtrisConfig(runner_slug=runner_name or None, level="game"))
+        self.launch_options = ("", [])
         self.details = replace(self.details, runner=runner_name, config_path="")
 
     def save_game(self) -> None:
@@ -594,7 +608,10 @@ async def open_game_config(game_id: str) -> ConfigForm:
         if config.level != "game":
             config = QtrisConfig(runner_slug=row.get("runner") or None, level="game")
         title = _("Configure %s") % row["name"]
-        return _Form("game", title, config, game_id=str(row["id"]), details=_details(row, config))
+        form = _Form("game", title, config, game_id=str(row["id"]), details=_details(row, config))
+        if row.get("installed") and row.get("configpath"):
+            form.launch_options = Game(game_id).get_launch_options()
+        return form
 
     return await _open(build)
 
@@ -670,12 +687,14 @@ async def reset_all_options(form_id: str) -> ConfigForm:
 
 
 async def reset_preferred_launch(form_id: str) -> ConfigForm:
-    def reset(form: _Form) -> None:
-        options = form.config.game_level.get("game", {})
-        options.pop("preferred_launch_config_name", None)
-        options.pop("preferred_launch_config_index", None)
+    return await set_preferred_launch(form_id, None)
 
-    return await _change(form_id, reset)
+
+async def set_preferred_launch(form_id: str, index: int | None) -> ConfigForm:
+    def set_launch_option(form: _Form) -> None:
+        set_preferred_index(form.config.game_level.get("game", {}), form.launch_options[1], index)
+
+    return await _change(form_id, set_launch_option)
 
 
 async def save_config(form_id: str) -> str:

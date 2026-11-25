@@ -297,6 +297,8 @@ class GameDetails:
     directory: str = ""
     config_path: str = ""
     preferred_launch: str = ""
+    launch_options: tuple[str, ...] = ()
+    launch_option_index: int = -1
 
 
 @dataclass(frozen=True)

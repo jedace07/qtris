@@ -19,12 +19,12 @@ ColumnLayout {
         folder.forceActiveFocus()
 
     function submit() {
-        controller.import_existing(folder.text, executable.text, prefix.visible ? prefix.text : "");
+        controller.import_existing(folder.text, customPrefix.checked ? prefix.text : "");
     }
 
     function clear() {
         folder.clear();
-        executable.clear();
+        customPrefix.checked = false;
         prefix.text = "";
     }
 
@@ -34,15 +34,9 @@ ColumnLayout {
         onAccepted: folder.text = form.controller.local_path(selectedFolder)
     }
 
-    NativeDialogs.FileDialog {
-        id: executablePicker
-        title: qsTr("Choose the game executable")
-        onAccepted: executable.text = form.controller.local_path(selectedFile)
-    }
-
     Label {
         Layout.fillWidth: true
-        text: qsTr("Choose the folder containing the game. Qtris will link to the files on that drive.")
+        text: qsTr("Choose the folder where the game is installed. Qtris will detect how to launch it and leave the files in place.")
         color: Theme.textMuted
         wrapMode: Text.WordWrap
     }
@@ -70,32 +64,10 @@ ColumnLayout {
         }
     }
 
-    Label {
-        text: qsTr("Game executable")
-        font.weight: Font.DemiBold
-    }
-
-    RowLayout {
-        Layout.fillWidth: true
-
-        TextField {
-            id: executable
-            objectName: "existingGameExecutable"
-            Layout.fillWidth: true
-            placeholderText: qsTr("Detect from GOG metadata")
-            Accessible.name: qsTr("Game executable")
-        }
-
-        Button {
-            text: qsTr("Browse…")
-            icon.source: Theme.icon("folder")
-            enabled: folder.text.trim().length > 0
-            Accessible.name: qsTr("Browse for game executable")
-            onClicked: {
-                executablePicker.currentFolder = form.controller.folder_url(folder.text.trim());
-                executablePicker.open();
-            }
-        }
+    CheckBox {
+        id: customPrefix
+        objectName: "useExistingWinePrefix"
+        text: qsTr("Use a custom Wine prefix for a Windows game")
     }
 
     WinePrefixField {
@@ -105,7 +77,7 @@ ColumnLayout {
         controller: form.controller
         label: qsTr("Wine prefix (Windows games)")
         defaultPath: form.controller.existingWinePrefix
-        visible: executable.text.trim().length === 0 || executable.text.trim().toLowerCase().endsWith(".exe")
+        visible: customPrefix.checked
     }
 
     Label {
@@ -122,6 +94,6 @@ ColumnLayout {
         Layout.fillWidth: true
         visible: form.controller.importing
         indeterminate: visible
-        Accessible.name: qsTr("Linking game…")
+        Accessible.name: qsTr("Importing game…")
     }
 }

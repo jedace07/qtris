@@ -145,6 +145,14 @@ def make_build(served: Path, release: str, script: str, compression: str) -> tup
             "Proton-CachyOS 11.0-20261014",
             "xz",
         ),
+        (
+            "Proton Wineland",
+            "Proton Wineland Latest",
+            "proton-wineland-11.0-20261119",
+            "proton-wineland-11.0-20261124",
+            "Proton Wineland 11.0-20261119",
+            "xz",
+        ),
     ],
 )
 def test_runner_manager_installs_updates_and_removes_a_rolling_build(

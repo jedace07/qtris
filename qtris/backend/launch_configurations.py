@@ -1,5 +1,7 @@
 """Translate launch configuration choices into data a frontend can display."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from gettext import gettext as _
 from typing import TYPE_CHECKING
@@ -11,7 +13,7 @@ from qtris.exceptions import QtrisError
 from qtris.game import Game
 
 if TYPE_CHECKING:
-    from qtris.config import LaunchConfigDict
+    from qtris.config import GameConfigDict, LaunchConfigDict
 
 
 @dataclass(frozen=True)
@@ -32,11 +34,24 @@ def preferred_index(configs: list["LaunchConfigDict"], name: str | None, index: 
     """Resolve a saved selection, keeping its index when duplicate names exist."""
     if index == 0 or name == Game.PRIMARY_LAUNCH_CONFIG_NAME:
         return 0
+    if isinstance(index, int) and 0 < index <= len(configs) and configs[index - 1].get("name") == name:
+        return index
     if name:
-        if isinstance(index, int) and 0 < index <= len(configs) and configs[index - 1].get("name") == name:
-            return index
         return next((i for i, config in enumerate(configs, 1) if config.get("name") == name), None)
     return None
+
+
+def set_preferred_index(options: GameConfigDict, configs: list[LaunchConfigDict], index: int | None) -> None:
+    if index is None:
+        options.pop("preferred_launch_config_index", None)
+        options.pop("preferred_launch_config_name", None)
+        return
+    if not 0 <= index <= len(configs):
+        raise QtrisError(_("Invalid launch configuration."))
+    options["preferred_launch_config_index"] = index
+    options["preferred_launch_config_name"] = (
+        configs[index - 1].get("name") if index else Game.PRIMARY_LAUNCH_CONFIG_NAME
+    )
 
 
 class BackendLaunchUIDelegate(LaunchUIDelegate):
@@ -71,13 +86,6 @@ class BackendLaunchUIDelegate(LaunchUIDelegate):
             index = choice.index
             if not 0 <= index <= len(configs):
                 raise QtrisError(_("Invalid launch configuration."))
-            if choice.remember:
-                options["preferred_launch_config_index"] = index
-                options["preferred_launch_config_name"] = (
-                    configs[index - 1].get("name") if index else Game.PRIMARY_LAUNCH_CONFIG_NAME
-                )
-            else:
-                options.pop("preferred_launch_config_index", None)
-                options.pop("preferred_launch_config_name", None)
+            set_preferred_index(options, configs, index if choice.remember else None)
             config.save()
         return configs[index - 1] if index else {}

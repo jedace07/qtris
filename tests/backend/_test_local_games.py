@@ -182,3 +182,22 @@ def test_existing_gog_game_launches_the_selected_manifest_option(
         assert gameplay["working_dir"] == str(vulkan_data)
     finally:
         games_db.delete_game(game_id)
+
+
+def test_gog_import_uses_the_linux_start_script_in_a_nested_install(tmp_path: Path) -> None:
+    folder = tmp_path / "Existing Game"
+    game_data = folder / "game"
+    game_data.mkdir(parents=True)
+    start = folder / "start.sh"
+    start.write_text("#!/bin/sh\n", encoding="utf-8")
+    start.chmod(0o755)
+    (game_data / "game").touch()
+    (game_data / "goggame-42.info").write_text(
+        json.dumps({"playTasks": [{"isPrimary": True, "path": "game", "arguments": "--from-manifest"}]}),
+        encoding="utf-8",
+    )
+
+    options = local_games._detect_gog_launch(tmp_path, "42")
+
+    assert options["exe"] == str(start) and options["working_dir"] == str(folder)
+    assert "args" not in options

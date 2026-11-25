@@ -69,7 +69,7 @@ class RunnerManagerController(QObject):
                 "key": entry.name,
                 "label": entry.label,
                 "description": entry.description,
-                "manageProton": entry.name == "wine",
+                "manageProton": entry.name == "wine" and bool(runners.PROTON_FAMILIES),
             }
             for entry in self._platforms
         ]
@@ -96,7 +96,7 @@ class RunnerManagerController(QObject):
 
     @property
     def _family_name(self) -> str:
-        return runners.PROTON_FAMILIES[self._family]
+        return runners.PROTON_FAMILIES[self._family] if runners.PROTON_FAMILIES else ""
 
     @Property(bool, notify=stateChanged)
     def proton(self) -> bool:
@@ -112,16 +112,7 @@ class RunnerManagerController(QObject):
 
     @Property(str, notify=stateChanged)
     def protonNote(self) -> str:  # noqa: N802
-        if self._family_name == runners.PROTON_FAMILIES[0]:
-            return _(
-                "GE-Proton Latest follows the newest GE-Proton release, and is the default; Qtris updates it "
-                "with its other components. Install a specific release to pin games to it."
-            )
-        return _(
-            "Proton-CachyOS is tuned for performance, and Qtris installs the build optimized for x86-64-v3 "
-            "processors when yours supports it. Proton-CachyOS Latest follows the newest release; Qtris "
-            "updates it with its other components."
-        )
+        return runners.get_proton_family_description(self._family_name)
 
     @Property(bool, notify=stateChanged)
     def busy(self) -> bool:
@@ -143,7 +134,7 @@ class RunnerManagerController(QObject):
 
     @Slot()
     def show_proton(self) -> None:
-        if self._task is None:
+        if self._task is None and self._family_name:
             self._proton = True
             self._start(self._load_proton(), _("Looking up %s releases…") % self._family_name)
 

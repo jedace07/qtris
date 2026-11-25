@@ -50,6 +50,7 @@ class InstallerController(QObject):
         self._kind = InstallationKind.INSTALL
         self._task: asyncio.Task[None] | None = None
         self._gog_target: tuple[str, str] | None = None
+        self._import_only = False
         self._importing = False
         self._import_error = ""
         self._existing_prefix = ""
@@ -103,6 +104,10 @@ class InstallerController(QObject):
     @Property(str, notify=existingStateChanged)
     def importError(self) -> str:  # noqa: N802
         return self._import_error
+
+    @Property(bool, notify=existingStateChanged)
+    def importOnly(self) -> bool:  # noqa: N802
+        return self._import_only
 
     @Property(bool, notify=stateChanged)
     def createsGameFolder(self) -> bool:  # noqa: N802
@@ -167,12 +172,25 @@ class InstallerController(QObject):
         self._reset(game_name)
         self._kind = kind
         if service == "gog" and appid and kind == InstallationKind.INSTALL:
-            self._gog_target = (appid, game_id)
-            self.existingStateChanged.emit()
-            start_task(self._load_existing_prefix(game_name), self._prompts.error)
+            self._set_gog_target(appid, game_id)
         request = partial(installers.find_store_installers, service, appid, game_id, kind)
         self._start(partial(self._load, request))
         self.requested.emit()
+
+    @Slot(str, str, str)
+    def open_gog_import(self, appid: str, game_id: str, game_name: str) -> None:
+        if not appid or self.installation_controller.active or self._importing:
+            return
+        self._reset(game_name)
+        self._import_only = True
+        self._set_gog_target(appid, game_id)
+        self.requested.emit()
+
+    def _set_gog_target(self, appid: str, game_id: str) -> None:
+        target = (appid, game_id)
+        self._gog_target = target
+        self.existingStateChanged.emit()
+        start_task(self._load_existing_prefix(target, self._game_name), self._prompts.error)
 
     @Slot(str, str)
     def open_store_launcher(self, service_id: str, name: str) -> None:
@@ -220,18 +238,14 @@ class InstallerController(QObject):
     def local_path(self, url: QUrl) -> str:
         return url.toLocalFile()
 
-    @Slot(str, result=QUrl)
-    def folder_url(self, directory: str) -> QUrl:
-        return QUrl.fromLocalFile(directory)
-
-    async def _load_existing_prefix(self, game_name: str) -> None:
+    async def _load_existing_prefix(self, target: tuple[str, str], game_name: str) -> None:
         prefix = await local_games.get_default_prefix(game_name)
-        if self._gog_target is not None and self._game_name == game_name and prefix != self._existing_prefix:
+        if self._gog_target is target and prefix != self._existing_prefix:
             self._existing_prefix = prefix
             self.existingStateChanged.emit()
 
-    @Slot(str, str, str)
-    def import_existing(self, directory: str, executable: str, wine_prefix: str) -> None:
+    @Slot(str, str)
+    def import_existing(self, directory: str, wine_prefix: str) -> None:
         if self._gog_target is None or self._importing or self.installation_controller.active:
             return
         self._importing = True
@@ -239,15 +253,13 @@ class InstallerController(QObject):
         self.existingStateChanged.emit()
         appid, game_id = self._gog_target
         start_task(
-            self._import_gog(appid, game_id, directory.strip(), executable.strip(), wine_prefix.strip()),
+            self._import_gog(appid, game_id, directory.strip(), wine_prefix.strip()),
             self._prompts.error,
         )
 
-    async def _import_gog(self, appid: str, game_id: str, directory: str, executable: str, wine_prefix: str) -> None:
+    async def _import_gog(self, appid: str, game_id: str, directory: str, wine_prefix: str) -> None:
         try:
-            game = await local_games.register_gog_game(
-                appid, directory, executable, game_id=game_id, wine_prefix=wine_prefix
-            )
+            game = await local_games.register_gog_game(appid, directory, game_id=game_id, wine_prefix=wine_prefix)
         except QtrisError as error:
             self._import_error = str(error)
             return
@@ -305,6 +317,7 @@ class InstallerController(QObject):
         self._error = ""
         self._kind = InstallationKind.INSTALL
         self._gog_target = None
+        self._import_only = False
         self._import_error = ""
         self._existing_prefix = ""
         self.existingStateChanged.emit()

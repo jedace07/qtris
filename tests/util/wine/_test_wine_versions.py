@@ -17,6 +17,7 @@ INSTALLED = {
     "GE-Proton10-25": "/compat/GE-Proton10-25",
     "Proton 10.0": "/steam/common/Proton 10.0",
     "proton-cachyos-11.0-20261015-slr-x86_64_v3": "/compat/proton-cachyos-11.0-20261015-slr-x86_64_v3",
+    "proton-wineland-11.0-20261124-x86_64_v3": "/compat/proton-wineland-11.0-20261124-x86_64_v3",
 }
 
 
@@ -36,10 +37,12 @@ class TestInstalledWineVersions(unittest.TestCase):
             [
                 GE_PROTON_LATEST,
                 "proton-cachyos-latest",
+                "proton-wineland-latest",
                 "GE-Proton11-12",
                 "GE-Proton10-25",
                 "GE-Proton10-9",
                 "proton-cachyos-11.0-20261015-slr",
+                "proton-wineland-11.0-20261124",
                 "Proton - Experimental",
                 "Proton Hotfix",
                 "Proton 11.0",

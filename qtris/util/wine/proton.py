@@ -82,7 +82,7 @@ def is_proton_version(version: str | None) -> bool:
 def find_proton_version(version: str | None) -> str | None:
     """Return the name under which a Proton version is installed, or None if it isn't.
 
-    GE-Proton and Proton-CachyOS releases are stored by release name, but their builds
+    Managed Proton releases are stored by release name, but their builds
     install into folders named after the architecture too, so the version matches
     either name."""
     if not version:
@@ -207,7 +207,7 @@ def get_proton_path_by_path(wine_path: str) -> str:
 
 def list_proton_versions() -> list[str]:
     """Return the installed Proton builds, other than the rolling ones, in presentation
-    order: GE-Proton, then Proton-CachyOS releases by release name, newest first, then
+    order: managed Proton releases by family, newest first, then
     Valve's Proton (Experimental, Hotfix, then by version, newest first), then any other
     builds by name."""
     releases: set[str] = set()
