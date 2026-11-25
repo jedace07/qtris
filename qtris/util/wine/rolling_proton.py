@@ -21,7 +21,6 @@ from qtris.exceptions import QtrisError
 from qtris.monitored_command import RUNNING_COMMANDS
 from qtris.runtime import ComponentUpdater
 from qtris.util import system
-from qtris.util.downloader import SimpleDownloader
 from qtris.util.extract import ExtractError, extract_archive
 from qtris.util.http import HTTPError
 from qtris.util.log import logger
@@ -185,9 +184,9 @@ class RollingProtonUpdater(ComponentUpdater):
     """Brings an installed rolling build up to date along with Qtris's other components."""
 
     def __init__(self, rolling: RollingProton, release: str) -> None:
+        super().__init__()
         self.rolling = rolling
         self.release = release
-        self.downloader: SimpleDownloader | None = None
         self.progress = ProgressInfo(0, _("Updating %s") % rolling.label)
 
     @property
@@ -228,12 +227,3 @@ class RollingProtonUpdater(ComponentUpdater):
             self.progress = ProgressInfo.ended(_("Updated %s to %s") % (self.name, self.release))
         else:
             self.progress = ProgressInfo.ended(_("%s will be updated later") % self.name)
-
-    def _download(self, url: str, destination: str) -> bool:
-        downloader = SimpleDownloader(url, destination, overwrite=True)
-        self.downloader = downloader
-        try:
-            downloader.start()
-            return downloader.join() and system.path_exists(destination, exclude_empty=True)
-        finally:
-            self.downloader = None

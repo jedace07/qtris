@@ -3,13 +3,14 @@
 import asyncio
 import re
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from qtris import settings
+from qtris import runtime, settings
 from qtris.backend import runtime_updates
 from qtris.backend.models import RuntimeUpdateStatus
 from qtris.runtime import ComponentUpdater, get_components
@@ -22,6 +23,7 @@ from tests.conftest import FakeMainLoop
 
 class FakeComponent(ComponentUpdater):
     def __init__(self, name: str, release: threading.Event) -> None:
+        super().__init__()
         self._name = name
         self._release = release
         self.installed = False
@@ -81,6 +83,97 @@ def test_updates_report_progress_and_run_one_at_a_time(
     final = statuses[-1]
     assert not final.running and [component.status for component in final.components] == ["Updated dxvk", "Updated umu"]
     assert all(component.finished for component in final.components)
+
+
+def test_cancelling_stops_the_download_and_skips_the_rest(
+    monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop
+) -> None:
+    started = threading.Event()
+
+    class DownloadingComponent(FakeComponent):
+        def install_update(self, updater: Any) -> None:
+            started.set()
+            # Returns once cancel() stops it, as a canceled download does
+            self.installed = self._cancelled.wait(5) is False
+
+    first = DownloadingComponent("umu", threading.Event())
+    second = FakeComponent("winetricks", threading.Event())
+
+    class FakeRuntimeUpdater:
+        def __init__(self, force: bool = False) -> None:
+            pass
+
+        def create_component_updaters(self) -> list[ComponentUpdater]:
+            return [first, second]
+
+    monkeypatch.setattr(runtime_updates, "RuntimeUpdater", FakeRuntimeUpdater)
+    monkeypatch.setattr(runtime_updates, "POLL_SECONDS", 0.01)
+    monkeypatch.setattr(runtime_updates, "clear_wine_version_cache", lambda: None)
+
+    async def run() -> None:
+        update = asyncio.create_task(runtime_updates.update_runtime(force=True))
+        while not started.is_set():
+            await asyncio.sleep(0.01)
+        runtime_updates.cancel_runtime_update()
+        await update
+
+    asyncio.run(run())
+    fake_main_loop.run_pending()
+    assert not first.installed and not second.installed
+
+
+class FakeDownloader:
+    def __init__(self, on_create: Any = None) -> None:
+        self.canceled = threading.Event()
+        self.started = False
+        if on_create:
+            on_create()
+
+    def start(self) -> None:
+        self.started = True
+
+    def join(self) -> bool:
+        return not self.canceled.wait(5)
+
+    def cancel(self) -> None:
+        self.canceled.set()
+
+
+def test_a_component_download_stops_when_canceled(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    updater = FakeComponent("umu", threading.Event())
+    downloaders: list[FakeDownloader] = []
+
+    def create(*_args: Any, **_kwargs: Any) -> FakeDownloader:
+        downloaders.append(FakeDownloader())
+        return downloaders[-1]
+
+    monkeypatch.setattr(runtime, "SimpleDownloader", create)
+    results: list[bool] = []
+    thread = threading.Thread(target=lambda: results.append(updater._download("url", str(tmp_path / "file"))))
+    thread.start()
+    while updater.downloader is None:
+        time.sleep(0.01)
+    updater.cancel()
+    thread.join(5)
+    assert results == [False] and downloaders[0].canceled.is_set()
+
+
+def test_a_component_canceled_before_its_download_starts_downloads_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    updater = FakeComponent("umu", threading.Event())
+    downloaders: list[FakeDownloader] = []
+
+    def create(*_args: Any, **_kwargs: Any) -> FakeDownloader:
+        # cancel() comes while the downloader is made, before the updater holds it
+        downloaders.append(FakeDownloader(on_create=updater.cancel))
+        return downloaders[-1]
+
+    monkeypatch.setattr(runtime, "SimpleDownloader", create)
+    assert updater._download("url", str(tmp_path / "file")) is False
+    assert downloaders[0].canceled.is_set()
+    # Once canceled, no download starts at all
+    assert updater._download("url", str(tmp_path / "other")) is False and len(downloaders) == 1
 
 
 def test_nothing_to_update(monkeypatch: pytest.MonkeyPatch, fake_main_loop: FakeMainLoop) -> None:

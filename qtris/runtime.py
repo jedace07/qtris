@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from gettext import gettext as _
@@ -93,6 +94,10 @@ def get_components(arch: str | None) -> list[Component]:
 
 
 class ComponentUpdater:
+    def __init__(self) -> None:
+        self.downloader: SimpleDownloader | None = None
+        self._cancelled = threading.Event()
+
     @property
     def name(self) -> str:
         raise NotImplementedError
@@ -105,6 +110,28 @@ class ComponentUpdater:
 
     def get_progress(self) -> ProgressInfo:
         return ProgressInfo.ended()
+
+    def cancel(self) -> None:
+        """Stop the update's download, or keep it from starting; what's installed stays
+        as it was. Any thread may call this. A finished download is still installed."""
+        self._cancelled.set()
+        if downloader := self.downloader:
+            downloader.cancel()
+
+    def _download(self, url: str, destination: str) -> bool:
+        """Download a file; returns False if the download was canceled."""
+        if self._cancelled.is_set():
+            return False
+        downloader = SimpleDownloader(url, destination, overwrite=True)
+        self.downloader = downloader
+        try:
+            downloader.start()
+            # cancel() may have run before the downloader was there to stop
+            if self._cancelled.is_set():
+                downloader.cancel()
+            return downloader.join() and system.path_exists(destination, exclude_empty=True)
+        finally:
+            self.downloader = None
 
 
 class RuntimeUpdater:
@@ -147,11 +174,11 @@ class RuntimeUpdater:
 
 class RuntimeComponentUpdater(ComponentUpdater):
     def __init__(self, component: Component, build: UpstreamBuild) -> None:
+        super().__init__()
         self.component = component
         self.build = build
         self.destination = component.directory
         self.version_file = component.version_file
-        self.downloader: SimpleDownloader | None = None
         self.progress = ProgressInfo(0, _("Updating %s") % component.name)
 
     @property
@@ -175,7 +202,8 @@ class RuntimeComponentUpdater(ComponentUpdater):
             with TemporaryDirectory(dir=self.destination.parent) as tmp:
                 work = Path(tmp)
                 download = work / urlsplit(self.build.url).path.rsplit("/", 1)[-1]
-                self._download(download)
+                if not self._download(self.build.url, str(download)):
+                    raise QtrisError(_("Download did not complete."))
                 self.progress = ProgressInfo(0, _("Installing %s") % self.name)
                 self._install(download, work / "component")
         except (ExtractError, QtrisError, OSError) as error:
@@ -183,16 +211,6 @@ class RuntimeComponentUpdater(ComponentUpdater):
             updater.check_path.unlink(missing_ok=True)
             raise QtrisError(_("Could not update %s: %s") % (self.name, error)) from error
         self.progress = ProgressInfo.ended(_("Updated %s") % self.name)
-
-    def _download(self, destination: Path) -> None:
-        downloader = SimpleDownloader(self.build.url, str(destination), overwrite=True)
-        self.downloader = downloader
-        try:
-            downloader.start()
-            if not downloader.join() or not system.path_exists(str(destination), exclude_empty=True):
-                raise QtrisError(_("Download did not complete."))
-        finally:
-            self.downloader = None
 
     def _install(self, download: Path, staged: Path) -> None:
         entry = staged / self.component.entry_point

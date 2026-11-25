@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import html
 import re
+import threading
 from typing import TYPE_CHECKING
 
 from qtris import settings
@@ -30,6 +31,9 @@ AUTO_UPDATE_SETTING = "auto_update_runtime"
 POLL_SECONDS = 0.5
 
 _running = False
+# Set by cancel_runtime_update() to stop the update running, whose updaters these are
+_cancelled = threading.Event()
+_updaters: list[ComponentUpdater] = []
 
 
 def _plain(markup: str) -> str:
@@ -83,6 +87,7 @@ async def update_runtime(force: bool = False) -> tuple[str, ...]:
     if _running:
         return ()
     _running = True
+    _cancelled.clear()
     updaters: list[ComponentUpdater] = []
     try:
 
@@ -91,6 +96,9 @@ async def update_runtime(force: bool = False) -> tuple[str, ...]:
             return runtime_updater, runtime_updater.create_component_updaters()
 
         runtime_updater, updaters = await asyncio.to_thread(plan)
+        _updaters[:] = updaters
+        if _cancelled.is_set():
+            return ()
         if not updaters:
             logger.debug("The runtime is up to date")
             return ()
@@ -98,6 +106,8 @@ async def update_runtime(force: bool = False) -> tuple[str, ...]:
         def install() -> None:
             failures = []
             for updater in updaters:
+                if _cancelled.is_set():
+                    break
                 try:
                     updater.install_update(runtime_updater)
                     updater.join()
@@ -116,4 +126,14 @@ async def update_runtime(force: bool = False) -> tuple[str, ...]:
         return tuple(updater.name for updater in updaters)
     finally:
         _running = False
+        _updaters.clear()
         RUNTIME_UPDATE_CHANGED.fire(_status(updaters, running=False))
+
+
+def cancel_runtime_update() -> None:
+    """Stop the update running without waiting for it: its downloads stop, and the
+    components not started yet are left for the next check. Its thread would otherwise
+    keep Qtris running after it quits, until every download is done."""
+    _cancelled.set()
+    for updater in _updaters:
+        updater.cancel()

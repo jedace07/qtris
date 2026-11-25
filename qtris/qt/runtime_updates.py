@@ -147,3 +147,5 @@ class RuntimeUpdatesController(QObject):
         if self._registration:
             self._registration.unregister()
             self._registration = None
+        # The event loop stops with Qtris, so stop the update's thread directly
+        runtime_updates.cancel_runtime_update()

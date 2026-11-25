@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -168,6 +169,44 @@ def test_a_rejected_key_records_no_steamgriddb_misses(
 
     assert sync_artwork(["artwork-rejected"]) == 0
     assert not (tmp_path / "cache" / "artwork-misses.json").exists()
+
+
+def test_stopping_skips_the_rest_and_records_no_misses(
+    web: Web, games: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(fetcher, "MAX_WORKERS", 1)
+    add(games, "Portal 2", "artwork-stop-portal", "steam", "620")
+    add(games, "Local Game", "artwork-stop-local")
+    web.images.update({STEAM_COVER: JPEG, STEAM_HEADER: PNG})
+    stop = threading.Event()
+    get = web.get
+
+    def get_then_stop(url: str, **kwargs: Any) -> FakeResponse:
+        stop.set()
+        return get(url, **kwargs)
+
+    monkeypatch.setattr(fetcher.requests, "get", get_then_stop)
+
+    # The download under way finishes; nothing else is asked for or counted as missing
+    assert sync_artwork(["artwork-stop-portal", "artwork-stop-local"], stop=stop) == 1
+    assert web.fetched == [STEAM_COVER]
+    missed = misses(tmp_path) if (tmp_path / "cache" / "artwork-misses.json").exists() else {}
+    assert not any(key.startswith("artwork-stop-portal:") for key in missed)
+
+
+def test_cancelling_reaches_a_running_artwork_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    def sync(stop: threading.Event) -> int:
+        return 1 if stop.wait(5) else 0
+
+    monkeypatch.setattr(media, "sync_artwork", sync)
+
+    async def run() -> int:
+        update = asyncio.create_task(media.update_artwork())
+        await asyncio.sleep(0.05)
+        media.cancel_artwork_updates()
+        return await update
+
+    assert asyncio.run(run()) == 1
 
 
 def test_gog_covers_come_from_gogs_game_database(

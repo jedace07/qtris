@@ -3,6 +3,7 @@
 import asyncio
 import os
 import stat
+import threading
 from collections.abc import Iterable
 from typing import Literal
 
@@ -18,9 +19,28 @@ from qtris.services.service_media import ServiceMedia
 type ArtworkKind = Literal["cover", "banner", "icon"]
 
 
+_artwork_stops: set[threading.Event] = set()
+
+
 async def update_artwork() -> int:
     """Download the library's missing artwork and return the number of images downloaded."""
-    return await asyncio.to_thread(sync_artwork)
+    stop = threading.Event()
+    _artwork_stops.add(stop)
+    try:
+        return await asyncio.to_thread(sync_artwork, stop=stop)
+    except asyncio.CancelledError:
+        stop.set()
+        raise
+    finally:
+        _artwork_stops.discard(stop)
+
+
+def cancel_artwork_updates() -> None:
+    """Stop the artwork updates under way without waiting for them. Their threads
+    would otherwise keep Qtris running after it quits, until the whole library is
+    done; only the downloads already started finish."""
+    for stop in _artwork_stops:
+        stop.set()
 
 
 async def get_artwork_settings() -> ArtworkSettings:
