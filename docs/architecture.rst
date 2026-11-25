@@ -17,10 +17,9 @@ The rule
 and ``Gio`` aren't UI and are allowed; accessing the running application
 through ``Gio.Application.get_default()`` stays in the frontend.
 ``tests/_test_architecture.py`` also keeps the CLI toolkit-free and guards the
-Qt Quick boundary. The only Qt Widgets imports in the application are
-``QApplication`` for bootstrap and ``QSystemTrayIcon`` and ``QMenu`` for the
-native system tray. The web player, a program of its own, uses Widgets too
-(see "Web games").
+Qt Quick boundary. The only Qt Widgets import in the application is
+``QApplication`` for bootstrap. The web player, a program of its own, uses
+Widgets too (see "Web games").
 ``tests/_test_imports.py`` checks that each core module can be imported on its
 own, which catches the circular imports that moving code tends to create.
 
@@ -238,8 +237,17 @@ The Qt Quick frontend
 PySide6 Essentials is a required dependency in source installs and the Flatpak.
 The tests run on Qt's offscreen platform.
 
-The frontend uses Qt Quick Controls and a PySide6 ``QApplication`` so it can
-integrate with the native system tray.
+The frontend uses Qt Quick Controls on a PySide6 ``QApplication``. Qt runs on
+GLib's main loop, which ``Gio.Application.run()`` runs, and ``qtris/qt/glib_loop.py``
+emits ``aboutToBlock`` before each of its waits, as Qt's own loop does: Qt's
+Wayland backend only sends its requests to the compositor then.
+
+The tray icon (``qtris/qt/tray``) is Qtris's own StatusNotifierItem and DBusMenu
+over Gio, not ``QSystemTrayIcon``, whose icon tells the desktop to send clicks to
+the application rather than open its menu. Clicking Qtris's icon opens the menu,
+as AppIndicator icons do. The icon has a D-Bus connection of its own, which
+closing takes off the tray; tray availability is followed through the
+watcher's signals.
 ``qtris/qt/qml`` defines the windows, views and dialogs.
 Every control is drawn by ``QtrisStyle`` (``qtris/qt/qml/QtrisStyle``), a
 Qt Quick Controls style that ``MainWindow`` selects with ``QQuickStyle`` before

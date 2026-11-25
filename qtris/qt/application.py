@@ -27,6 +27,7 @@ from qtris.cli.options import add_options, is_text_command
 from qtris.cli.output import CommandOutput
 from qtris.delegates import LaunchUIDelegate
 from qtris.qt.display_backend import QtDisplayBackend
+from qtris.qt.glib_loop import notify_qt_before_waiting
 from qtris.qt.main_window import MainWindow
 from qtris.qt.translations import QmlTranslator
 from qtris.qt.tray import TrayIcon
@@ -70,6 +71,7 @@ class QtrisApplication(Gio.Application):
         icon = QIcon(os.path.join(datapath.get(), "media", "default_icon.png"))
         self.qt_application.setWindowIcon(QIcon.fromTheme(settings.APPLICATION_ID, icon))
         self.qt_application.installTranslator(QmlTranslator(self.qt_application))
+        self._qt_wait_source = notify_qt_before_waiting()
         set_display_backend(QtDisplayBackend())
         self._install_exception_backstop()
         events.GAME_LAUNCHING.register(self.on_game_launching)

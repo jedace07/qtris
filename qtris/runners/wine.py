@@ -1096,20 +1096,15 @@ class wine(Runner):
 
         return (folder_pids & uuid_pids) | gamescope_pids
 
-    def force_stop_game(self, game_pids: Iterable[int]) -> None:
-        """Kill WINE with kindness, or at least with -k. This seems to leave a process
-        alive for some reason, but the caller will detect this and SIGKILL it."""
-
-        winekill(
-            self.prefix_path,
-            arch=self.wine_arch,
-            wine_path=self.get_executable(),
-            env=self.get_env(),
-            initial_pids=game_pids,
-        )
-
-        # Kill non-Wine processes (like gamescope) that winekill doesn't handle
-        super().force_stop_game(game_pids)
+    def filter_stop_pids(self, candidate_pids: Iterable[int], game_uuid: str, game_folder: str) -> set[int]:
+        """Return every process launched with the game's UUID, as well as its game processes,
+        since Wine's server and services and umu's container don't name the game's folder.
+        Signalling them all stops the prefix without `wineboot -k`, which would start umu,
+        with its runtime update check and container, just to end it. On SIGTERM the
+        wineserver saves the prefix's registry before it exits."""
+        candidates = set(candidate_pids)
+        launched = {pid for pid in candidates if Process(pid).environ.get("QTRIS_GAME_UUID") == game_uuid}
+        return launched | self.filter_game_pids(candidates, game_uuid, game_folder)
 
     def extract_icon(self, game_slug):
         """Extracts the 128*128 icon from EXE and saves it, if not resizes the biggest icon found.

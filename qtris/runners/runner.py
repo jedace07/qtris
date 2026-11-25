@@ -443,6 +443,11 @@ class Runner:  # pylint: disable=too-many-public-methods
         command_runner = MonitoredCommand(command, runner=self, env=env)
         command_runner.start()
 
+    def filter_stop_pids(self, candidate_pids: Iterable[int], game_uuid: str, game_folder: str) -> set[int]:
+        """Return the processes that stopping the game should end, from those given; by
+        default the game's own, as filter_game_pids() finds them."""
+        return self.filter_game_pids(candidate_pids, game_uuid, game_folder)
+
     def filter_game_pids(self, candidate_pids: Iterable[int], game_uuid: str, game_folder: str) -> set[int]:
         """Checks the pids given and returns a set containing only those that are part of the running game,
         identified by its UUID and directory."""

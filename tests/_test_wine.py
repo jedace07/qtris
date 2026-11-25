@@ -374,3 +374,37 @@ class TestMissingWineVersion(TestCase):
             patch.object(wine.proton, "get_proton_wine_path", return_value=wine_path),
         ):
             self.assertEqual(self.get_runner().get_executable(), wine_path)
+
+
+class TestStoppingWineGames(TestCase):
+    """Stopping signals everything the launch started rather than running wineboot -k
+    through umu, which checks for runtime updates and starts its container first."""
+
+    def test_stop_pids_include_wine_and_umu_processes(self):
+        game_folder = "/games/example"
+        processes = {
+            1: SimpleNamespace(cmdline=f"{game_folder}/game.exe", name="game.exe", environ={"QTRIS_GAME_UUID": "a"}),
+            2: SimpleNamespace(
+                cmdline="/proton/files/bin/wineserver", name="wineserver", environ={"QTRIS_GAME_UUID": "a"}
+            ),
+            3: SimpleNamespace(cmdline="pv-adverb --fd 9", name="pv-adverb", environ={"QTRIS_GAME_UUID": "a"}),
+            4: SimpleNamespace(
+                cmdline="/proton/files/bin/wineserver", name="wineserver", environ={"QTRIS_GAME_UUID": "b"}
+            ),
+            5: SimpleNamespace(cmdline=f"{game_folder}/game.exe", name="game.exe", environ={}),
+        }
+        runner = wine.wine()
+        with patch.object(wine, "Process", side_effect=processes.__getitem__):
+            self.assertEqual(runner.filter_game_pids(processes, "a", game_folder), {1})
+            self.assertEqual(runner.filter_stop_pids(processes, "a", game_folder), {1, 2, 3})
+
+    def test_stopping_runs_no_wine_command(self):
+        runner = wine.wine()
+        with (
+            patch.object(wine, "winekill") as winekill,
+            patch("qtris.runners.runner.kill_processes") as kill_processes,
+        ):
+            runner.force_stop_game({1, 2, 3})
+        winekill.assert_not_called()
+        kill_processes.assert_called_once()
+        self.assertEqual(set(kill_processes.call_args.args[1]), {1, 2, 3})

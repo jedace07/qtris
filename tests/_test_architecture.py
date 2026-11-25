@@ -21,7 +21,6 @@ GTK_NAMESPACES = {
 }
 NATIVE_QT_IMPORTS = {
     "qtris/qt/application.py": {"PySide6.QtWidgets.QApplication", "PySide6.QtWebEngineQuick"},
-    "qtris/qt/tray.py": {"PySide6.QtWidgets.QMenu", "PySide6.QtWidgets.QSystemTrayIcon"},
     # The web view GOG and Amazon sign in with; the other stores use the host browser
     "qtris/qt/store_sources.py": {
         "PySide6.QtNetwork",

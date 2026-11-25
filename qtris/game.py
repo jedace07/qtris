@@ -981,7 +981,9 @@ class Game:
 
     def get_stop_pids(self) -> set[int]:
         """Finds the PIDs of processes that need killin'!"""
-        pids = self.get_game_pids()
+        pids: set[int] = set()
+        if self.game_uuid:
+            pids = self.runner.filter_stop_pids(self.get_new_pids(), self.game_uuid, self.resolve_game_path())
         if self.game_thread and self.game_thread.game_process:
             if self.game_thread.game_process.poll() is None:
                 pids.add(self.game_thread.game_process.pid)
