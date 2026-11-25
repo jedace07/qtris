@@ -116,10 +116,6 @@ class IdleTask:
             get_main_loop().cancel(self.handle)
             self.disconnect()
 
-    def is_completed(self) -> bool:
-        """True if the idle task has completed; that is, if mark_completed() was called on it."""
-        return self._is_completed
-
     def connect(self, handle: object) -> None:
         """Connects this task to the main loop's handle for it, so it can be unscheduled;
         but if the task is already completed, this does nothing."""

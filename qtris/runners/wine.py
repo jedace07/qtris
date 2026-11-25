@@ -686,28 +686,6 @@ class wine(Runner):
 
         raise UnspecifiedVersionError(_("The runner configuration does not specify a Wine version."))
 
-    @classmethod
-    def msi_exec(
-        cls,
-        msi_file,
-        quiet=False,
-        prefix=None,
-        wine_path=None,
-        working_dir=None,
-        blocking=False,
-    ):
-        msi_args = "/i %s" % msi_file
-        if quiet:
-            msi_args += " /q"
-        return wineexec(
-            "msiexec",
-            args=msi_args,
-            prefix=prefix,
-            wine_path=wine_path,
-            working_dir=working_dir,
-            blocking=blocking,
-        )
-
     def _run_executable(self, executable):
         """Runs a Windows executable using this game's configuration"""
         wineexec(
@@ -781,18 +759,6 @@ class wine(Runner):
         """Execute Wine task manager"""
         self.prelaunch()
         self._run_executable("taskmgr")
-
-    def run_winekill(self, *args):
-        """Runs wineserver -k."""
-
-        winekill(
-            self.prefix_path,
-            arch=self.wine_arch,
-            wine_path=self.get_executable(),
-            env=self.get_env(),
-            initial_pids=self.get_wine_executable_pids(),
-        )
-        return True
 
     def set_regedit_keys(self):
         """Reset regedit keys according to config."""
@@ -1034,12 +1000,6 @@ class wine(Runner):
         data = super().get_run_data()
         self.finish_env(data["env"])
         return data
-
-    def get_wine_executable_pids(self) -> set[int]:
-        """Return the pids of processes using the current Wine. Proton runs games
-        inside umu's container, so they can't be tracked this way."""
-        logger.debug("Tracking PIDs of Proton games is not possible at the moment")
-        return set()
 
     def configure_desktop_integration(self, wine_prefix):
         try:

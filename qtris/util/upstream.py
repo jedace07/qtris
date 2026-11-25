@@ -8,10 +8,8 @@ directory, or a fixed address.
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from html import unescape
 from typing import Any, Protocol
-from urllib.parse import quote, urljoin
+from urllib.parse import quote
 
 from qtris.exceptions import QtrisError
 from qtris.util.http import HTTPError, Request
@@ -106,54 +104,3 @@ def release_build(release: Mapping[str, Any], asset: str) -> UpstreamBuild | Non
 _LISTING_ROW = re.compile(
     r'href="([^"]+)"[^\n]*?(\d{4}-[A-Za-z]{3}-\d{2} \d{2}:\d{2}|\d{2}-[A-Za-z]{3}-\d{4} \d{2}:\d{2})'
 )
-
-
-@dataclass(frozen=True)
-class ListingSource:
-    """The newest file matching `asset` in a web server's directory listing, by the
-    date the listing gives it, for projects that publish builds that way."""
-
-    url: str
-    asset: str
-
-    def find(self) -> UpstreamBuild:
-        newest: tuple[datetime, str] | None = None
-        for link, stamp in _LISTING_ROW.findall(_get(self.url).text):
-            name = unescape(link).rsplit("/", 1)[-1]
-            if not re.search(self.asset, name):
-                continue
-            date_format = "%Y-%b-%d %H:%M" if stamp[4] == "-" else "%d-%b-%Y %H:%M"
-            when = datetime.strptime(stamp, date_format)
-            if newest is None or when > newest[0]:
-                newest = (when, name)
-        if newest is None:
-            raise UpstreamError(f"{self.url} lists no file matching '{self.asset}'")
-        name = newest[1]
-        version = re.sub(r"\.(tar\.[a-z0-9]+|tgz|zip|7z|AppImage)$", "", name)
-        return UpstreamBuild(version, urljoin(self.url, name))
-
-
-@dataclass(frozen=True)
-class FileSource:
-    """A build at a fixed address, for projects that publish only one."""
-
-    url: str
-    version: str = ""
-
-    def find(self) -> UpstreamBuild:
-        return UpstreamBuild(self.version, self.url)
-
-
-def source_from_dict(data: Mapping[str, Any]) -> UpstreamSource:
-    """Read an upstream source from a runner's JSON definition: a release ("repo",
-    "asset", and optionally "host" and "prereleases"), a directory listing
-    ("listing" and "asset") or a fixed address ("url")."""
-    if "repo" in data:
-        return ReleaseSource(
-            str(data["repo"]), str(data["asset"]), str(data.get("host", "github.com")), bool(data.get("prereleases"))
-        )
-    if "listing" in data:
-        return ListingSource(str(data["listing"]), str(data["asset"]))
-    if "url" in data:
-        return FileSource(str(data["url"]), str(data.get("version", "")))
-    raise ValueError(f"Unknown upstream source: {dict(data)}")

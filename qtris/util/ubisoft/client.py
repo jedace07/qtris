@@ -224,9 +224,6 @@ class UbisoftConnectClient:
     def get_user_data(self):
         return self._do_request_safe("get", f"https://public-ubiservices.ubi.com/v3/users/{self.user_id}")
 
-    def get_friends(self):
-        return self._do_request_safe("get", "https://api-ubiservices.ubi.com/v2/profiles/me/friends")
-
     def get_club_titles(self):
         payload = {
             "operationName": "AllGames",
@@ -276,39 +273,8 @@ class UbisoftConnectClient:
             data=payload,
         )
 
-    def get_game_stats(self, space_id):
-        url = f"https://public-ubiservices.ubi.com/v1/profiles/{self.user_id}/statscard?spaceId={space_id}"
-        headers = {"Ubi-RequestedPlatformType": "uplay", "Ubi-LocaleCode": "en-GB"}
-        try:
-            return self._do_request("get", url, add_to_headers=headers)
-        except Exception as ex:  # 412: no stats available for this user
-            logger.debug(ex)
-            return {}
-
-    def get_applications(self, spaces):
-        space_string = ",".join(space["spaceId"] for space in spaces)
-        return self._do_request_safe("get", f"https://api-ubiservices.ubi.com/v2/applications?spaceIds={space_string}")
-
-    def get_configuration(self):
-        response = self._do_request_safe("get", "https://uplaywebcenter.ubi.com/v1/configuration")
-        return response.json()
-
     def post_sessions(self):
         headers = {"Content-Type": "application/json"}
         return self._do_request_safe(
             "post", "https://public-ubiservices.ubi.com/v2/profiles/sessions", add_to_headers=headers
         )
-
-    def get_subscription(self):
-        try:
-            sub_games = self._do_request("get", "https://api-uplayplusvault.ubi.com/v1/games")
-        except Exception:
-            logger.info("Uplay plus Subscription not active")
-            return None
-        return sub_games
-
-    def activate_game(self, activation_id):
-        response = self._do_request_safe(
-            "post", f"https://api-uplayplusvault.ubi.com/v1/games/activate/{activation_id}"
-        )
-        return "games" in response

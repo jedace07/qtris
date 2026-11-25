@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from qtris.config import QtrisConfig
 
 
+def _has_gamescope() -> bool:
+    return system.can_find_executable("gamescope")
+
+
 def get_resolution_choices() -> list[tuple[str, str]]:
     """Return list of available resolutions as label, value tuples
     suitable for inclusion in drop-downs.
@@ -125,7 +129,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "type": "bool",
         "label": _("FPS counter (MangoHud)"),
         "default": False,
-        "condition": system.can_find_executable("mangohud"),
+        "condition": lambda: system.can_find_executable("mangohud"),
         "help": _("Display the game's FPS + other information. Requires MangoHud to be installed."),
     },
     {
@@ -150,7 +154,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "default": False,
         "advanced": True,
         "available": is_display_x11,
-        "condition": is_compositing_enabled(),
+        "condition": is_compositing_enabled,
         "help": _("Disable desktop effects while game is running, reducing stuttering and increasing performance"),
     },
     {
@@ -211,7 +215,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "type": "bool",
         "label": _("Enable Gamescope"),
         "default": False,
-        "condition": system.can_find_executable("gamescope") and linux.LINUX_SYSTEM.nvidia_gamescope_support(),
+        "condition": lambda: _has_gamescope() and linux.LINUX_SYSTEM.nvidia_gamescope_support(),
         "help": _("Use gamescope to draw the game window isolated from your desktop.\nToggle fullscreen: Super + F"),
     },
     {
@@ -222,7 +226,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "advanced": False,
         "default": False,
         "conditional_on": "gamescope",
-        "condition": bool(system.can_find_executable("gamescope")),
+        "condition": _has_gamescope,
         "help": _("Enable HDR for games that support it.\nRequires Plasma 6 and VK_hdr_layer."),
     },
     {
@@ -233,7 +237,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "advanced": True,
         "default": False,
         "conditional_on": "gamescope",
-        "condition": bool(system.can_find_executable("gamescope")),
+        "condition": _has_gamescope,
         "help": _(
             "Always use relative mouse mode instead of flipping\n"
             "dependent on cursor visibility\n"
@@ -248,7 +252,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "choices": lambda: get_display_manager().get_resolutions(),
         "advanced": True,
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _(
             "Set the resolution used by gamescope.\n"
             "Resizing the gamescope window will update these settings.\n"
@@ -263,7 +267,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "label": _("Game Resolution"),
         "choices": lambda: get_display_manager().get_resolutions(),
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _("Set the maximum resolution used by the game.\n\n<b>Custom Resolutions:</b> (width)x(height)"),
     },
     {
@@ -278,7 +282,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         ),
         "default": "-f",
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _("Run gamescope in fullscreen, windowed or borderless mode\nToggle fullscreen : Super + F"),
     },
     {
@@ -288,7 +292,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "advanced": True,
         "type": "string",
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _(
             "Use AMD FidelityFX™ Super Resolution 1.0 for upscaling.\nUpscaler sharpness from 0 (max) to 20 (min)."
         ),
@@ -300,7 +304,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "advanced": False,
         "type": "string",
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _("Set a frame-rate limit for gamescope specified in frames per second."),
     },
     {
@@ -310,7 +314,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "advanced": True,
         "type": "string",
         "conditional_on": "gamescope",
-        "condition": system.can_find_executable("gamescope"),
+        "condition": _has_gamescope,
         "help": _(
             "Set additional flags for gamescope (if available).\nSee 'gamescope --help' for a full list of options."
         ),
@@ -339,7 +343,7 @@ system_options: list[dict[str, Any]] = [  # pylint: disable=invalid-name
         "label": _("Reduce PulseAudio latency"),
         "default": False,
         "advanced": True,
-        "condition": system.can_find_executable("pulseaudio") or system.can_find_executable("pipewire-pulse"),
+        "condition": lambda: system.can_find_executable("pulseaudio") or system.can_find_executable("pipewire-pulse"),
         "help": _("Set the environment variable PULSE_LATENCY_MSEC=60 to improve audio quality on some games"),
     },
     {

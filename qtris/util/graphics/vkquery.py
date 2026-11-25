@@ -342,23 +342,6 @@ def get_device_info() -> list[DeviceInfo]:
     return sorted(device_info, key=lambda t: t.api_version, reverse=True)
 
 
-@cache_single
-def get_expected_api_version() -> int | None:
-    """Returns the version tuple of the API version we expect
-    to have; it is the least of the Vulkan library API version, and
-    the best device's API version."""
-    api_version = get_vulkan_api_version()
-
-    if not api_version:
-        return None
-
-    devices = get_device_info()
-    if devices:
-        return min(api_version, devices[0].api_version)
-
-    return api_version
-
-
 def format_version(version: int | None) -> str:
     if version:
         major = vk_api_version_major(version)

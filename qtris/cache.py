@@ -90,11 +90,6 @@ def validate_custom_cache_path(cache_path: str) -> tuple[bool, str | None]:
     return True, None
 
 
-def save_custom_cache_path(path: str) -> None:
-    """Saves the PGA cache path to the settings"""
-    settings.write_setting("pga_cache_path", path)
-
-
 def is_file_in_custom_cache(path: str) -> bool:
     """True if the 'path' is inside the custom cache (so we should
     not casually delete it). False for files in INSTALLER_CACHE_DIR -

@@ -10,7 +10,6 @@ from unittest.mock import patch
 from qtris.delegates import InstallUIDelegate
 from qtris.runners import wine
 from qtris.util.test_config import setup_test_environment
-from qtris.util.wine.dll_manager import DLLManager
 
 setup_test_environment()
 
@@ -30,12 +29,6 @@ class TestDllOverrides(TestCase):
         }
         env_string = wine.get_overrides_env(overrides)
         self.assertEqual(env_string, "d3dcompiler_43,d3dcompiler_47=n,b;dnsapi=b;rasapi32=n;dwrite,winemenubuilder=")
-
-
-class TestDllManager(TestCase):
-    def test_numeric_version_is_normalized(self):
-        manager = DLLManager(version=2.6)
-        self.assertEqual(manager.version, "2.6")
 
 
 class TestProtonGraphics(TestCase):

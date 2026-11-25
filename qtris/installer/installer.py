@@ -1,6 +1,5 @@
 """Qtris installer class"""
 
-import json
 import os
 import re
 from functools import cached_property
@@ -89,11 +88,6 @@ class QtrisInstaller:  # pylint: disable=too-many-instance-attributes
         if service_id:
             return service_id
         return
-
-    @property
-    def script_pretty(self):
-        """Return a pretty print of the script"""
-        return json.dumps(self.script, indent=4)
 
     def get_game_id(self):
         """Return the ID of the game in the local DB if one exists"""

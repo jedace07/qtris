@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from qtris import settings
 from qtris.config import write_game_config
 from qtris.database import sql
-from qtris.database.games import DbGameDict, add_game, get_game_for_service, get_games
+from qtris.database.games import DbGameDict, add_game, get_games
 from qtris.database.services import ServiceGameCollection
 from qtris.exceptions import QtrisError
 from qtris.game import GAME_UPDATED, Game
@@ -21,7 +21,6 @@ from qtris.util import system
 from qtris.util.busy import BusyAsyncCall
 from qtris.util.cookies import cookie_records, cookies_from_records
 from qtris.util.credentials import LegacyCredential, StoreCredentials
-from qtris.util.jobs import AsyncCall
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.strings import slugify
@@ -77,10 +76,6 @@ class QtrisCoverart(ServiceMedia):
         return (66, 88)
 
 
-class QtrisCoverartMedium(QtrisCoverart):
-    size = (176, 234)
-
-
 SERVICE_GAMES_LOADING = NotificationSource()
 SERVICE_GAMES_LOADED = NotificationSource()
 SERVICE_LOGIN = NotificationSource()
@@ -129,9 +124,6 @@ class BaseService:
         if launcher:
             launcher.launch(launch_ui_delegate)
 
-    def is_launchable(self):
-        return bool(self.list_launchers())
-
     def get_launcher(self):
         launchers = self.list_launchers()
         return Game(launchers[0]["id"]) if launchers else None
@@ -141,19 +133,6 @@ class BaseService:
         if not launcher:
             return False
         return launcher.is_installed
-
-    def start_reload(self, reloaded_callback):
-        """Refresh the service's games, asynchronously. This raises signals, but
-        does so on the main thread- and runs the reload on a worker thread. It calls
-        reloaded_callback when done, passing any error (or None on success)"""
-
-        def reload_cb(_result, error):
-            logger.debug("Reload callback")
-            SERVICE_GAMES_LOADED.fire(self)
-            reloaded_callback(error)
-
-        SERVICE_GAMES_LOADING.fire(self)
-        AsyncCall(self.reload, reload_cb)
 
     def reload(self) -> None:
         """Refresh the service's games and artwork on a worker thread."""
@@ -317,14 +296,6 @@ class BaseService:
             update,
         )
 
-    def install_by_id(self, appid, ui_delegate: "Delegate"):
-        """Installs a game given the appid for the game on this service."""
-        db_game = ServiceGameCollection.get_game(self.id, appid)
-        if not db_game:
-            logger.error("No game %s found for %s", appid, self.id)
-            return None
-        return self.install(db_game, ui_delegate)
-
     def on_service_installers_loaded(self, result, error, ui_delegate: "Delegate"):
         if error:
             raise error  # bounce this error off the backstop for default handling
@@ -373,14 +344,6 @@ class BaseService:
         to extract its platform, or returns an empty list if this is not available."""
         return []
 
-    def resolve_game_id(self, appid):
-        db_game = get_game_for_service(self.id, appid)
-
-        if db_game and db_game.get("id"):
-            return str(db_game.get("id"))
-
-        return None
-
     def get_service_db_game(self, game: Game):
         """Returns the row dictionary for the service-game corresponding to the game given, if any, or None."""
         if game.service == self.id and game.appid:
@@ -417,12 +380,6 @@ class OnlineService(BaseService):
     login_window_height = 500
     login_user_agent = settings.DEFAULT_USER_AGENT
     redirect_uris = NotImplemented
-
-    def is_login_complete(self, url):
-        """Check if the given URL indicates that login is complete.
-        Override this for services where simple startswith matching on
-        redirect_uris is not sufficient."""
-        return any(url.startswith(r) for r in self.redirect_uris)
 
     @property
     def credential_files(self) -> list[str]:

@@ -29,10 +29,6 @@ class TestWineRegistry(TestCase):
         key = self.registry.keys.get("Control Panel/Sound")
         self.assertEqual(key.timestamp, 1475423303.7943190)
 
-    def test_can_get_meta(self):
-        key = self.registry.keys.get("Control Panel/Sound")
-        self.assertEqual(key.get_meta("time"), "1d21cc468677196")
-
     def test_can_get_string_value(self):
         key = self.registry.keys.get("Control Panel/Desktop")
         self.assertEqual(key.get_subkey("DragFullWindows"), "0")

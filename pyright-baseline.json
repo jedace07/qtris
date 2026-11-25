@@ -20,13 +20,10 @@
   },
   "qtris/game.py": {
     "reportAssignmentType: Type \"Any | None\" is not assignable to declared type \"str\"\n  Type \"Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 2,
-    "reportAttributeAccessIssue: Cannot assign to attribute \"appid\" for class \"Game\"\n  Type \"str | int\" is not assignable to type \"str\"\n    \"int\" is not assignable to \"str\"": 2,
     "reportAttributeAccessIssue: Cannot assign to attribute \"appid\" for class \"Game*\"\n  Type \"Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
-    "reportAttributeAccessIssue: Cannot assign to attribute \"service\" for class \"Game\"\n  Type \"Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
     "reportAttributeAccessIssue: Cannot assign to attribute \"service\" for class \"Game*\"\n  Type \"Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1
   },
   "qtris/installer/commands.py": {
-    "reportArgumentType: Argument of type \"str\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  \"str\" is not assignable to \"list[Unknown]\"": 1,
     "reportAttributeAccessIssue: Cannot access attribute \"_iter_commands\" for class \"CommandsMixin*\"\n  Attribute \"_iter_commands\" is unknown": 1,
     "reportAttributeAccessIssue: Cannot access attribute \"_substitute\" for class \"CommandsMixin*\"\n  Attribute \"_substitute\" is unknown": 12,
     "reportAttributeAccessIssue: Cannot access attribute \"broken_files\" for class \"dict[str, Any]\"\n  Attribute \"broken_files\" is unknown": 2,
@@ -46,9 +43,6 @@
     "reportAttributeAccessIssue: Cannot access attribute \"get_extras\" for class \"BaseService\"\n  Attribute \"get_extras\" is unknown": 1,
     "reportAttributeAccessIssue: Cannot assign to attribute \"target_path\" for class \"ScriptInterpreter*\"\n  \"None\" is not assignable to \"str\"": 1,
     "reportOptionalCall: Object of type \"None\" cannot be called": 3
-  },
-  "qtris/installer/steam_installer.py": {
-    "reportArgumentType: Argument of type \"str | None\" cannot be assigned to parameter \"steam_data_dir\" of type \"str\" in function \"get_app_state_log\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1
   },
   "qtris/monitored_command.py": {
     "reportInvalidTypeForm: Variable not allowed in type expression": 1
@@ -75,7 +69,6 @@
   },
   "qtris/runners/wine.py": {
     "reportArgumentType: Argument of type \"Any | None\" cannot be assigned to parameter \"system_winetricks\" of type \"bool\" in function \"winetricks\"\n  Type \"Any | None\" is not assignable to type \"bool\"\n    \"None\" is not assignable to \"bool\"": 1,
-    "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"prefix\" of type \"str\" in function \"wineexec\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
     "reportArgumentType: Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"a\" of type \"BytesPath\" in function \"join\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"BytesPath\"\n    Type \"str\" is not assignable to type \"BytesPath\"\n      \"str\" is not assignable to \"bytes\"\n      \"str\" is incompatible with protocol \"PathLike[bytes]\"\n        \"__fspath__\" is not present": 1,
     "reportArgumentType: Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"prefix\" of type \"str\" in function \"open_wine_terminal\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
     "reportArgumentType: Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"prefix\" of type \"str\" in function \"wineexec\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 2,
@@ -107,8 +100,7 @@
   "qtris/services/gog.py": {
     "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"gog_id\" of type \"str\" in function \"get_update_versions\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
     "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"gogid\" of type \"str\" in function \"get_downloads\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
-    "reportArgumentType: Argument of type \"int\" cannot be assigned to parameter \"value\" of type \"str\" in function \"__setitem__\"\n  \"int\" is not assignable to \"str\"": 1,
-    "reportAttributeAccessIssue: \"etree\" is unknown import symbol": 1
+    "reportArgumentType: Argument of type \"int\" cannot be assigned to parameter \"value\" of type \"str\" in function \"__setitem__\"\n  \"int\" is not assignable to \"str\"": 1
   },
   "qtris/services/gog_cloud.py": {
     "reportAttributeAccessIssue: \"error\" is not a known attribute of module \"urllib\"": 2
@@ -122,10 +114,6 @@
   },
   "qtris/uri.py": {
     "reportAssignmentType: Type \"str | None\" is not assignable to declared type \"str\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 2
-  },
-  "qtris/util/battlenet/definitions.py": {
-    "reportArgumentType: Argument of type \"DataclassInstance | type[DataclassInstance]\" cannot be assigned to parameter \"obj\" of type \"DataclassInstance\" in function \"asdict\"\n  Type \"DataclassInstance | type[DataclassInstance]\" is not assignable to type \"DataclassInstance\"\n    \"__dataclass_fields__\" is defined as a ClassVar in protocol": 1,
-    "reportAttributeAccessIssue: \"cookies\" is not a known attribute of module \"requests\"": 1
   },
   "qtris/util/battlenet/product_db.py": {
     "reportAttributeAccessIssue: Cannot assign to attribute \"__lookup__\" for class \"BaseProductState*\"\n  Type \"list[tuple[str, type[type_bool], str, int] | tuple[str, type[type_utf8_string], str, int]]\" is not assignable to type \"() -> None\"": 1,
@@ -144,9 +132,6 @@
     "reportArgumentType: Expression of type \"str | Literal[30]\" cannot be assigned to parameter of type \"int\"\n  Type \"str | Literal[30]\" is not assignable to type \"int\"\n    \"str\" is not assignable to \"int\"": 1,
     "reportOptionalOperand: Operator \">\" not supported for \"None\"": 1
   },
-  "qtris/util/joypad.py": {
-    "reportOptionalMemberAccess: \"ecodes\" is not a known attribute of \"None\"": 2
-  },
   "qtris/util/process.py": {
     "reportAttributeAccessIssue: Cannot access attribute \"find\" for class \"list[str]\"\n  Attribute \"find\" is unknown": 1,
     "reportAttributeAccessIssue: Cannot access attribute \"rfind\" for class \"list[str]\"\n  Attribute \"rfind\" is unknown": 1
@@ -164,22 +149,13 @@
   "qtris/util/shell.py": {
     "reportAssignmentType: Type \"str\" is not assignable to declared type \"list[str]\"\n  \"str\" is not assignable to \"list[str]\"": 1
   },
-  "qtris/util/strings.py": {
-    "reportAssignmentType: Type \"Literal[0]\" is not assignable to declared type \"MarkupParseFlags\"\n  \"Literal[0]\" is not assignable to \"MarkupParseFlags\"": 1
-  },
   "qtris/util/ubisoft/client.py": {
     "reportArgumentType: Argument of type \"dict[str, str | None]\" cannot be assigned to parameter \"m\" of type \"Iterable[tuple[str, str | bytes]]\" in function \"update\"\n  \"Literal['Authorization']\" is not assignable to \"tuple[str, str | bytes]\"\n  \"Literal['Ubi-AppId']\" is not assignable to \"tuple[str, str | bytes]\"\n  \"Literal['User-Agent']\" is not assignable to \"tuple[str, str | bytes]\"\n  \"Literal['Ubi-SessionId']\" is not assignable to \"tuple[str, str | bytes]\"": 1,
     "reportCallIssue: No overloads for \"update\" match the provided arguments": 1,
     "reportOptionalMemberAccess: \"json\" is not a known attribute of \"None\"": 1
   },
   "qtris/util/ubisoft/parser.py": {
-    "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"obj\" of type \"Sized\" in function \"len\"\n  Type \"Unknown | None\" is not assignable to type \"Sized\"\n    \"None\" is incompatible with protocol \"Sized\"\n      \"__len__\" is not present": 1,
-    "reportOperatorIssue: Operator \"+=\" not supported for types \"Unknown | Literal[264]\" and \"Unknown | None\"\n  Operator \"+\" not supported for types \"Literal[264]\" and \"None\"": 1,
-    "reportOptionalSubscript: Object of type \"None\" is not subscriptable": 8
-  },
-  "qtris/util/wine/dll_manager.py": {
-    "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"a\" of type \"StrPath\" in function \"join\"\n  Type \"Unknown | None\" is not assignable to type \"StrPath\"\n    Type \"None\" is not assignable to type \"StrPath\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"PathLike[str]\"\n        \"__fspath__\" is not present": 1,
-    "reportCallIssue: No overloads for \"join\" match the provided arguments": 1
+    "reportOptionalSubscript: Object of type \"None\" is not subscriptable": 1
   },
   "qtris/util/wine/extract_icon.py": {
     "reportAttributeAccessIssue: Cannot access attribute \"Count\" for class \"Structure\"\n  Attribute \"Count\" is unknown": 2,
@@ -201,10 +177,6 @@
   "qtris/util/wine/registry.py": {
     "reportArgumentType: Argument of type \"Unknown | None\" cannot be assigned to parameter \"string\" of type \"str\" in function \"split\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"": 1,
     "reportCallIssue: No overloads for \"split\" match the provided arguments": 1
-  },
-  "qtris/util/wine/wine.py": {
-    "reportArgumentType: Argument of type \"list[str] | str\" cannot be assigned to parameter \"string\" of type \"str\" in function \"search\"\n  Type \"list[str] | str\" is not assignable to type \"str\"\n    \"list[str]\" is not assignable to \"str\"": 1,
-    "reportCallIssue: No overloads for \"search\" match the provided arguments": 1
   },
   "tests/_test_glxinfo.py": {
     "reportAttributeAccessIssue: Cannot access attribute \"GLX_MESA_query_renderer\" for class \"GlxInfo\"\n  Attribute \"GLX_MESA_query_renderer\" is unknown": 2,
@@ -237,7 +209,6 @@
     "reportOptionalMemberAccess: \"close\" is not a known attribute of \"None\"": 3
   },
   "tests/_test_registry.py": {
-    "reportOptionalMemberAccess: \"get_meta\" is not a known attribute of \"None\"": 1,
     "reportOptionalMemberAccess: \"get_subkey\" is not a known attribute of \"None\"": 2,
     "reportOptionalMemberAccess: \"render\" is not a known attribute of \"None\"": 1,
     "reportOptionalMemberAccess: \"subkeys\" is not a known attribute of \"None\"": 2,

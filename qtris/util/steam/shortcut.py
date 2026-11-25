@@ -117,10 +117,6 @@ def get_game_shortcuts(game: "Game") -> list[SteamShortcut]:
         return []
 
 
-def shortcut_exists(game: "Game") -> bool:
-    return bool(get_game_shortcuts(game))
-
-
 def is_steam_game(game: "Game") -> bool:
     return game.runner_name == "steam"
 

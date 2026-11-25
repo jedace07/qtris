@@ -149,9 +149,6 @@ class linux(Runner):
     def get_command(self) -> list[str]:
         return []
 
-    def use_runtime(self) -> bool:
-        return False
-
     def prepare_game_command(self, command: list[str], env: dict[str, str]) -> list[str]:
         runtime = self.runner_config.get("steam_linux_runtime") or NO_STEAM_RUNTIME
         runtime_command = get_runtime_command(str(runtime), env)

@@ -112,10 +112,6 @@ class BattleNetService(BaseService):
     cookies_path = os.path.join(settings.CACHE_DIR, ".bnet.auth")
     cache_path = os.path.join(settings.CACHE_DIR, "bnet-library.json")
 
-    @property
-    def battlenet_config_path(self):
-        return ""
-
     def load(self):
         games = [BattleNetGame.create(game) for game in GAME_IDS.values()]
         for game in games:

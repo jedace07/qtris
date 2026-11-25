@@ -6,8 +6,6 @@ See: https://developer.valvesoftware.com/wiki/SteamID
 """
 
 import re
-import urllib.parse
-import warnings
 from types import NotImplementedType
 
 UNIVERSE_INDIVIDUAL = 0  #:
@@ -142,47 +140,6 @@ class SteamID:
     base_community_url = "http://steamcommunity.com/"
 
     @classmethod
-    def from_community_url(cls, steam_id: str, universe: int = UNIVERSE_INDIVIDUAL) -> "SteamID":
-        """Parse a Steam community URL into a :class:`.SteamID` instance
-
-        This takes a Steam community URL for a profile or group and converts
-        it to a SteamID. The type of the ID is infered from the type character
-        in 32-bit community urls (``[U:1:1]`` for example) or from the URL path
-        (``/profile`` or ``/groups``) for 64-bit URLs.
-
-        As there is no way to determine the universe directly from
-        URL it must be expliticly set, defaulting to
-        :data:`UNIVERSE_INDIVIDUAL`.
-
-        Raises :class:`.SteamIDError` if the URL cannot be parsed.
-        """
-
-        url = urllib.parse.urlparse(steam_id)
-        match = COMMUNITY32_REGEX.match(url.path)
-        if match:
-            if match.group("path") not in TYPE_URL_PATH_MAP[LETTER_TYPE_MAP[match.group("type")]]:
-                warnings.warn(
-                    "Community URL ({}) path doesn't match type character".format(url.path),
-                    stacklevel=2,
-                )
-            steamid = int(match.group("steamid"))
-            instance = steamid & 1
-            account_number = (steamid - instance) // 2
-            return cls(account_number, instance, LETTER_TYPE_MAP[match.group("type")], universe)
-        match = COMMUNITY64_REGEX.match(url.path)
-        if match:
-            steamid = int(match.group("steamid"))
-            instance = steamid & 1
-            if match.group("path") in TYPE_URL_PATH_MAP[TYPE_INDIVIDUAL]:
-                account_number = cls.get_account_number_from_steamid(steamid)
-                account_type = TYPE_INDIVIDUAL
-            elif match.group("path") in TYPE_URL_PATH_MAP[TYPE_CLAN]:
-                account_number = (steamid - instance - 0x0170000000000000) // 2
-                account_type = TYPE_CLAN
-            return cls(account_number, instance, account_type, universe)
-        raise SteamIDError("Invalid Steam community URL ({})".format(url))
-
-    @classmethod
     def from_steamid64(
         cls, steamid: int, account_type: int = TYPE_INDIVIDUAL, universe: int = UNIVERSE_INDIVIDUAL
     ) -> "SteamID":
@@ -303,48 +260,5 @@ class SteamID:
             return NotImplemented
         return not self == other
 
-    def as_32(self) -> str:
-        """Returns the 32 bit community ID as a string
-
-        This is only applicable for :data:`TYPE_INDIVIDUAL`,
-        :data:`TYPE_CLAN` and :data:`TYPE_CHAT` types. For any other types,
-        attempting to generate the 32-bit representation will result in
-        a :class:`.SteamIDError` being raised.
-        """
-
-        try:
-            return "[{}:1:{}]".format(TYPE_LETTER_MAP[self.account_type], self.get_32_bit_community_id())
-        except KeyError as ex:
-            raise SteamIDError(
-                "Cannot create 32-bit indentifier for SteamID with type {}".format(self.type_name)
-            ) from ex
-
     def get_32_bit_community_id(self) -> int:
         return (self.account_number * 2) + self.instance
-
-    def as_64(self) -> str:
-        """Returns the 64 bit representation as a string
-
-        This is only possible if the ID type is :data:`TYPE_INDIVIDUAL` or
-        :data:`TYPE_CLAN`, otherwise :class:`.SteamIDError` is raised.
-        """
-
-        return str(int(self))
-
-    def community_url(self, id64: bool = True) -> str:
-        """Returns the full URL to the Steam Community page for the SteamID
-
-        This can either be generate a URL from the 64 bit representation
-        (the default) or the 32 bit one. Generating community URLs is only
-        supported for IDs of type :data:`TYPE_INDIVIDUAL` and
-        :data:`TYPE_CLAN`. Attempting to generate a URL for any other type
-        will result in a :class:`.SteamIDError` being raised.
-        """
-
-        path_func = self.as_64 if id64 else self.as_32
-        try:
-            return urllib.parse.urljoin(
-                self.base_community_url, "/".join((TYPE_URL_PATH_MAP[self.account_type][0], path_func()))
-            )
-        except KeyError as ex:
-            raise SteamIDError("Cannot generate community URL for type {}".format(self.type_name)) from ex

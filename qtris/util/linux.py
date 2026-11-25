@@ -6,7 +6,7 @@ import platform
 import re
 import shutil
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Iterator
 from gettext import gettext as _
 from typing import Any, cast
@@ -272,11 +272,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
             logger.warning("Could not detect Steam on the Flatpak host: %s", error)
             return False
 
-    @property
-    def display_server(self) -> str:
-        """Return the display server used"""
-        return os.environ.get("XDG_SESSION_TYPE", "unknown")
-
     def is_flatpak(self) -> bool:
         """Check is we are running inside Flatpak sandbox"""
         return system.path_exists("/.flatpak-info")
@@ -352,32 +347,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
         """Return list of installed terminals"""
         return list(self._cache["TERMINALS"].values())
 
-    def get_lib_folders(self) -> list[str]:
-        """Return shared library folders, sorted by most used to least used"""
-        lib_folder_counter = Counter(lib.dirname for lib_list in self.shared_libraries.values() for lib in lib_list)
-        return [path[0] for path in lib_folder_counter.most_common()]
-
-    def iter_lib_folders(self) -> Iterator[str]:
-        """Loop over existing 32/64 bit library folders"""
-        exported_lib_folders = set()
-        for lib_folder in self.get_lib_folders():
-            exported_lib_folders.add(lib_folder)
-            yield lib_folder
-        for lib_paths in self.multiarch_lib_folders:
-            if self.arch != "x86_64":
-                # On non amd64 setups, only the first element is relevant
-                lib_paths = [lib_paths[0]]
-            else:
-                # Ignore paths where 64-bit path is link to supposed 32-bit path
-                if os.path.realpath(lib_paths[0]) == os.path.realpath(lib_paths[1]):
-                    continue
-            if all(os.path.exists(path) for path in lib_paths):
-                if lib_paths[0] not in exported_lib_folders:
-                    yield lib_paths[0]
-                if len(lib_paths) != 1:
-                    if lib_paths[1] not in exported_lib_folders:
-                        yield lib_paths[1]
-
     def get_ldconfig_libs(self) -> list[str]:
         """Return a list of available libraries, as returned by `ldconfig -p`."""
         ldconfig = self.get("ldconfig")
@@ -436,16 +405,6 @@ class LinuxSystem:  # pylint: disable=too-many-public-methods
             if self.get_missing_requirement_libs(requirement)[index]:
                 missing_arch.append(arch)
         return missing_arch
-
-    def is_feature_supported(self, feature: str) -> bool:
-        """Return whether the system has the necessary libs to support a feature"""
-        if feature == "ACO":
-            try:
-                mesa_version = cast(str, LINUX_SYSTEM.glxinfo.GLX_MESA_query_renderer.version)  # type: ignore
-                return mesa_version >= "19.3"
-            except AttributeError:
-                return False
-        return not self.get_missing_requirement_libs(feature)[0]
 
     def is_vulkan_supported(self) -> bool:
         return not LINUX_SYSTEM.get_missing_lib_arch("VULKAN") and vkquery.is_vulkan_supported()

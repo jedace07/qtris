@@ -11,11 +11,11 @@ from qtris.config import QtrisConfig
 from qtris.exceptions import UnavailableRunnerError
 from qtris.monitored_command import MonitoredCommand
 from qtris.runners import NonInstallableRunnerError
-from qtris.runners.runner import Runner, RunnerOptionDict
+from qtris.runners.runner import Runner
 from qtris.util import host_processes, linux, system
 from qtris.util.log import logger
 from qtris.util.steam.appinfo import get_app_oslist
-from qtris.util.steam.appmanifest import get_appmanifest_from_appid, get_path_from_appmanifest
+from qtris.util.steam.appmanifest import get_path_from_appmanifest
 from qtris.util.steam.config import get_compat_tools, get_default_acf, get_steam_dir, get_steamapps_dirs
 from qtris.util.steam.vdfutils import to_vdf
 from qtris.util.strings import split_arguments
@@ -96,9 +96,6 @@ class steam(Runner):
         self._launch_monitor_start: Optional[float] = None
         self._steam_game_seen: bool = False
 
-    def get_runner_options(self) -> list[RunnerOptionDict]:
-        return []
-
     @property
     def runnable_alone(self):
         return not linux.LINUX_SYSTEM.is_flatpak()
@@ -120,18 +117,6 @@ class steam(Runner):
     def steam_data_dir(self):
         """Main installation directory for Steam"""
         return get_steam_dir()
-
-    def get_appmanifest(self):
-        """Return an AppManifest instance for the game"""
-        appmanifests = []
-        for apps_path in get_steamapps_dirs():
-            appmanifest = get_appmanifest_from_appid(apps_path, self.appid)
-            if appmanifest:
-                appmanifests.append(appmanifest)
-        if len(appmanifests) > 1:
-            logger.warning("More than one AppManifest for %s returning only 1st", self.appid)
-        if appmanifests:
-            return appmanifests[0]
 
     def get_executable(self) -> str:
         if linux.LINUX_SYSTEM.is_flatpak():

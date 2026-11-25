@@ -215,19 +215,3 @@ def is_amd() -> bool:
         if get_gpu_info(card)["DRIVER"] == "amdgpu":
             return True
     return False
-
-
-def is_outdated() -> bool:
-    if not is_nvidia():
-        return False
-    driver_info = get_nvidia_driver_info()
-    driver_version = driver_info["version"]
-    if not driver_version:
-        logger.error("Failed to get Nvidia version")
-        return True
-    try:
-        major_version = int(driver_version.split(".")[0])
-    except (IndexError, ValueError) as ex:
-        logger.exception("Failed to parse Nvidia version: %s", ex)
-        return True
-    return major_version < MIN_RECOMMENDED_NVIDIA_DRIVER

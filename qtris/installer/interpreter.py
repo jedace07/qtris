@@ -95,18 +95,6 @@ class ScriptInterpreter(CommandsMixin):
         if self.installer.creates_game_folder:
             self.target_path = self.get_default_target()
 
-    def on_timeout_error(self, error):
-        self.interpreter_ui_delegate.report_error(error)
-
-    def on_idle_error(self, error):
-        self.interpreter_ui_delegate.report_error(error)
-
-    def on_signal_error(self, error):
-        self.interpreter_ui_delegate.report_error(error)
-
-    def on_emission_hook_error(self, error):
-        self.interpreter_ui_delegate.report_error(error)
-
     @property
     def appid(self):
         logger.warning("Do not access appid from interpreter")
@@ -212,12 +200,6 @@ class ScriptInterpreter(CommandsMixin):
         except (AuthenticationError, UnavailableGameError) as ex:
             logger.exception("Unable to download list of extras: %s", ex)
             return []
-
-    def launch_install(self, ui_delegate):
-        """Launch the install process; returns False if cancelled by the user."""
-        self.runners_to_install = self.get_runners_to_install()
-        self.install_runners(ui_delegate)
-        return True
 
     def create_game_folder(self):
         """Create the game folder if needed and store if is was created"""

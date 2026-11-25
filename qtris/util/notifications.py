@@ -14,12 +14,6 @@ class NotificationRegistration:
         self.notification_source = notification_source
         self.callback_id = callback_id
 
-    @property
-    def is_registered(self) -> bool:
-        """True if this registration is still registered; if false it has been unregistered and
-        won't fire anymore."""
-        return bool(self.notification_source and self.callback_id in self.notification_source._callbacks)
-
     def unregister(self) -> None:
         """Unregisters a callback that register() had registered."""
         if self.notification_source:

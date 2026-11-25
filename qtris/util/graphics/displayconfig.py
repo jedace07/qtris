@@ -21,11 +21,6 @@ class Output:
         return "<Output: %s %s (%s)>" % (self.vendor, self.product, self.display_name)
 
     @property
-    def output_id(self) -> int:
-        """ID of the output"""
-        return int(self._output[0])
-
-    @property
     def winsys_id(self) -> int:
         """The low-level ID of this output (XID or KMS handle)"""
         return int(self._output[1])
@@ -82,11 +77,6 @@ class Output:
     def display_name(self) -> str:
         """A human readable name of this output, to be shown in the UI"""
         return str(self._output[7]["display-name"])
-
-    @property
-    def is_primary(self) -> bool:
-        """True if the output is the primary one"""
-        return bool(self._output[7]["primary"])
 
 
 class DisplayMode:
@@ -228,11 +218,6 @@ class MonitorMode(DisplayMode):
         return float(self.mode_info[4])
 
     @property
-    def supported_scale(self) -> list[float]:
-        """scales supported by this mode"""
-        return [float(scale) for scale in self.mode_info[5]]
-
-    @property
     def properties(self) -> dict[str, Any]:
         """Additional properties"""
         return dict(self.mode_info[6])
@@ -282,21 +267,6 @@ class Monitor:
     def model(self) -> str:
         """Model name of the monitor"""
         return str(self._monitor[0][2])
-
-    @property
-    def serial_number(self) -> str:
-        """Serial number"""
-        return str(self._monitor[0][3])
-
-    @property
-    def is_underscanning(self) -> bool:
-        """Return true if the monitor is underscanning"""
-        return bool(self._monitor[2]["is-underscanning"])
-
-    @property
-    def is_builtin(self) -> bool:
-        """Return true if the display is builtin the machine (a laptop or a tablet)"""
-        return bool(self._monitor[2]["is-builtin"])
 
     @property
     def display_name(self) -> str:
@@ -569,16 +539,6 @@ class MutterDisplayConfig:
         that we need to handle in mutter anyway.
         """
         return [DisplayMode(mode) for mode in self.resources[3]]
-
-    @property
-    def max_screen_width(self) -> int:
-        """Maximum width supported"""
-        return int(self.resources[4])
-
-    @property
-    def max_screen_height(self) -> int:
-        """Maximum height supported"""
-        return int(self.resources[5])
 
     def get_mode_for_resolution(self, resolution: str) -> DisplayMode | None:
         """Return an appropriate mode for a given resolution"""

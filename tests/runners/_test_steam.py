@@ -105,8 +105,7 @@ class PlayTest(TestCase):
         self.assertEqual(self.play(is_flatpak=True), ["steam", "steam://rungameid/440"])
         self.assertEqual(self.play("-novid", is_flatpak=True), ["steam", "steam://run/440//-novid/"])
 
-    def test_steam_has_no_options_of_its_own(self):
-        self.assertEqual(steam.steam().get_runner_options(), [])
+    def test_steam_game_options(self):
         self.assertEqual([option["option"] for option in steam.steam.game_options], ["appid", "args"])
 
 

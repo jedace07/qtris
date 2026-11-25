@@ -1,21 +1,4 @@
 import dataclasses as dc
-import json
-
-import requests
-
-
-class DataclassJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if dc.is_dataclass(o):
-            return dc.asdict(o)
-        return super().default(o)
-
-
-@dc.dataclass
-class WebsiteAuthData(object):
-    cookie_jar: requests.cookies.RequestsCookieJar
-    access_token: str
-    region: str
 
 
 @dc.dataclass(frozen=True)
@@ -37,13 +20,6 @@ class ClassicGame(BlizzardGame):
 class RegionalGameInfo:
     uid: str
     try_for_free: bool
-
-
-@dc.dataclass
-class ConfigGameInfo(object):
-    uid: str
-    uninstall_tag: str | None
-    last_played: str | None
 
 
 @dc.dataclass
@@ -141,25 +117,6 @@ class _Blizzard(object, metaclass=Singleton):
         :returns: game by `key`
         """
         return self._games[key]
-
-    def game_by_title_id(self, title_id: int, cn: bool) -> BlizzardGame:
-        """
-        :param cn: flag if china game definitions should be search though
-        :raises KeyError: when unknown title_id for given region
-        """
-        if cn:
-            regional_info = self.TITLE_ID_MAP_CN[title_id]
-        else:
-            regional_info = self.TITLE_ID_MAP[title_id]
-        return self[regional_info.uid]
-
-    def try_for_free_games(self, cn: bool) -> list[BlizzardGame]:
-        """
-        :param cn: flag if china game definitions should be search though
-        """
-        return [
-            self[info.uid] for info in (self.TITLE_ID_MAP_CN if cn else self.TITLE_ID_MAP).values() if info.try_for_free
-        ]
 
 
 Blizzard = _Blizzard()

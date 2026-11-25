@@ -45,11 +45,6 @@ class WindowsFileTime:
     def __repr__(self):
         return "<{}>: {}".format(self.__class__.__name__, self.timestamp)
 
-    @classmethod
-    def from_hex(cls, hexvalue):
-        timestamp = int(hexvalue, 16)
-        return WindowsFileTime(timestamp)
-
     def to_hex(self):
         return "{:x}".format(self.timestamp)
 
@@ -58,16 +53,6 @@ class WindowsFileTime:
         timestamp = timestamp + cls.epoch_delta
         timestamp = int(timestamp * cls.ticks_per_seconds)
         return WindowsFileTime(timestamp)
-
-    def to_unix_timestamp(self):
-        if not self.timestamp:
-            raise ValueError("No timestamp set")
-        unix_ts = self.timestamp / self.ticks_per_seconds
-        unix_ts = unix_ts - self.epoch_delta
-        return unix_ts
-
-    def to_date_time(self):
-        return datetime.fromtimestamp(self.to_unix_timestamp())
 
 
 class WineRegistry:
@@ -196,26 +181,6 @@ class WineRegistry:
                 continue
             key.subkeys.pop(subkey)
 
-    def get_unix_path(self, windows_path):
-        windows_path = windows_path.replace("\\", "/")
-        if not self.prefix_path:
-            return
-        drives_path = os.path.join(self.prefix_path, "dosdevices")
-        if not system.path_exists(drives_path):
-            return
-        letter, relpath = windows_path.split(":", 1)
-        relpath = relpath.strip("/")
-        drive_link = os.path.join(drives_path, letter.lower() + ":")
-        try:
-            drive_path = os.readlink(drive_link)
-        except FileNotFoundError:
-            logger.error("Unable to read link for %s", drive_link)
-            return
-
-        if not os.path.isabs(drive_path):
-            drive_path = os.path.join(drives_path, drive_path)
-        return os.path.join(drive_path, relpath)
-
 
 class WineRegistryKey:
     def __init__(self, key_def=None, path=None):
@@ -333,9 +298,6 @@ class WineRegistryKey:
         else:
             raise ValueError("Invalid meta line '{}'".format(meta_line))
         self.metas[key] = value
-
-    def get_meta(self, name):
-        return self.metas.get(name)
 
     def set_subkey(self, name, value):
         self.subkeys[name] = self.render_value(value)

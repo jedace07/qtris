@@ -480,26 +480,3 @@ class GameSearch(BaseSearch):
                 return False
 
         return MatchPredicate(match_platform, text=text, tag="platform", value=platform)
-
-
-class RunnerSearch(BaseSearch):
-    """A search for runners, which applies to the runner objects."""
-
-    tags = set(["installed"])
-
-    def get_candidate_text(self, candidate: Any) -> str:
-        return f"{candidate.name}\n{candidate.description}"
-
-    def get_part_predicate(self, name: str, tokens: TokenReader) -> SearchPredicate:
-        if name == "installed":
-            flag = read_flag_token(tokens)
-
-            if flag is None:
-                return TRUE_PREDICATE
-
-            return self.get_installed_predicate(flag)
-
-        return super().get_part_predicate(name, tokens)
-
-    def get_installed_predicate(self, installed: bool) -> SearchPredicate:
-        return FlagPredicate(installed, lambda runner: runner.is_installed(), tag="installed")

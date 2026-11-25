@@ -11,8 +11,6 @@ from gettext import gettext as _
 from typing import Any
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse
 
-from lxml import etree
-
 from qtris import settings
 from qtris.exceptions import AuthenticationError, UnavailableGameError
 from qtris.installer import AUTO_ELF_EXE, AUTO_WIN32_EXE
@@ -652,18 +650,6 @@ class GOGService(OnlineService):
             formatted = self._format_links(installer, installer_file_id, links)
             return [InstallerFileCollection(installer.game_slug, installer_file_id, formatted)]
         return []
-
-    def read_file_checksum(self, file_path: str) -> tuple[str, str]:
-        """Return the MD5 checksum for a GOG file
-        Requires a GOG XML file as input
-        This has yet to be used.
-        """
-        if not file_path.endswith(".xml"):
-            raise ValueError("Pass a XML file to return the checksum")
-        with open(file_path, encoding="utf-8") as checksum_file:
-            checksum_content = checksum_file.read()
-        root_elem = etree.fromstring(checksum_content)
-        return str(root_elem.attrib["name"]), str(root_elem.attrib["md5"])
 
     def generate_installer(self, db_game: dict[str, Any]) -> dict[str, Any]:
         installers = self.generate_installers(db_game)

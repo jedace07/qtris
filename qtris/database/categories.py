@@ -33,24 +33,9 @@ def get_categories() -> list[dict[str, int | str]]:
     return sql.db_select(settings.DB_PATH, "categories")
 
 
-def get_all_games_categories() -> dict[str, list[int]]:
-    games_categories = defaultdict(list)
-    for row in sql.db_select(settings.DB_PATH, "games_categories"):
-        games_categories[str(row["game_id"])].append(row["category_id"])
-    return games_categories
-
-
 def get_category_by_name(name: str) -> DbCategoryDict | None:
     """Return a category by name"""
     categories = sql.db_select(settings.DB_PATH, "categories", condition=("name", name))
-    if categories:
-        return categories[0]
-    return None
-
-
-def get_category_by_id(category_id: int) -> DbCategoryDict | None:
-    """Return a category by name"""
-    categories = sql.db_select(settings.DB_PATH, "categories", condition=("id", category_id))
     if categories:
         return categories[0]
     return None
@@ -168,15 +153,6 @@ def add_category(category_name: str, no_signal: bool = False) -> int:
     return cat
 
 
-def redefine_category(category_id: int, new_name: str, no_signal: bool = False) -> None:
-    query = "UPDATE categories SET name=? WHERE id=?"
-
-    with sql.db_cursor(settings.DB_PATH) as cursor:
-        sql.cursor_execute(cursor, query, (new_name, category_id))
-    if not no_signal:
-        CATEGORIES_UPDATED.fire()
-
-
 def remove_category(category_id: int, no_signal: bool = False) -> None:
     queries = ["DELETE FROM games_categories WHERE category_id=?", "DELETE FROM categories WHERE id=?"]
 
@@ -202,31 +178,3 @@ def remove_category_from_game(game_id: str, category_id: int, no_signal: bool = 
         sql.cursor_execute(cursor, query, (category_id, game_id))
     if not no_signal:
         CATEGORIES_UPDATED.fire()
-
-
-def remove_unused_categories() -> None:
-    """Remove all categories that have no games associated with them"""
-
-    delete_orphaned_games = (
-        "DELETE FROM games_categories "
-        "WHERE NOT EXISTS(SELECT * FROM games WHERE game_id=id) "
-        "OR NOT EXISTS(SELECT * FROM categories WHERE category_id=id)"
-    )
-
-    with sql.db_cursor(settings.DB_PATH) as cursor:
-        sql.cursor_execute(cursor, delete_orphaned_games, ())
-
-    find_orphaned_categories = (
-        "SELECT categories.* FROM categories "
-        "LEFT JOIN games_categories ON categories.id = games_categories.category_id "
-        "WHERE games_categories.category_id IS NULL"
-    )
-
-    empty_categories = sql.db_query(settings.DB_PATH, find_orphaned_categories)
-    for category in empty_categories:
-        if category["name"] == "favorite":
-            continue
-
-        delete_orphaned_categories = "DELETE FROM categories WHERE categories.id=?"
-        with sql.db_cursor(settings.DB_PATH) as cursor:
-            sql.cursor_execute(cursor, delete_orphaned_categories, (category["id"],))

@@ -1,20 +1,15 @@
 """Collection of installer files"""
 
 import asyncio
-import os
-import time
 from gettext import gettext as _
 from pathlib import Path
 
 from qtris.config import QtrisConfig
 from qtris.installer.errors import ScriptingError
 from qtris.runners import steam
-from qtris.util.jobs import AsyncCall, schedule_repeating_at_idle
-from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
 from qtris.util.steam.appmanifest import get_appmanifest_from_appid
 from qtris.util.steam.config import get_steamapps_dirs
-from qtris.util.steam.log import get_app_state_log
 
 
 class SteamInstaller:
@@ -87,52 +82,3 @@ class SteamInstaller:
                 # Steam may be replacing the manifest or library while this runs
                 continue
         return None
-
-    @staticmethod
-    def on_steam_game_installed(_data, error):
-        """Callback for Steam game installer, mostly for error handling
-        since install progress is handled by _monitor_steam_game_install
-        """
-        if error:
-            raise ScriptingError.wrap(error)
-
-    def install_steam_game(self) -> None:
-        """Launch installation of a steam game"""
-        if self.runner.get_game_path_from_appid(appid=self.appid):
-            logger.info("Steam game %s is already installed", self.appid)
-            self.game_installed.fire(self)
-        else:
-            logger.debug("Installing steam game %s", self.appid)
-            self.runner.config = QtrisConfig(runner_slug=self.runner.name)
-            AsyncCall(self.runner.install_game, self.on_steam_game_installed, self.appid)
-            self.install_start_time = time.localtime()
-            self.steam_poll = schedule_repeating_at_idle(self._monitor_steam_game_install, interval_seconds=2.0)
-
-    def stop_waiting(self, *_args: object) -> None:
-        self.cancelled = True
-
-    def get_steam_data_path(self):
-        """Return path of Steam files"""
-        data_path = self.runner.get_game_path_from_appid(appid=self.appid)
-        if not data_path or not os.path.exists(data_path):
-            logger.info("No path found for Steam game %s", self.appid)
-            return ""
-        return os.path.abspath(os.path.join(data_path, self.steam_rel_path))
-
-    def _monitor_steam_game_install(self) -> bool:
-        if self.cancelled:
-            return False
-        states = get_app_state_log(self.runner.steam_data_dir, self.appid, self.install_start_time)
-        if states and states != self.prev_states:
-            self.state = states[-1].split(",")[-1]
-            logger.debug("Steam installation status: %s", states)
-            self.game_state_changed.fire(self)  # Broadcast new state to listeners
-
-        self.prev_states = states
-        logger.debug(self.state)
-        logger.debug(states)
-        if self.state == "Fully Installed":
-            logger.info("Steam game %s has been installed successfully", self.appid)
-            self.game_installed.fire(self)
-            return False
-        return True

@@ -3,13 +3,10 @@
 import math
 import re
 import shlex
-import time
 import unicodedata
 import uuid
 from dataclasses import dataclass
 from gettext import gettext as _
-
-from gi.repository import GLib
 
 from qtris.util.log import logger
 
@@ -132,29 +129,6 @@ def unpack_dependencies(string: str | None) -> list[str | tuple[str, ...]]:
     if not string:
         return []
     return [dep for dep in [_expand_dep(dep) for dep in string.split(",")] if dep]
-
-
-def is_valid_pango_markup(text: str) -> bool:
-    def destroy_func(_user_data: None) -> None:
-        pass  # required by GLib, but we don't need this callback
-
-    if len(text) == 0:
-        return True  # Trivial case - empty strings are always valid
-
-    try:
-        parser = GLib.MarkupParser()
-        # DEFAULT_FLAGS == 0, but was not defined before GLib 2.74 so
-        # we'll just hard-code the value.
-        parser_flags: GLib.MarkupParseFlags = 0
-        context = GLib.MarkupParseContext.new(
-            parser=parser, flags=parser_flags, user_data=None, user_data_dnotify=destroy_func
-        )
-
-        markup = f"<markup>{text}</markup>"
-        context.parse(markup, len(markup))
-        return True
-    except GLib.GError:  # type: ignore
-        return False
 
 
 def get_formatted_playtime(playtime: float) -> str:
@@ -377,42 +351,3 @@ def computer_size(size: str) -> int:
     except ValueError:
         logger.warning("Invalid size value '%s'", size)
         return 0  # if we can't parse the size, return 0 bytes to avoid crashing
-
-
-def time_ago(timestamp: float) -> str:
-    time_delta = time.time() - timestamp
-
-    original_time_delta = time_delta
-    if time_delta < 0:
-        return _("in the future")
-    if time_delta < 5:
-        return _("just now")
-    parts = []
-    day_in_seconds = 3600 * 24
-    hour_in_seconds = 3600
-    days = 0
-    hours = 0
-    if time_delta >= 2 * day_in_seconds:
-        days = int(time_delta // day_in_seconds)
-        time_delta = time_delta - days * day_in_seconds
-        parts.append(_("%d days") % days)
-    if time_delta > 2 * hour_in_seconds:
-        hours = int(time_delta // hour_in_seconds)
-        time_delta = time_delta - hours * hour_in_seconds
-        parts.append(_("%d hours") % hours)
-    if not days and hours < 5 and time_delta > 60:
-        minutes = int(time_delta // 60)
-        time_delta = time_delta - minutes * 60
-        if minutes != 1:
-            parts.append(_("%d minutes") % minutes)
-        else:
-            parts.append(_("1 minute"))
-    if original_time_delta < 90:
-        seconds = int(time_delta)
-        if seconds != 1:
-            parts.append(_("%d seconds") % seconds)
-        else:
-            parts.append(_("1 second"))
-
-    parts.append(_("ago"))
-    return " ".join(parts)

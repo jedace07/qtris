@@ -15,32 +15,10 @@ class QtrisError(Exception):
         self.is_expected = False
 
 
-class MissingRuntimeComponentError(QtrisError):
-    """Raised when a Qtris component isn't found, but should have been installed."""
-
-    def __init__(self, message: str, component_name: str, *args: Any, **kwargs: Any):
-        super().__init__(message, *args, **kwargs)
-        self.component_name = component_name
-        self.is_expected = True
-
-
 class MisconfigurationError(QtrisError):
     """Raised for incorrect configuration or installation, like incorrect
     or missing settings, missing components, that sort of thing. This has subclasses
     that are less vague."""
-
-
-class DirectoryNotFoundError(MisconfigurationError):
-    """Raise this error if a directory that is required is not present."""
-
-    def __init__(self, message: str | None = None, directory: str | None = None, *args: Any, **kwargs: Any):
-        if not message:
-            if directory:
-                message = _("The directory {} could not be found").format(directory)
-            else:
-                message = _("Directory not found")
-        super().__init__(message, *args, **kwargs)
-        self.directory = directory
 
 
 class SymlinkNotUsableError(MisconfigurationError):
@@ -88,20 +66,6 @@ class UnspecifiedVersionError(MisconfigurationError):
 
 class MissingExecutableError(MisconfigurationError):
     """Raised when a program can't be located."""
-
-
-class MissingMediaError(QtrisError):
-    """Raised when an image file could not be found."""
-
-    def __init__(self, message: str | None = None, filename: str | None = None, *args: Any, **kwargs: Any):
-        if not message:
-            if filename:
-                message = _("The file {} could not be found").format(filename)
-            else:
-                message = _("Media file not found")
-
-        super().__init__(message, *args, **kwargs)
-        self.filename = filename
 
 
 class MissingGameExecutableError(MissingExecutableError):

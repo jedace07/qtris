@@ -13,7 +13,6 @@ from qtris.util import system
 from qtris.util.http import HTTPError, download_file
 from qtris.util.log import logger
 from qtris.util.notifications import NotificationSource
-from qtris.util.portals import TrashPortal
 
 if TYPE_CHECKING:
     from qtris.services.base import BaseService
@@ -124,20 +123,6 @@ class ServiceMedia:
                             return mp.scale_to_fit(self.size)
 
         return None
-
-    def trash_media(
-        self,
-        slug: str,
-        completion_function: TrashPortal.CompletionFunction | None = None,
-        error_function: TrashPortal.ErrorFunction | None = None,
-    ) -> None:
-        """Sends each media file for a game to the trash, and invokes callsbacks when this
-        has been completed or has failed."""
-        paths = [mp.path for mp in self.get_possible_media_paths(slug) if os.path.exists(mp.path)]
-        if paths:
-            TrashPortal(paths, completion_function=completion_function, error_function=error_function)
-        elif completion_function:
-            completion_function()
 
     def get_media_url(self, details: dict[str, Any]) -> str | None:
         if self.api_field not in details:

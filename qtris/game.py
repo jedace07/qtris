@@ -21,7 +21,6 @@ from qtris.database import games as games_db
 from qtris.database import sql
 from qtris.exceptions import GameConfigError, InvalidGameMoveError, MissingExecutableError
 from qtris.game_errors import watch_game_errors
-from qtris.installer import InstallationKind
 from qtris.monitored_command import MonitoredCommand
 from qtris.runner_interpreter import export_bash_script, get_launch_parameters
 from qtris.runners import import_runner, is_valid_runner_name
@@ -153,24 +152,6 @@ class Game:
         # The delegate the game was launched with, until it quits
         self.launch_ui_delegate: "LaunchUIDelegate | None" = None
 
-    @staticmethod
-    def create_empty_service_game(db_game: dict[str, str | int], service: Any) -> Any:
-        """Creates a Game from the database data from ServiceGameCollection, which is
-        not a real game, but which can be used to install. Such a game has no ID, but
-        has an 'appid' and slug."""
-        game = Game()
-        game.name = db_game["name"]
-        game.slug = service.get_installed_slug(db_game)
-        game.runner_name = service.get_installed_runner_name(db_game)
-
-        if "service_id" in db_game:
-            game.appid = db_game["service_id"]
-        elif service:
-            game.appid = db_game["appid"]
-
-        game.service = service.id if service else None
-        return game
-
     def __repr__(self) -> str:
         return self.__str__()
 
@@ -191,11 +172,6 @@ class Game:
         """True if this Game has an ID, which means it is saved in the database."""
         return bool(self._id)
 
-    @property
-    def is_updatable(self) -> bool:
-        """Return whether the game can be upgraded"""
-        return self.is_installed and self.service in ["gog", "itchio", "egs", "amazon"]
-
     def get_categories(self) -> list[str]:
         """Return the categories the game is in."""
         if not self.is_db_stored:
@@ -204,16 +180,6 @@ class Game:
             self._categories_cache = categories_db.get_categories_in_game(self.id)
             self._categories_cache_generation = _categories_generation
         return self._categories_cache
-
-    def update_game_categories(self, added_category_names: list[str], removed_category_names: list[str]) -> None:
-        """add to / remove from categories"""
-        for added_category_name in added_category_names:
-            self.add_category(added_category_name, no_signal=True)
-
-        for removed_category_name in removed_category_names:
-            self.remove_category(removed_category_name, no_signal=True)
-
-        GAME_UPDATED.fire(self)
 
     def add_category(self, category_name: str, no_signal: bool = False) -> None:
         """add game to category"""
@@ -243,34 +209,6 @@ class Game:
 
         if not no_signal:
             GAME_UPDATED.fire(self)
-
-    @property
-    def is_favorite(self) -> bool:
-        """Return whether the game is in the user's favorites"""
-        return "favorite" in self.get_categories()
-
-    def mark_as_favorite(self, is_favorite: bool) -> None:
-        """Place the game in the favorite's category, or remove it.
-        This change is applied at once, and does not need to be saved."""
-        if self.is_favorite != bool(is_favorite):
-            if is_favorite:
-                self.add_category("favorite")
-            else:
-                self.remove_category("favorite")
-
-    @property
-    def is_hidden(self) -> bool:
-        """Return whether the game is hidden"""
-        return ".hidden" in self.get_categories()
-
-    def mark_as_hidden(self, is_hidden: bool) -> None:
-        """Place the game in the hidden category, or remove it.
-        This change is applied at once, and does not need to be saved."""
-        if self.is_hidden != bool(is_hidden):
-            if is_hidden:
-                self.add_category(".hidden")
-            else:
-                self.remove_category(".hidden")
 
     @property
     def log_buffer(self) -> LogBuffer:
@@ -424,50 +362,6 @@ class Game:
             game = Game(game_id)
             game.game_error.register(on_error)
             game.launch(launch_ui_delegate)
-
-    def install_updates(self, install_ui_delegate: "LaunchUIDelegate") -> bool:
-        if self.external_files:
-            return False
-        service = install_ui_delegate.get_service(self.service)
-        db_game = games_db.get_game_by_field(self.id, "id")
-        if not db_game:
-            logger.error("Game %s not found in database", self.id)
-            return False
-
-        def on_installers_ready(installers: list[dict[str, Any]], error: BaseException) -> None:
-            if error:
-                raise error  # bounce errors off the backstop
-
-            if not installers:
-                raise RuntimeError(_("No updates found"))
-
-            install_ui_delegate.start_installer(
-                installers, service, self.appid, installation_kind=InstallationKind.UPDATE
-            )
-
-        busy.BusyAsyncCall(service.get_update_installers, on_installers_ready, db_game)
-        return True
-
-    def install_dlc(self, install_ui_delegate: "LaunchUIDelegate") -> bool:
-        if self.external_files:
-            return False
-        service = install_ui_delegate.get_service(self.service)
-        db_game = games_db.get_game_by_field(self.id, "id")
-        if not db_game:
-            logger.error("Game %s not found in database", self.id)
-            return False
-
-        def on_installers_ready(installers: list[dict[str, Any]], error: BaseException) -> None:
-            if error:
-                raise error  # bounce errors off the backstop
-
-            if not installers:
-                raise RuntimeError(_("No DLC found"))
-
-            install_ui_delegate.start_installer(installers, service, self.appid, installation_kind=InstallationKind.DLC)
-
-        busy.BusyAsyncCall(service.get_dlc_installers_runner, on_installers_ready, db_game, db_game["runner"])
-        return True
 
     def uninstall(self, delete_files: bool = False) -> None:
         """Uninstall a game, but do not remove it from the library.
@@ -1228,12 +1122,6 @@ class Game:
                 new_location,
                 ex,
             )
-        return target_directory
-
-    def set_location(self, new_location: str) -> str:
-        target_directory = self._get_move_target_directory(new_location)
-        self.directory = target_directory
-        self.save()
         return target_directory
 
     def _get_move_target_directory(self, new_location: str) -> str:

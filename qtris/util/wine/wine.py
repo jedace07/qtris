@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import signal
 from collections import OrderedDict
 from gettext import gettext as _
 from itertools import count
@@ -12,9 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from qtris.exceptions import MissingExecutableError, QtrisError, UnspecifiedVersionError
-from qtris.util import cache_single, system
+from qtris.util import cache_single
 from qtris.util.log import logger
-from qtris.util.process import Process
 from qtris.util.strings import slugify
 from qtris.util.wine import proton, proton_releases
 
@@ -127,18 +125,6 @@ def prepare_wine_prefix(directory: str) -> str:
     except (OSError, RuntimeError, ValueError) as error:
         raise QtrisError(_("Could not open the Wine prefix path: %s") % directory) from error
     return str(path)
-
-
-def set_drive_path(prefix: str, letter: str, path: str) -> None:
-    """Changes the path to a Wine drive"""
-    dosdevices_path = os.path.join(prefix, "dosdevices")
-    if not system.path_exists(dosdevices_path):
-        raise OSError("Invalid prefix path %s" % prefix)
-    drive_path = os.path.join(dosdevices_path, letter + ":")
-    if system.path_exists(drive_path):
-        os.remove(drive_path)
-    logger.debug("Linking %s to %s", drive_path, path)
-    system.create_symlink(path, drive_path)
 
 
 def is_winewayland_available(runner_version: str) -> bool:
@@ -276,23 +262,3 @@ def get_overrides_env(overrides: dict[str, str]) -> str:
 
 
 WINE_PROCESS_PATTERN = re.compile(r"(wine|processid|\.exe)", re.IGNORECASE)
-
-
-def kill_all_wine_processes():
-    """Kill all Wine-related processes on the system.
-
-    Returns the number of processes killed."""
-    killed = 0
-    for pid in system.get_running_pid_list():
-        try:
-            proc = Process(pid)
-            name = proc.name or ""
-            cmdline = proc.cmdline or ""
-            if WINE_PROCESS_PATTERN.search(name) or WINE_PROCESS_PATTERN.search(cmdline):
-                logger.info("Killing Wine process %s (%s)", pid, name)
-                os.kill(pid, signal.SIGKILL)
-                killed += 1
-        except ProcessLookupError, PermissionError:
-            continue
-    logger.info("Killed %d Wine processes", killed)
-    return killed

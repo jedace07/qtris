@@ -250,11 +250,6 @@ def get_file_checksum(filename: str, hash_type: str) -> str:
     return hasher.hexdigest()
 
 
-def is_executable(exec_path: str) -> bool:
-    """Return whether exec_path is an executable"""
-    return os.access(exec_path, os.X_OK)
-
-
 def make_executable(exec_path: str) -> None:
     file_stats = os.stat(exec_path)
     os.chmod(exec_path, file_stats.st_mode | stat.S_IEXEC)
@@ -290,22 +285,6 @@ def find_required_executable(exec_name: str) -> str:
     if not exe:
         raise MissingExecutableError(_("The executable '%s' could not be found.") % exec_name)
     return exe
-
-
-def get_pid(program: str, multiple: bool = False) -> str | list[str] | None:
-    """Return pid of process.
-
-    :param str program: Name of the process.
-    :param bool multiple: If True and multiple instances of the program exist,
-        return all of them; if False only return the first one.
-    """
-    pids = execute(["pgrep", program])
-    if not pids.strip():
-        return None
-    pids = pids.split()
-    if multiple:
-        return pids
-    return pids[0]
 
 
 def is_process_running(pattern: str, filter_string: str | None = None) -> bool:
@@ -545,31 +524,6 @@ def fix_path_case(path: str) -> str:
     return path
 
 
-def get_pids_using_file(path: str) -> set[str]:
-    """Return a set of pids using file `path`."""
-    if not os.path.exists(path):
-        logger.error("Can't return PIDs using non existing file: %s", path)
-        return set()
-
-    fuser_path = find_executable("fuser")
-    if not fuser_path:
-        logger.warning("fuser not available, please install psmisc")
-        return set()
-    fuser_output = execute([fuser_path, path], quiet=True)
-    return set(fuser_output.split())
-
-
-def reverse_expanduser(path: str) -> str:
-    """Replace '/home/username' with '~' in given path."""
-    if not path:
-        return path
-    user_path = os.path.expanduser("~")
-    if path.startswith(user_path):
-        path = path[len(user_path) :].strip("/")
-        return "~/" + path
-    return path
-
-
 def path_contains(parent: str | None, child: str | None, resolve_symlinks: bool = False) -> bool:
     """Tests if a child path is actually within a parent directory
     or a subdirectory of it. Resolves relative paths, and ~, and
@@ -623,13 +577,6 @@ def create_symlink(source: str, destination: str) -> None:
         logger.error("Failed linking %s to %s", source, destination)
 
 
-def reset_library_preloads() -> None:
-    """Remove library preloads from environment"""
-    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD"):
-        if os.environ.pop(key, None):
-            logger.debug("Removed %s from environment", key)
-
-
 def get_existing_parent(path: str) -> str | None:
     """Return the 1st existing parent for a folder (or itself if the path
     exists and is a directory). returns None, when none of the parents exists.
@@ -650,48 +597,9 @@ def update_desktop_icons() -> None:
         execute(["gtk-update-icon-cache", "-tf", os.path.join(settings.RUNTIME_DIR, "icons/hicolor")], quiet=True)
 
 
-def get_disk_size(path: str) -> int:
-    """Return the disk size in bytes of a file or folder"""
-
-    def get_file_size(file_path: str) -> int:
-        return os.stat(file_path).st_size
-
-    if os.path.isfile(path):
-        return get_file_size(path)
-
-    total_size = 0
-    for base, _dirs, files in os.walk(path):
-        paths = [os.path.join(base, f) for f in files]
-        total_size += sum(get_file_size(p) for p in paths if os.path.isfile(p) and not os.path.islink(p))
-    return total_size
-
-
-def get_locale_list() -> list[str]:
-    """Return list of available locales"""
-    try:
-        with subprocess.Popen(["locale", "-a"], stdout=subprocess.PIPE) as locale_getter:
-            output = locale_getter.communicate()
-        locales = output[0].decode("ASCII").split()  # locale names use only ascii characters
-    except FileNotFoundError:
-        lang = os.environ.get("LANG", "")
-        if lang:
-            locales = [lang]
-        else:
-            locales = []
-    return locales
-
-
 def get_running_pid_list() -> list[int]:
     """Return the list of PIDs from processes currently running"""
     return [int(p) for p in os.listdir("/proc") if p[0].isdigit()]
-
-
-def find_mount_point(path: str) -> str:
-    """Return the mount point a file is located on"""
-    path = os.path.abspath(path)
-    while not os.path.ismount(path):
-        path = os.path.dirname(path)
-    return path
 
 
 def set_keyboard_layout(layout: str) -> None:

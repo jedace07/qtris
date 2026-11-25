@@ -76,24 +76,6 @@ class WinePrefixManager:
         """Returns the directory that contains the current user's profile in the WINE prefix."""
         return self.get_user_dir()
 
-    @property
-    def appdata_dir(self):
-        """Returns the app-data directory for the user; this depends on a registry key."""
-        user_dir = self.get_user_dir()
-        folder = self.get_registry_key(
-            self.hkcu_prefix + "/Software/Microsoft/Windows/CurrentVersion/Explorer/Shell Folders",
-            "AppData",
-        )
-        if folder is None:
-            logger.warning("Get Registry Key function returned NoneType to variable folder.")
-        else:
-            # Don't try to resolve the Windows path we get- there's
-            # just two options, the Vista-and later option and the
-            # XP-and-earlier option.
-            if folder.lower().endswith("\\application data"):
-                return os.path.join(user_dir, "Application Data")  # Windows XP
-        return os.path.join(user_dir, "AppData/Roaming")  # Vista
-
     def setup_defaults(self):
         """Sets the defaults for newly created prefixes"""
         for dll, value in DEFAULT_DLL_OVERRIDES.items():

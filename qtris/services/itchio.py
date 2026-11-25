@@ -219,17 +219,9 @@ class ItchIoService(OnlineService):
         """Do API request to users collections"""
         return self.make_api_request("profile/collections", query)
 
-    def fetch_collection(self, collection_id):
-        """Do API request to get info about a collection"""
-        return self.make_api_request(f"collections/{collection_id}")
-
     def fetch_collection_games(self, collection_id, query=None):
         """Do API request to get the list of games in a collection"""
         return self.make_api_request(f"collections/{collection_id}/collection-games", query)
-
-    def fetch_game(self, game_id):
-        """Do API request to get game info"""
-        return self.make_api_request(f"games/{game_id}")
 
     def fetch_uploads(self, game_id, dl_key):
         """Do API request to get downloadables of a game."""
