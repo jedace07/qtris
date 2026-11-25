@@ -162,19 +162,16 @@ def _download(url: str, kind: ArtworkKind, slug: str) -> bool:
 
 
 class _Fetcher:
-    def __init__(self, stop: threading.Event | None = None) -> None:
+    def __init__(self) -> None:
         api_key = get_api_key()
         self._steamgriddb: SteamGridDB | None = SteamGridDB(api_key) if api_key else None
         self._misses = _Misses()
-        self._stop = stop or threading.Event()
 
     @property
     def uses_steamgriddb(self) -> bool:
         return self._steamgriddb is not None
 
     def fetch(self, target: ArtworkTarget) -> int:
-        if self._stop.is_set():
-            return 0
         with_steamgriddb = self.uses_steamgriddb
         missing = [
             kind
@@ -188,16 +185,11 @@ class _Fetcher:
         downloaded = 0
         remaining: list[ArtworkKind] = []
         for kind in missing:
-            if self._stop.is_set():
-                return downloaded
-            if any(not self._stop.is_set() and _download(url, kind, target.slug) for url in getattr(urls, kind)):
+            if any(_download(url, kind, target.slug) for url in getattr(urls, kind)):
                 downloaded += 1
             else:
                 remaining.append(kind)
 
-        # What wasn't asked for isn't a miss
-        if self._stop.is_set():
-            return downloaded
         if remaining and self._steamgriddb:
             try:
                 downloaded += self._fetch_from_steamgriddb(self._steamgriddb, target, remaining)
@@ -208,8 +200,6 @@ class _Fetcher:
                     self._steamgriddb = None
                 return downloaded
 
-        if self._stop.is_set():
-            return downloaded
         for kind in remaining:
             if not has_artwork(kind, target.slug):
                 self._misses.record(target.slug, kind, with_steamgriddb)
@@ -226,8 +216,6 @@ class _Fetcher:
                 url = client.icon_url(game_id)
             else:
                 url = client.grid_url(game_id, COVER_DIMENSIONS if kind == "cover" else BANNER_DIMENSIONS)
-            if self._stop.is_set():
-                break
             if url and _download(url, kind, target.slug):
                 downloaded += 1
         return downloaded
@@ -257,10 +245,9 @@ def library_targets(slugs: Iterable[str] | None = None) -> list[ArtworkTarget]:
     return list(targets.values())
 
 
-def fetch_artwork(targets: Iterable[ArtworkTarget], stop: threading.Event | None = None) -> int:
-    """Download the missing artwork of some games; returns how many images were saved.
-    Setting 'stop' skips the games not fetched yet; the downloads under way finish."""
-    fetcher = _Fetcher(stop)
+def fetch_artwork(targets: Iterable[ArtworkTarget]) -> int:
+    """Download the missing artwork of some games; returns how many images were saved."""
+    fetcher = _Fetcher()
     total = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         for future in concurrent.futures.as_completed(executor.submit(fetcher.fetch, target) for target in targets):
@@ -274,10 +261,9 @@ def fetch_artwork(targets: Iterable[ArtworkTarget], stop: threading.Event | None
     return total
 
 
-def sync_artwork(slugs: Iterable[str] | None = None, stop: threading.Event | None = None) -> int:
-    """Download the missing artwork of the library's games, or of those with these slugs.
-    Setting 'stop' ends it early, as for fetch_artwork()."""
-    return fetch_artwork(library_targets(slugs), stop)
+def sync_artwork(slugs: Iterable[str] | None = None) -> int:
+    """Download the missing artwork of the library's games, or of those with these slugs."""
+    return fetch_artwork(library_targets(slugs))
 
 
 def forget_misses(slug: str) -> None:

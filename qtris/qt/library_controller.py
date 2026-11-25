@@ -666,7 +666,5 @@ class LibraryController(QObject):
             registration.unregister()
         self._refresh_timer.stop()
         self._status_timer.stop()
-        # The event loop stops with Qtris, so cancelling the task can't reach its thread
-        media.cancel_artwork_updates()
         for task in self._tasks:
             task.cancel()
